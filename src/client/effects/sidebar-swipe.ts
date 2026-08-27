@@ -28,23 +28,39 @@ import type { ReconcilerTask } from '../core/reconciler-core.ts'
  * stroke — so a swipe can never toggle twice or navigate a row.
  */
 
-/** Left-edge hotspot width (MUI/RNGH use 20px, iOS ~20-24pt). */
-const HOTSPOT_WIDTH_PX = 24
-/** Minimum |dx| before the stroke is considered a swipe at all. */
-const SLOP_PX = 4
-/** Horizontal-lock bias: |dx| > 1.5 * |dy| locks the axis to X. */
-const DIRECTION_BIAS = 1.5
+/**
+ * Start-zone width for geometry hit-testing: the pointer counts as "from the
+ * left edge" anywhere inside this strip. Wider than the visual hotspot
+ * (24px, owned by layout.css.ts `[data-mobile-nav="hotspot"]`) on purpose —
+ * the hotspot is just a hint; real fingers land 30-50px off the edge and a
+ * 24px-only gate is what made swipes read as plain content scrolling
+ * ("识别成对话内容滚动", 2026-08-27 user feedback). The distance / velocity
+ * thresholds below still gate the commit, so widening the start zone cannot
+ * accidentally open on a tap. Edge-touch priority (iOS
+ * UIScreenEdgePanGestureRecognizer semantics): strokes starting here get
+ * their touchmove preventDefaulted so the browser cannot claim them as
+ * scrolling.
+ */
+const START_ZONE_PX = 48
+/**
+ * Axis-lock threshold: once the stroke's dominant axis has moved this far,
+ * the axis is decided. Horizontal-dominant (|dx| > |dy|) locks the stroke
+ * to X (a swipe); vertical-dominant abandons it to native scrolling.
+ * Replaces the old 4px slop + 1.5× direction-bias pair — a 1.5× bias
+ * rejected natural ~45° diagonal swipes (the other half of the
+ * "识别成滚动" report). MUI uses a 3px uncertainty threshold; 8px is a
+ * comfortable margin against tap jitter while still deciding in the first
+ * ~16ms of movement.
+ */
+const LOCK_PX = 8
 /** Distance thresholds as a fraction of the viewport width.
- *  Tuned for feel (2026-08-27, user feedback "行程太长"): 0.20 open = ~78px
- *  on a 390px phone (was 117px), 0.16 close = ~62px (was 94px). Combined
- *  with SLOP_PX 4 the total edge-swipe travel drops from ~125px to ~82px
- *  (~21% of the viewport), matching the vaul / iOS edge-swipe feel. Keep
- *  the open threshold above the close threshold so an accidental reverse
- *  swipe cannot re-open. */
-const OPEN_DISTANCE_RATIO = 0.2
-const CLOSE_DISTANCE_RATIO = 0.16
-/** Velocity window: most-recent-120ms instantaneous speed. */
-const VELOCITY_WINDOW_MS = 120
+ *  Second tuning pass (2026-08-27, "识别成滚动" feedback): 0.16 open = ~62px
+ *  on a 390px phone, 0.13 close = ~51px. Keep the open threshold above the
+ *  close threshold so an accidental reverse swipe cannot re-open. */
+const OPEN_DISTANCE_RATIO = 0.16
+const CLOSE_DISTANCE_RATIO = 0.13
+/** Velocity window: most-recent-60ms instantaneous speed (end-segment slope). */
+const VELOCITY_WINDOW_MS = 60
 /** px/ms speed thresholds for open / close (MUI uses 0.45). */
 const OPEN_VELOCITY = 0.45
 const CLOSE_VELOCITY = 0.45
@@ -75,18 +91,17 @@ export interface SwipeThresholds {
   velocityWindowMs: number
   openVelocity: number
   closeVelocity: number
-  directionBias: number
-  slopPx: number
+  lockPx: number
   cooldownMs: number
-  hotspotWidthPx: number
+  startZonePx: number
 }
 
 /**
  * Pure decision: what does this stroke do, given the drawer state?
  * `dx`/`dy` are raw pointer deltas (RTL mirrors X through `rtl`), `velX` is
  * the raw recent-window X velocity. The stroke must be locked horizontal
- * (|dx| > bias * |dy|) and direction-consistent; then distance OR velocity
- * wins, with the drawer-state-specific threshold.
+ * (|dx| > |dy| and past the lock slop) and direction-consistent; then
+ * distance OR velocity wins, with the drawer-state-specific threshold.
  */
 export function classifySwipe(
   t: SwipeThresholds & { viewportWidthPx: number; drawerOpen: boolean },
@@ -96,8 +111,8 @@ export function classifySwipe(
   // RTL mirrors the X axis: a rightward stroke (positive dx in LTR) is
   // leftward in RTL. Normalize to the logical direction before judging.
   const dx = rtl ? -m.dx : m.dx
-  if (Math.abs(dx) <= t.slopPx) return 'none'
-  if (Math.abs(dx) <= t.directionBias * Math.abs(m.dy)) return 'none'
+  if (Math.abs(dx) <= t.lockPx) return 'none'
+  if (Math.abs(dx) <= Math.abs(m.dy)) return 'none'
   if (t.drawerOpen) {
     if (dx <= 0) return 'none'
     if (dx / t.viewportWidthPx >= t.closeDistanceRatio) return 'close'
@@ -111,11 +126,11 @@ export function classifySwipe(
 }
 
 /**
- * Recent-window instantaneous velocity (px/ms) from the last `windowMs`
- * milliseconds of samples, up to `now`. Sliding X per ms between the
- * earliest in-window sample and the newest. Samples older than the window
- * are ignored (a long slow drag then a quick flick reports the flick, not
- * the drag average). Fewer than two in-window samples → 0.
+ * Recent-window instantaneous velocity (px/ms) from the tail of the last
+ * `windowMs` milliseconds of samples, up to `now`. Sliding X per ms between
+ * the LAST TWO in-window samples — the end-of-stroke slope — so a long slow
+ * drag then a quick flick reports the flick, not the drag average. Samples
+ * older than the window are ignored. Fewer than two in-window samples → 0.
  */
 export function slidingVelocity(
   samples: Array<{ t: number; x: number }>,
@@ -125,7 +140,7 @@ export function slidingVelocity(
   const cutoff = now - windowMs
   const inWindow = samples.filter((s) => s.t >= cutoff)
   if (inWindow.length < 2) return 0
-  const a = inWindow[0]!
+  const a = inWindow[inWindow.length - 2]!
   const b = inWindow[inWindow.length - 1]!
   const dt = b.t - a.t
   if (dt <= 0) return 0
@@ -133,19 +148,19 @@ export function slidingVelocity(
 }
 
 /**
- * Geometric start-hit test: the pointer went down in the left edge hotspot
- * (when the drawer is closed) or inside the drawer content area (when open).
- * Pure and viewport-relative so it is unit-testable; the runtime variant
- * additionally checks the drawer geometry via the DOM.
+ * Geometric start-hit test: the pointer went down in the left edge start
+ * zone (when the drawer is closed) or inside the drawer content area (when
+ * open). Pure and viewport-relative so it is unit-testable; the runtime
+ * variant additionally checks the drawer geometry via the DOM.
  */
 export function hitTestStart(
   clientX: number,
   viewportWidthPx: number,
   rtl: boolean,
-  t: Pick<SwipeThresholds, 'hotspotWidthPx'>,
+  t: Pick<SwipeThresholds, 'startZonePx'>,
 ): boolean {
   const edge = rtl ? viewportWidthPx - clientX : clientX
-  return edge >= 0 && edge <= t.hotspotWidthPx
+  return edge >= 0 && edge <= t.startZonePx
 }
 
 /** The open drawer element: first child of the plugin frame. */
@@ -206,7 +221,7 @@ function beginStroke(
     if (event.clientY < rect.top || event.clientY > rect.bottom) return false
     if (event.target.closest('[data-mobile-nav="backdrop"]') !== null) return false
     if (event.target.closest('[class*="sessionRow"] button') !== null) return false
-  } else if (!hitTestStart(event.clientX, viewportWidthPx, rtl, { hotspotWidthPx: HOTSPOT_WIDTH_PX })) {
+  } else if (!hitTestStart(event.clientX, viewportWidthPx, rtl, { startZonePx: START_ZONE_PX })) {
     return false
   }
   trackingPointer = event.pointerId
@@ -217,12 +232,22 @@ function beginStroke(
   return true
 }
 
-/** Axis-lock the stroke once |dx| passes the slop and the direction bias. */
+/**
+ * Axis-lock the stroke once its dominant axis has moved LOCK_PX. Horizontal
+ * dominance (|dx| > |dy|) locks to X and is tracked; vertical dominance
+ * abandons the stroke back to native scrolling (browser takes over, no
+ * further preventDefault). Once locked the axis never re-decides — matching
+ * MUI's UNCERTAINTY_THRESHOLD semantics.
+ */
 function tryLock(event: PointerEvent): boolean {
   const dx = event.clientX - startX
   const dy = event.clientY - startY
-  if (Math.abs(dx) <= SLOP_PX) return false
-  if (Math.abs(dx) <= DIRECTION_BIAS * Math.abs(dy)) return false
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < LOCK_PX) return false
+  if (Math.abs(dx) <= Math.abs(dy)) {
+    // Vertical-dominant: hand the touch back to scrolling.
+    reset()
+    return false
+  }
   tracking = true
   lockDrawerOpen = drawerOpen()
   return true
@@ -267,10 +292,9 @@ function endStroke(
       velocityWindowMs: VELOCITY_WINDOW_MS,
       openVelocity: OPEN_VELOCITY,
       closeVelocity: CLOSE_VELOCITY,
-      directionBias: DIRECTION_BIAS,
-      slopPx: SLOP_PX,
+      lockPx: LOCK_PX,
       cooldownMs: COOLDOWN_MS,
-      hotspotWidthPx: HOTSPOT_WIDTH_PX,
+      startZonePx: START_ZONE_PX,
       viewportWidthPx,
       drawerOpen: lockDrawerOpen,
     },
@@ -410,11 +434,26 @@ export function installSidebarSwipe(ctx: ClientContext): void {
       if (document.hidden) reset()
     }
 
+    // Edge-touch priority (iOS UIScreenEdgePanGestureRecognizer semantics):
+    // a stroke that began inside the left-edge start zone must never be
+    // claimed by native scrolling. touch-action: pan-y already forbids the
+    // browser from panning it horizontally; this preventDefault (passive:
+    // false) additionally stops the vertical-scroll claim, so the pointer
+    // event stream reaches the gesture layer intact on browsers where the
+    // scroller wins the race (iOS Safari in particular — headless cannot
+    // reproduce that behavior). Vertical-dominant strokes abandon the
+    // gesture (reset() clears trackingPointer), so scrolling resumes for
+    // touches that were never swipes.
+    const onTouchMove = (event: TouchEvent): void => {
+      if (trackingPointer !== 0) event.preventDefault()
+    }
+
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('pointermove', onPointerMove, true)
     document.addEventListener('pointerup', onPointerUp, true)
     document.addEventListener('pointercancel', onPointerCancel, true)
     document.addEventListener('click', onClick, true)
+    document.addEventListener('touchmove', onTouchMove, { capture: true, passive: false })
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('blur', reset)
 
@@ -424,6 +463,7 @@ export function installSidebarSwipe(ctx: ClientContext): void {
       document.removeEventListener('pointerup', onPointerUp, true)
       document.removeEventListener('pointercancel', onPointerCancel, true)
       document.removeEventListener('click', onClick, true)
+      document.removeEventListener('touchmove', onTouchMove, { capture: true } as EventListenerOptions)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('blur', reset)
       if (removeHotspotTask !== null) {
