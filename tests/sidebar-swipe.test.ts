@@ -13,13 +13,13 @@ import {
 } from '../src/client/effects/gesture-guard.ts'
 
 const BASE: SwipeThresholds = {
-  openDistanceRatio: 0.3,
-  closeDistanceRatio: 0.24,
+  openDistanceRatio: 0.2,
+  closeDistanceRatio: 0.16,
   velocityWindowMs: 120,
-  openVelocity: 0.6,
-  closeVelocity: 0.5,
+  openVelocity: 0.45,
+  closeVelocity: 0.45,
   directionBias: 1.5,
-  slopPx: 8,
+  slopPx: 4,
   cooldownMs: 350,
   hotspotWidthPx: 24,
 }
@@ -43,9 +43,9 @@ function classify(
   return classifySwipe(t, m, rtl)
 }
 
-test('classifySwipe: slop — sub-8px strokes are none', () => {
-  assert.equal(classify({ dx: 7, dy: 0 }), 'none')
-  assert.equal(classify({ dx: -7, dy: 0, drawerOpen: true }), 'none')
+test('classifySwipe: slop — sub-4px strokes are none', () => {
+  assert.equal(classify({ dx: 3, dy: 0 }), 'none')
+  assert.equal(classify({ dx: -3, dy: 0, drawerOpen: true }), 'none')
 })
 
 test('classifySwipe: direction bias — diagonal strokes are none', () => {
@@ -56,9 +56,9 @@ test('classifySwipe: direction bias — diagonal strokes are none', () => {
 })
 
 test('classifySwipe: closed drawer — rightward distance opens', () => {
-  // 117px / 390 = 0.30 → exactly at threshold → open
-  assert.equal(classify({ dx: 117, dy: 0 }), 'open')
-  assert.equal(classify({ dx: 120, dy: 0 }), 'open')
+  // 78px / 390 = 0.20 → exactly at threshold → open
+  assert.equal(classify({ dx: 78, dy: 0 }), 'open')
+  assert.equal(classify({ dx: 80, dy: 0 }), 'open')
 })
 
 test('classifySwipe: closed drawer — leftward never opens', () => {
@@ -66,18 +66,18 @@ test('classifySwipe: closed drawer — leftward never opens', () => {
 })
 
 test('classifySwipe: closed drawer — velocity opens short fast strokes', () => {
-  // dx = 50px (ratio 0.128 < 0.30) but velX = 0.7 px/ms ≥ 0.6 → open
+  // dx = 50px (ratio 0.128 < 0.20) but velX = 0.7 px/ms ≥ 0.45 → open
   assert.equal(classify({ dx: 50, dy: 0, velX: 0.7 }), 'open')
   // slow long drag still opens by distance
-  assert.equal(classify({ dx: 140, dy: 0, velX: 0.1 }), 'open')
+  assert.equal(classify({ dx: 100, dy: 0, velX: 0.1 }), 'open')
   // too short + too slow → none
-  assert.equal(classify({ dx: 40, dy: 0, velX: 0.3 }), 'none')
+  assert.equal(classify({ dx: 30, dy: 0, velX: 0.3 }), 'none')
 })
 
 test('classifySwipe: open drawer — rightward distance closes', () => {
-  // 94px / 390 = 0.241 → ≥ 0.24 → close
-  assert.equal(classify({ dx: 94, dy: 0, drawerOpen: true }), 'close')
-  assert.equal(classify({ dx: 100, dy: 0, drawerOpen: true }), 'close')
+  // 63px / 390 = 0.162 → ≥ 0.16 → close
+  assert.equal(classify({ dx: 63, dy: 0, drawerOpen: true }), 'close')
+  assert.equal(classify({ dx: 70, dy: 0, drawerOpen: true }), 'close')
 })
 
 test('classifySwipe: open drawer — leftward never closes', () => {
@@ -85,14 +85,15 @@ test('classifySwipe: open drawer — leftward never closes', () => {
 })
 
 test('classifySwipe: open drawer — velocity closes short fast strokes', () => {
-  // dx = 40px (ratio 0.103 < 0.24) but velX = 0.55 ≥ 0.5 → close
+  // dx = 40px (ratio 0.103 < 0.16) but velX = 0.55 ≥ 0.45 → close
   assert.equal(classify({ dx: 40, dy: 0, velX: 0.55, drawerOpen: true }), 'close')
   assert.equal(classify({ dx: 30, dy: 0, velX: 0.2, drawerOpen: true }), 'none')
 })
 
 test('classifySwipe: velocity must agree with the stroke direction', () => {
-  // A rightward-stroke with negative velocity is contradictory → none
-  assert.equal(classify({ dx: 80, dy: 0, velX: -0.8 }), 'none')
+  // A rightward-stroke below the distance threshold (60px < 78px open
+  // threshold) with negative velocity is contradictory → none
+  assert.equal(classify({ dx: 60, dy: 0, velX: -0.8 }), 'none')
 })
 
 test('classifySwipe: RTL mirrors the X axis', () => {

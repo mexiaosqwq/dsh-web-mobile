@@ -31,17 +31,23 @@ import type { ReconcilerTask } from '../core/reconciler-core.ts'
 /** Left-edge hotspot width (MUI/RNGH use 20px, iOS ~20-24pt). */
 const HOTSPOT_WIDTH_PX = 24
 /** Minimum |dx| before the stroke is considered a swipe at all. */
-const SLOP_PX = 8
+const SLOP_PX = 4
 /** Horizontal-lock bias: |dx| > 1.5 * |dy| locks the axis to X. */
 const DIRECTION_BIAS = 1.5
-/** Distance thresholds as a fraction of the viewport width. */
-const OPEN_DISTANCE_RATIO = 0.3
-const CLOSE_DISTANCE_RATIO = 0.24
+/** Distance thresholds as a fraction of the viewport width.
+ *  Tuned for feel (2026-08-27, user feedback "行程太长"): 0.20 open = ~78px
+ *  on a 390px phone (was 117px), 0.16 close = ~62px (was 94px). Combined
+ *  with SLOP_PX 4 the total edge-swipe travel drops from ~125px to ~82px
+ *  (~21% of the viewport), matching the vaul / iOS edge-swipe feel. Keep
+ *  the open threshold above the close threshold so an accidental reverse
+ *  swipe cannot re-open. */
+const OPEN_DISTANCE_RATIO = 0.2
+const CLOSE_DISTANCE_RATIO = 0.16
 /** Velocity window: most-recent-120ms instantaneous speed. */
 const VELOCITY_WINDOW_MS = 120
-/** px/ms speed thresholds for open / close. */
-const OPEN_VELOCITY = 0.6
-const CLOSE_VELOCITY = 0.5
+/** px/ms speed thresholds for open / close (MUI uses 0.45). */
+const OPEN_VELOCITY = 0.45
+const CLOSE_VELOCITY = 0.45
 /** Covers the .28s CSS transition; prevents reverse-gesture double-toggles. */
 const COOLDOWN_MS = 350
 /** How long a consumed gesture mark stays live (covers the synthetic click). */
@@ -56,9 +62,6 @@ let samples: Array<{ t: number; x: number }> = []
 /** Stroke origin (for the direction-bias check). */
 let startX = 0
 let startY = 0
-/** Coordinates at the moment of axis lock (distance judged against them). */
-let lockX = 0
-let lockY = 0
 /** Drawer visibility at lock time. */
 let lockDrawerOpen = false
 /** Expiry of the post-release cooldown (performance.now()). */
@@ -221,8 +224,6 @@ function tryLock(event: PointerEvent): boolean {
   if (Math.abs(dx) <= SLOP_PX) return false
   if (Math.abs(dx) <= DIRECTION_BIAS * Math.abs(dy)) return false
   tracking = true
-  lockX = event.clientX
-  lockY = event.clientY
   lockDrawerOpen = drawerOpen()
   return true
 }
@@ -246,8 +247,14 @@ function endStroke(
   const wasTracking = tracking
   // Velocity must be computed before reset() clears the samples.
   const vel = slidingVelocity(samples, VELOCITY_WINDOW_MS, event.timeStamp)
-  const dx = event.clientX - lockX
-  const dy = event.clientY - lockY
+  // Distance is measured from the stroke START (not the axis-lock point):
+  // the slop is an activation gate, not travel that should consume the
+  // user's swipe distance. Measuring from the lock point made the effective
+  // travel = slop + threshold (e.g. 4px + 78px), so a 78px threshold
+  // actually needed ~82px+ of finger travel — the "feels like half the
+  // screen" complaint. From the start, a 78px threshold is a 78px swipe.
+  const dx = event.clientX - startX
+  const dy = event.clientY - startY
   reset()
   if (!wasTracking) return
   if (!(event.target instanceof Element)) return
