@@ -48,6 +48,12 @@ dsh plugin --profile web add link:/path/to/dsh-web-mobile
 
 ## 更新内容
 
+### 未发布（v2.1.5 之后）
+
+**新功能**
+
+- 侧边栏抽屉手势：屏幕左缘右滑呼出抽屉、抽屉内容区右滑收起（松手判定式，动画沿用宿主过渡；iOS PWA/standalone 全功能可用，浏览器标签页保留边缘滑出配置预留点）
+
 ### v2.1.5
 
 **新功能**

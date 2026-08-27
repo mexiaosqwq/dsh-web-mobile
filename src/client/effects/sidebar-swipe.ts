@@ -1,0 +1,406 @@
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { installMobileEffect, getFrame, addReconcilerTask } from './phone-chrome.ts'
+import { markGestureConsumed, consumeIfGestured } from './gesture-guard.ts'
+import type { ReconcilerTask } from '../core/reconciler-core.ts'
+
+/**
+ * Sidebar drawer swipe gestures (release-classified, no follow-the-finger
+ * transform — A 档 per docs/specs/2026-08-27-sidebar-swipe-gestures.md).
+ *
+ * Two gestures, both a rightward stroke:
+ * - edge swipe-in: the pointer goes down inside the left hotspot (24px) and
+ *   the drawer is closed → opens it;
+ * - content swipe-out: the pointer goes down anywhere inside the open drawer
+ *   content and the drawer is open → closes it.
+ *
+ * On release the stroke is classified by distance ratio (of the viewport
+ * width) OR recent-window velocity — whichever hits first — and the commit
+ * is just `ctx.layout.toggleSidebar()`: the .28s CSS transition owned by the
+ * host stylesheet drives the animation, so this layer writes ZERO inline
+ * transforms and creates NO backdrop (both were the fatal flaws of the
+ * follow-the-finger design).
+ *
+ * Coexistence with the host's overlay interactions (document capture click /
+ * pointerup + the iOS self-healing re-dispatch) is via the gesture-guard
+ * predicate: a classified swipe marks its target chain as consumed, the
+ * host handlers' first line returns early for consumed events, and a
+ * capture-phase click handler swallows the synthetic tap that follows the
+ * stroke — so a swipe can never toggle twice or navigate a row.
+ */
+
+/** Left-edge hotspot width (MUI/RNGH use 20px, iOS ~20-24pt). */
+const HOTSPOT_WIDTH_PX = 24
+/** Minimum |dx| before the stroke is considered a swipe at all. */
+const SLOP_PX = 8
+/** Horizontal-lock bias: |dx| > 1.5 * |dy| locks the axis to X. */
+const DIRECTION_BIAS = 1.5
+/** Distance thresholds as a fraction of the viewport width. */
+const OPEN_DISTANCE_RATIO = 0.3
+const CLOSE_DISTANCE_RATIO = 0.24
+/** Velocity window: most-recent-120ms instantaneous speed. */
+const VELOCITY_WINDOW_MS = 120
+/** px/ms speed thresholds for open / close. */
+const OPEN_VELOCITY = 0.6
+const CLOSE_VELOCITY = 0.5
+/** Covers the .28s CSS transition; prevents reverse-gesture double-toggles. */
+const COOLDOWN_MS = 350
+/** How long a consumed gesture mark stays live (covers the synthetic click). */
+const CONSUME_WINDOW_MS = 1000
+
+/** Pointer id we are tracking (multi-touch is ignored). */
+let trackingPointer = 0
+/** True once the stroke is axis-locked (direction bias passed). */
+let tracking = false
+/** Stroke samples (x + timestamp) for the recent-window velocity. */
+let samples: Array<{ t: number; x: number }> = []
+/** Stroke origin (for the direction-bias check). */
+let startX = 0
+let startY = 0
+/** Coordinates at the moment of axis lock (distance judged against them). */
+let lockX = 0
+let lockY = 0
+/** Drawer visibility at lock time. */
+let lockDrawerOpen = false
+/** Expiry of the post-release cooldown (performance.now()). */
+let cooldownUntil = 0
+/** Element whose stroke was marked consumed (null = no live mark). */
+let consumedEl: Element | null = null
+
+export interface SwipeThresholds {
+  openDistanceRatio: number
+  closeDistanceRatio: number
+  velocityWindowMs: number
+  openVelocity: number
+  closeVelocity: number
+  directionBias: number
+  slopPx: number
+  cooldownMs: number
+  hotspotWidthPx: number
+}
+
+/**
+ * Pure decision: what does this stroke do, given the drawer state?
+ * `dx`/`dy` are raw pointer deltas (RTL mirrors X through `rtl`), `velX` is
+ * the raw recent-window X velocity. The stroke must be locked horizontal
+ * (|dx| > bias * |dy|) and direction-consistent; then distance OR velocity
+ * wins, with the drawer-state-specific threshold.
+ */
+export function classifySwipe(
+  t: SwipeThresholds & { viewportWidthPx: number; drawerOpen: boolean },
+  m: { dx: number; dy: number; velX: number },
+  rtl: boolean,
+): 'open' | 'close' | 'none' {
+  // RTL mirrors the X axis: a rightward stroke (positive dx in LTR) is
+  // leftward in RTL. Normalize to the logical direction before judging.
+  const dx = rtl ? -m.dx : m.dx
+  if (Math.abs(dx) <= t.slopPx) return 'none'
+  if (Math.abs(dx) <= t.directionBias * Math.abs(m.dy)) return 'none'
+  if (t.drawerOpen) {
+    if (dx <= 0) return 'none'
+    if (dx / t.viewportWidthPx >= t.closeDistanceRatio) return 'close'
+    const velX = rtl ? -m.velX : m.velX
+    return velX >= t.closeVelocity ? 'close' : 'none'
+  }
+  if (dx <= 0) return 'none'
+  if (dx / t.viewportWidthPx >= t.openDistanceRatio) return 'open'
+  const velX = rtl ? -m.velX : m.velX
+  return velX >= t.openVelocity ? 'open' : 'none'
+}
+
+/**
+ * Recent-window instantaneous velocity (px/ms) from the last `windowMs`
+ * milliseconds of samples, up to `now`. Sliding X per ms between the
+ * earliest in-window sample and the newest. Samples older than the window
+ * are ignored (a long slow drag then a quick flick reports the flick, not
+ * the drag average). Fewer than two in-window samples → 0.
+ */
+export function slidingVelocity(
+  samples: Array<{ t: number; x: number }>,
+  windowMs: number,
+  now: number,
+): number {
+  const cutoff = now - windowMs
+  const inWindow = samples.filter((s) => s.t >= cutoff)
+  if (inWindow.length < 2) return 0
+  const a = inWindow[0]!
+  const b = inWindow[inWindow.length - 1]!
+  const dt = b.t - a.t
+  if (dt <= 0) return 0
+  return (b.x - a.x) / dt
+}
+
+/**
+ * Geometric start-hit test: the pointer went down in the left edge hotspot
+ * (when the drawer is closed) or inside the drawer content area (when open).
+ * Pure and viewport-relative so it is unit-testable; the runtime variant
+ * additionally checks the drawer geometry via the DOM.
+ */
+export function hitTestStart(
+  clientX: number,
+  viewportWidthPx: number,
+  rtl: boolean,
+  t: Pick<SwipeThresholds, 'hotspotWidthPx'>,
+): boolean {
+  const edge = rtl ? viewportWidthPx - clientX : clientX
+  return edge >= 0 && edge <= t.hotspotWidthPx
+}
+
+/** The open drawer element: first child of the plugin frame. */
+function findDrawer(): HTMLElement | null {
+  const frame = getFrame()
+  return frame !== null && frame.firstElementChild instanceof HTMLElement
+    ? frame.firstElementChild
+    : null
+}
+
+/** True when the drawer is currently open (per the collapsed marker). */
+function drawerOpen(): boolean {
+  const frame = getFrame()
+  return frame !== null && !frame.hasAttribute('data-sidebar-collapsed')
+}
+
+/** Whether a modal dialog owns the screen (gestures must yield to it). */
+function modalOpen(): boolean {
+  return document.querySelector('[aria-modal="true"]') !== null
+}
+
+/** True when a full-screen takeover (taskboard / ssh) owns the frame. */
+function takeoverActive(): boolean {
+  return (
+    document.documentElement.hasAttribute('data-dsh-taskboard-active') ||
+    document.documentElement.hasAttribute('data-dsh-ssh-active')
+  )
+}
+
+/** Whether the swipe layer is on cooldown (animation in flight). */
+function onCooldown(): boolean {
+  return performance.now() < cooldownUntil
+}
+
+/** Start a stroke; returns true when it may be tracked. */
+function beginStroke(
+  event: PointerEvent,
+  rtl: boolean,
+  viewportWidthPx: number,
+): boolean {
+  if (onCooldown()) return false
+  if (modalOpen()) return false
+  if (takeoverActive()) return false
+  if (!(event.target instanceof Element)) return false
+  const open = drawerOpen()
+  if (open) {
+    // Content swipe-out: the pointer must start inside the open drawer
+    // content, but not on the backdrop (it closes on tap already) and not
+    // on a session-row action menu (kebab) that owns its tap.
+    const drawer = findDrawer()
+    if (drawer === null || !drawer.contains(event.target)) return false
+    if (event.target.closest('[data-mobile-nav="backdrop"]') !== null) return false
+    if (event.target.closest('[class*="sessionRow"] button') !== null) return false
+  } else if (!hitTestStart(event.clientX, viewportWidthPx, rtl, { hotspotWidthPx: HOTSPOT_WIDTH_PX })) {
+    return false
+  }
+  trackingPointer = event.pointerId
+  tracking = false
+  startX = event.clientX
+  startY = event.clientY
+  samples = [{ t: event.timeStamp, x: event.clientX }]
+  return true
+}
+
+/** Axis-lock the stroke once |dx| passes the slop and the direction bias. */
+function tryLock(event: PointerEvent): boolean {
+  const dx = event.clientX - startX
+  const dy = event.clientY - startY
+  if (Math.abs(dx) <= SLOP_PX) return false
+  if (Math.abs(dx) <= DIRECTION_BIAS * Math.abs(dy)) return false
+  tracking = true
+  lockX = event.clientX
+  lockY = event.clientY
+  lockDrawerOpen = drawerOpen()
+  return true
+}
+
+/** Append a sample and prune the window. */
+function pushSample(event: PointerEvent): void {
+  samples.push({ t: event.timeStamp, x: event.clientX })
+  const cutoff = event.timeStamp - VELOCITY_WINDOW_MS
+  let i = 0
+  while (i < samples.length - 1 && samples[i]!.t < cutoff) i += 1
+  if (i > 0) samples = samples.slice(i)
+}
+
+/** Release the stroke: classify and commit, or reset to idle. */
+function endStroke(
+  ctx: ClientContext,
+  event: PointerEvent,
+  rtl: boolean,
+  viewportWidthPx: number,
+): void {
+  const wasTracking = tracking
+  // Velocity must be computed before reset() clears the samples.
+  const vel = slidingVelocity(samples, VELOCITY_WINDOW_MS, event.timeStamp)
+  const dx = event.clientX - lockX
+  const dy = event.clientY - lockY
+  reset()
+  if (!wasTracking) return
+  if (!(event.target instanceof Element)) return
+  if (modalOpen()) return
+  if (onCooldown()) return
+  const verdict = classifySwipe(
+    {
+      openDistanceRatio: OPEN_DISTANCE_RATIO,
+      closeDistanceRatio: CLOSE_DISTANCE_RATIO,
+      velocityWindowMs: VELOCITY_WINDOW_MS,
+      openVelocity: OPEN_VELOCITY,
+      closeVelocity: CLOSE_VELOCITY,
+      directionBias: DIRECTION_BIAS,
+      slopPx: SLOP_PX,
+      cooldownMs: COOLDOWN_MS,
+      hotspotWidthPx: HOTSPOT_WIDTH_PX,
+      viewportWidthPx,
+      drawerOpen: lockDrawerOpen,
+    },
+    { dx, dy, velX: vel },
+    rtl,
+  )
+  if (verdict === 'none') return
+  // Commit through the host layout service (same path as the toggle button),
+  // then mark the stroke consumed so the tap's synthetic click cannot
+  // double-toggle or navigate a row. The mark walks the ancestor chain up
+  // to the drawer/frame, so the host's synthetic re-dispatched click (whose
+  // target is the row root) is covered too.
+  const frame = getFrame()
+  const markUpTo = frame ?? null
+  markGestureConsumed(event.target, CONSUME_WINDOW_MS, markUpTo)
+  consumedEl = event.target
+  ctx.layout.toggleSidebar()
+  cooldownUntil = performance.now() + COOLDOWN_MS
+}
+
+/** Forget stroke state (called on cancel / visibility change / blur). */
+function reset(): void {
+  trackingPointer = 0
+  tracking = false
+  samples = []
+}
+
+/** The logical reading direction of the frame (RTL support). */
+function frameRtl(): boolean {
+  const frame = getFrame()
+  return frame !== null && getComputedStyle(frame).direction === 'rtl'
+}
+
+/**
+ * Hotspot task: keep the left-edge strip mounted while the mobile effect is
+ * active, exactly like the other reconciler tasks (it is just a visual /
+ * touch-affordance layer — start-hit is decided purely by geometry, so the
+ * hotspot itself carries no listeners). The task runs on `data-phase` /
+ * `data-sidebar-collapsed` changes so the effect re-evaluates takeovers.
+ */
+function createHotspotTask(): ReconcilerTask {
+  let hotspot: HTMLDivElement | null = null
+  return {
+    name: 'sidebar-swipe-hotspot',
+    scopes: ['*', 'data-sidebar-collapsed', 'data-phase'],
+    ensure: () => {
+      const frame = getFrame()
+      if (frame === null) return
+      if (takeoverActive()) {
+        hotspot?.remove()
+        hotspot = null
+        return
+      }
+      if (hotspot === null) {
+        hotspot = document.createElement('div')
+        hotspot.dataset.mobileNav = 'hotspot'
+        hotspot.setAttribute('aria-hidden', 'true')
+        frame.appendChild(hotspot)
+      }
+    },
+    dispose: () => {
+      hotspot?.remove()
+      hotspot = null
+    },
+  }
+}
+
+/** Install the gesture layer for the current mobile breakpoint. */
+export function installSidebarSwipe(ctx: ClientContext): void {
+  let removeHotspotTask: (() => void) | null = null
+  installMobileEffect(ctx, 'dsh-mobile-nav: sidebar swipe gestures', () => {
+    const viewportWidth = (): number =>
+      window.innerWidth || document.documentElement.clientWidth || 0
+
+    removeHotspotTask = addReconcilerTask(createHotspotTask())
+
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
+      if (trackingPointer !== 0 && trackingPointer !== event.pointerId) return
+      beginStroke(event, frameRtl(), viewportWidth())
+    }
+
+    const onPointerMove = (event: PointerEvent): void => {
+      if (event.pointerId !== trackingPointer) return
+      // A modal may rise mid-stroke (e.g. an a11y trap opening); abandon.
+      if (modalOpen()) {
+        reset()
+        return
+      }
+      if (!tracking) {
+        if (tryLock(event)) pushSample(event)
+      } else {
+        pushSample(event)
+      }
+    }
+
+    const onPointerUp = (event: PointerEvent): void => {
+      if (event.pointerId !== trackingPointer) return
+      endStroke(ctx, event, frameRtl(), viewportWidth())
+    }
+
+    const onPointerCancel = (event: PointerEvent): void => {
+      if (event.pointerId !== trackingPointer) return
+      reset()
+    }
+
+    // The browser may synthesize a click a few ms after the stroke's
+    // pointerup. The host overlay handlers and the FAB / backdrop element
+    // listeners would treat it as a tap; swallow it at document capture so
+    // a swipe can never toggle twice or navigate a row. Non-gesture taps
+    // (no live mark) pass through untouched.
+    const onClick = (event: MouseEvent): void => {
+      if (consumedEl === null) return
+      if (!consumeIfGestured(event)) return
+      event.stopPropagation()
+      event.preventDefault()
+      consumedEl = null
+    }
+
+    const onVisibility = (): void => {
+      if (document.hidden) reset()
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('pointermove', onPointerMove, true)
+    document.addEventListener('pointerup', onPointerUp, true)
+    document.addEventListener('pointercancel', onPointerCancel, true)
+    document.addEventListener('click', onClick, true)
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', reset)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('pointermove', onPointerMove, true)
+      document.removeEventListener('pointerup', onPointerUp, true)
+      document.removeEventListener('pointercancel', onPointerCancel, true)
+      document.removeEventListener('click', onClick, true)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', reset)
+      if (removeHotspotTask !== null) {
+        removeHotspotTask()
+        removeHotspotTask = null
+      }
+      reset()
+    }
+  })
+}

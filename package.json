@@ -29,7 +29,7 @@
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/build-client.mjs",
     "verify": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
     "smoke:cdp": "node scripts/cdp-probe.mjs",
-    "test:core": "node --test tests/reconciler-core.test.ts",
+    "test:core": "node --test tests/reconciler-core.test.ts tests/sidebar-swipe.test.ts",
     "prepack": "npm run build"
   },
   "dsh": {
