@@ -7,9 +7,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
   /* --- Phone chrome ---
      The system status bar stays visible (no fullscreen). Two adjustments
      make it behave:
-     - touch-action: manipulation kills double-tap-to-zoom (and the 300ms
-       tap delay) while keeping pan and pinch zoom; the client also
-       suppresses legacy-iOS gesturestart as a fallback.
+     - touch-action: pan-y kills double-tap-to-zoom (and the 300ms tap
+       delay) while keeping vertical pan and pinch zoom. pan-y (not
+       manipulation) also forbids HORIZONTAL pan on the root: a left-edge
+       horizontal drag would otherwise be claimed by the browser as a pan
+       (firing pointercancel) before the sidebar swipe layer can classify
+       it. touch-action does not inherit — only touches landing directly on
+       the root background are affected, so inner horizontal scrolling of
+       content containers is untouched.
      - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
        status bar / notch height; the rules below push the app content below
        it so the status bar never covers anything. Off notched phones (or in
@@ -17,7 +22,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
        status bar) the inset is 0 and nothing shifts. */
   html,
   body {
-    touch-action: manipulation !important;
+    touch-action: pan-y !important;
   }
 
   /* AppFrame: the drawer takes the sidebar column out of grid flow, so the

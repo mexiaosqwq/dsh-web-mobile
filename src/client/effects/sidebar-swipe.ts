@@ -189,11 +189,18 @@ function beginStroke(
   if (!(event.target instanceof Element)) return false
   const open = drawerOpen()
   if (open) {
-    // Content swipe-out: the pointer must start inside the open drawer
-    // content, but not on the backdrop (it closes on tap already) and not
-    // on a session-row action menu (kebab) that owns its tap.
+    // Content swipe-out: the pointer must start over the open drawer's
+    // GEOMETRY (left of the drawer's right edge), not on the backdrop (it
+    // closes on tap already) and not on a session-row action menu (kebab)
+    // that owns its tap. Geometry-first, because an empty drawer (hero /
+    // blank phase) has no content element under the finger — the pointerdown
+    // target would be the frame background, and a target-tree check would
+    // wrongly reject the stroke.
     const drawer = findDrawer()
-    if (drawer === null || !drawer.contains(event.target)) return false
+    if (drawer === null) return false
+    const rect = drawer.getBoundingClientRect()
+    if (event.clientX < rect.left || event.clientX > rect.right) return false
+    if (event.clientY < rect.top || event.clientY > rect.bottom) return false
     if (event.target.closest('[data-mobile-nav="backdrop"]') !== null) return false
     if (event.target.closest('[class*="sessionRow"] button') !== null) return false
   } else if (!hitTestStart(event.clientX, viewportWidthPx, rtl, { hotspotWidthPx: HOTSPOT_WIDTH_PX })) {

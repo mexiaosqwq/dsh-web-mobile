@@ -175,6 +175,22 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 4. **平板 768-1023px**：手势是否启用（Issue #16 倾向启用；本方案参数按视口比例自适应，默认启用）？
 5. **开发基线**：v2.1.5（fork 已同步，推荐，含 41 个后续修复）；v2.0.0（用户实装）？
 
+## 实测记录（2026-08-27，隔离环境 CDP，21 项断言全绿）
+
+环境：隔离 DSH_HOME + link 本地 fork + `dsh web --port 3456` + headless Chrome（`scripts/cdp-swipe-probe.mjs`，复用 cdp-probe.mjs 的 CDP 基础设施 + `Input.dispatchTouchEvent` 触摸注入）。
+
+**CDP 清单 7 项全部通过**：边缘滑出打开（marker 翻转 + 逐帧 transform 采样仅宿主两态）、内容区右滑关闭、aria-modal 让位（注入 modal 后手势 inert、清理后恢复）、双遮罩恒 1、手势后零副作用、桌面 ≥1024px 零回归（无热区/无 frame/无 backdrop）、纵向滚动不触发。
+
+**实测驱动的两处实现修正**（方案文档原设计未覆盖）：
+
+1. **`touch-action` 真正落点是 html/body 而非 drawer**：`layout.css.ts` 的 mobile `html, body { touch-action: manipulation }` 允许横向 pan。左缘热区 `pointer-events:none` 穿透到 body 背景（空抽屉/无内容时 `elementFromPoint` 命中 body），横向拖动被浏览器判为 pan 发 `pointercancel`，手势层收不到完整事件流。已改 `pan-y`（禁横向 pan，保纵向 + pinch-zoom；`touch-action` 不继承，只影响直接命中根背景的触摸）。drawer 的 pan-y 保留为双保险。
+2. **内容区判定几何优先**：`beginStroke` 原用 `drawer.contains(event.target)`，但 hero/blank 空抽屉无内容元素，pointerdown 穿透到 frame 背景导致误拒。改为 `clientX ∈ drawerRect` 坐标判定（空抽屉同样成立，滑开空抽屉仍能滑回），元素树排除（backdrop/kebab）保留。
+
+**验证注意事项**（已沉淀进 AGENTS.md pitfall）：
+- 隔离 profile 全新启动弹宿主 "Internal Testing Notice" 模态（BODY > `_root_15u5s` 含 mask + aria-modal），探针须移除整个 root（只删 `[aria-modal=true]` 会留 mask 拦截触摸）
+- 打开/关闭手势间须等待 cooldown 350ms 过期（探针每步后 `sleep(500)`）
+- 偶发边缘滑出超时（run 1）为 headless 触摸合成抖动，重跑即稳定
+
 ---
 
 ## 评审记录
