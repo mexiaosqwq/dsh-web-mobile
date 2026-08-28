@@ -50,8 +50,14 @@ const OPEN_VELOCITY = 0.45
 const CLOSE_VELOCITY = 0.45
 /** Covers the .28s CSS transition; prevents reverse-gesture double-toggles. */
 const COOLDOWN_MS = 350
-/** How long a consumed gesture mark stays live (covers the synthetic click). */
-const CONSUME_WINDOW_MS = 1000
+/** How long a consumed gesture mark stays live (covers the synthetic click).
+ * Short by design: browsers dispatch the synthetic click within tens of ms,
+ * while iOS shells suppress it entirely — a long window with no delivery
+ * would let the marks swallow the user's next genuine tap (dead-tap bug).
+ * When upTo is absent from the release chain (edge swipe-in releases over
+ * the main content) the mark walk reaches the document root, so this short
+ * window is also the bound on how long any tap can be suppressed. */
+const CONSUME_WINDOW_MS = 300
 
 /** Pointer id we are tracking (multi-touch is ignored). */
 let trackingPointer = 0
@@ -353,6 +359,12 @@ export function installSidebarSwipe(ctx: ClientContext): void {
     removeHotspotTask = addReconcilerTask(createHotspotTask())
 
     const onPointerDown = (event: PointerEvent): void => {
+      // A new pointer starts a new interaction epoch: drop the previous
+      // stroke's click gate. When the browser never delivers the synthetic
+      // click (iOS shells suppress it after a swipe), this — together with
+      // the short CONSUME_WINDOW_MS — keeps the next genuine tap alive
+      // instead of eating it at the document-capture click handler.
+      consumedEl = null
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
       if (trackingPointer !== 0 && trackingPointer !== event.pointerId) return
       beginStroke(event, frameRtl(), viewportWidth())

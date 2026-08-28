@@ -119,7 +119,7 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 宿主 `installOverlayInteractions` 已在 document 捕获阶段监听 click + pointerup（含 iOS click 被抑制时"宏任务后重发 click"的自愈逻辑），且**先注册先执行**——纯新增文件不碰宿主无法共存，必须走谓词：
 
 1. 宿主 `onDrawerClick` / `onDrawerPointerUp` 首行 `if (consumeIfGestured(event)) return`（phone-chrome.ts 改 2 行）
-2. 手势层判定为手势后 `markGestureConsumed(up.target 链, 1000)` 并同步 `toggleSidebar()`
+2. 手势层判定为手势后 `markGestureConsumed(up.target 链, 300)` 并同步 `toggleSidebar()`
 3. 手势层自身注册 document 捕获 click：`consumeIfGestured` 命中 → `stopPropagation() + preventDefault()` → 挡住**元素级**监听（FAB/backdrop 的 `addEventListener('click', toggleSidebar)`）
 
 **自愈路径不被掐死**：非手势 tap → 谓词集合空 → 宿主原样自愈；手势 up → 宿主 timer 排定后 `toggleSidebar()` 已同步翻转 marker → 自愈回调 `drawerOpen()` false 直接 return；即使 React 异步未翻，合成 click 也撞 `consumeIfGestured`。两条时序均封闭，自愈逻辑一行未动。
@@ -190,6 +190,8 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 - 隔离 profile 全新启动弹宿主 "Internal Testing Notice" 模态（BODY > `_root_15u5s` 含 mask + aria-modal），探针须移除整个 root（只删 `[aria-modal=true]` 会留 mask 拦截触摸）
 - 打开/关闭手势间须等待 cooldown 350ms 过期（探针每步后 `sleep(500)`）
 - 偶发边缘滑出超时（run 1）为 headless 触摸合成抖动，重跑即稳定
+
+**合并期修正（2026-08-27，维护者）**：consume 标记窗 1000→300ms + 手势层 consumedEl 门控每次 pointerdown 清空——WebKit 壳会整体抑制手势后的合成 click，长窗不清空会把用户下一次真实 tap 吞成死点击（upTo 不在链上时标记延伸到 document 根，短窗过期即兜底）。共存机制现基于 #32 nav-arm 方案（上文「自愈重发」为 v2.1.5 基线的历史方案）；终值参数以 AGENTS.md 为准（slop 4、open 0.20、close 0.16、vel 0.45/0.45）。
 
 ---
 

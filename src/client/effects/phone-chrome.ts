@@ -330,9 +330,9 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     }
 
     const onDrawerPointerUp = (event: PointerEvent): void => {
-      // A classified swipe must not arm the self-healing re-dispatch either
-      // (gesture-guard): the drawer already toggled, drawerOpen() would be
-      // stale, and the re-dispatched click would navigate the row.
+      // A classified swipe must not arm the nav observer or toggle again
+      // (gesture-guard): the drawer already toggled, and the row under the
+      // stroke was never a tap.
       if (consumeIfGestured(event)) return
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
       const target = event.target
