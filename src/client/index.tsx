@@ -4,6 +4,7 @@ import { MobileDrawerFooter } from './components/MobileDrawerFooter.tsx'
 import { MOBILE_CSS } from './styles/index.ts'
 
 import { installFrameController, installOverlayInteractions, installPhoneChrome, installReconciler, registerReconcileTasks } from './effects/phone-chrome.ts'
+import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { NS, en, zh } from './i18n/locales.ts'
@@ -148,6 +149,10 @@ export function apply(ctx: ClientContext): void {
 
   // Drawer close interactions: Escape and navigation taps inside the drawer.
   installOverlayInteractions(ctx)
+
+  // Sidebar swipe gestures: edge swipe-in opens the drawer, content swipe-out
+  // closes it (release-classified, zero inline transforms — A 档).
+  installSidebarSwipe(ctx)
 
   // Lineage-count chip: reliable open/close on touch pointers (upstream is
   // hover-timer driven and has no onClick on the count variant).

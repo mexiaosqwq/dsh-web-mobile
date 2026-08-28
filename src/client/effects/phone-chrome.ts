@@ -1,4 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { consumeIfGestured } from './gesture-guard.ts'
 import { createReconcilerCore } from '../core/reconciler-core.ts'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { createPreviewCloseTask, createSheetRiseTask } from './aionui-compat.ts'
@@ -319,6 +320,9 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     }
 
     const onDrawerClick = (event: MouseEvent): void => {
+      // A classified swipe already toggled the drawer; never let its
+      // synthetic tap also close it / navigate a row (gesture-guard).
+      if (consumeIfGestured(event)) return
       // A touch row-tap owns the close (pointerup or the navigation observer);
       // let the row's click reach React without toggling the drawer twice.
       if (performance.now() - lastTouchNavAt < 500) return
@@ -326,6 +330,10 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     }
 
     const onDrawerPointerUp = (event: PointerEvent): void => {
+      // A classified swipe must not arm the self-healing re-dispatch either
+      // (gesture-guard): the drawer already toggled, drawerOpen() would be
+      // stale, and the re-dispatched click would navigate the row.
+      if (consumeIfGestured(event)) return
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
       const target = event.target
       if (!(target instanceof Element)) return
