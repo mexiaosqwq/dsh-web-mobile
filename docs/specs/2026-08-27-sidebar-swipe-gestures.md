@@ -47,20 +47,21 @@
 
 成熟实现：MUI SwipeableDrawer（ratio 52% / vel 0.45px/ms / 热区 20px / 轴锁 3px / **iOS 默认禁边缘滑出**）、vaul（ratio 25% / vel 0.4px/ms / 纯 CSS transition / 滚动后 100ms 锁）、RNGH DrawerLayout（50% 投影 / 热区 20px / 3px 起判）、@use-gesture（swipe 50px+0.5px/ms+250ms / rubberband c=0.15）。
 
-### 本方案参数（初值，CDP 实测后调优）
+### 本方案参数（实装值，第三轮调优 2026-08-27）
+
+> 演进：初稿 → 第二轮（用户反馈"行程太长"：open 0.30→0.20 / close 0.24→0.16）→ **第三轮（用户反馈"识别成对话内容滚动"：起点区 24→48px、轴锁定 1.5×→首段 8px 横向主导、速度窗口 120→60ms 末尾两点、阈值 0.20/0.16→0.16/0.13、新增边缘触摸 touchmove preventDefault）**。均经 CDP 探针验证（`scripts/cdp-swipe-probe.mjs` 21 项 + `scripts/cdp-swipe-failures.mjs` 7 场景全绿）。
 
 | 参数 | 值 | 说明 |
 |---|---|---|
-| `hotspotWidthPx` | **24** | 左缘热区（MUI/RNGH 20px、iOS 系统 ~20-24pt） |
-| `slopPx` | **8** | 激活最小位移 |
-| `directionBias` | **1.5** | `\|dx\| > 1.5·\|dy\|` 锁定横向，锁定后 dy 不计 |
-| `openDistanceRatio` | **0.30** 视口宽（390px→117px） | 意外呼出代价高，阈值偏高 |
-| `closeDistanceRatio` | **0.24**（94px@390px） | 关闭是主动操作，阈值略低更顺手 |
-| `velocityWindowMs` | **120** | 最近 120ms 窗口瞬时速度（非整段平均，抗拖拽史稀释） |
-| `openVelocity` | **≥0.6 px/ms** | 速度 OR 距离任一满足即提交 |
-| `closeVelocity` | **≥0.5 px/ms** | 关闭方向略宽容 |
+| `startZonePx` | **48** | 识别起点区（**视觉热区仍 24px**，layout.css.ts `[data-mobile-nav="hotspot"]` 只管视觉；真实手指落点 30-50px 家常便饭，24px 起步判定是"识别成滚动"主因之一；距离/速度阈值仍兜底，放宽起点不会误触） |
+| `lockPx` | **8** | 轴锁定：首段 8px 内 `\|dx\| > \|dy\|` 即锁横向（弃 1.5× 偏置——会拒绝 ~45° 自然斜滑）；纵向主导即放弃交还滚动 |
+| `openDistanceRatio` | **0.16** 视口宽（390px→62px） | 打开阈值（vaul 25% 之下，轻快手感） |
+| `closeDistanceRatio` | **0.13**（51px@390px） | 关闭阈值（比打开低，主动操作为主） |
+| `velocityWindowMs` | **60** | 窗口末尾两点斜率（瞬时），弃 120ms 首尾平均（慢拖后快甩被稀释） |
+| `openVelocity` / `closeVelocity` | **0.45 px/ms** | MUI 同款；速度 OR 距离任一满足即提交 |
 | `cooldownMs` | **350** | 覆盖 .28s transition，防动画中反向手势双翻 |
 | 判定组合 | `ratio ≥ X \|\| velocity ≥ V` | OR 非 AND（慢速长拖 / 快速短滑都有效） |
+| 边缘触摸优先 | document 捕获 `touchmove`（passive:false）`preventDefault` | 起点在识别区内 stroke 完全不被浏览器滚动抢占（iOS 合成器会抢边缘横滑/斜滑；防滚后事件流完整，iOS UIScreenEdgePanGestureRecognizer 语义）；纵向主导 reset 后恢复滚动 |
 
 ## 文件级设计
 
@@ -78,7 +79,7 @@
 export interface SwipeThresholds {
   openDistanceRatio: number; closeDistanceRatio: number
   velocityWindowMs: number; openVelocity: number; closeVelocity: number
-  directionBias: number; slopPx: number; cooldownMs: number; hotspotWidthPx: number
+  lockPx: number; cooldownMs: number; startZonePx: number
 }
 
 // 纯判定（node:test 直测）
@@ -90,11 +91,11 @@ export function classifySwipe(
 
 export function slidingVelocity(
   samples: Array<{ t: number; x: number }>, windowMs: number, now: number,
-): number   // 最近 120ms 窗口瞬时
+): number   // 窗口末尾两点斜率（瞬时）
 
 export function hitTestStart(
   clientX: number, viewportWidthPx: number, rtl: boolean,
-  t: Pick<SwipeThresholds, 'hotspotWidthPx'>,
+  t: Pick<SwipeThresholds, 'startZonePx'>,
 ): boolean
 
 export function installSidebarSwipe(ctx: ClientContext): void

@@ -13,15 +13,14 @@ import {
 } from '../src/client/effects/gesture-guard.ts'
 
 const BASE: SwipeThresholds = {
-  openDistanceRatio: 0.2,
-  closeDistanceRatio: 0.16,
-  velocityWindowMs: 120,
+  openDistanceRatio: 0.16,
+  closeDistanceRatio: 0.13,
+  velocityWindowMs: 60,
   openVelocity: 0.45,
   closeVelocity: 0.45,
-  directionBias: 1.5,
-  slopPx: 4,
+  lockPx: 8,
   cooldownMs: 350,
-  hotspotWidthPx: 24,
+  startZonePx: 48,
 }
 
 function classify(
@@ -43,21 +42,24 @@ function classify(
   return classifySwipe(t, m, rtl)
 }
 
-test('classifySwipe: slop — sub-4px strokes are none', () => {
-  assert.equal(classify({ dx: 3, dy: 0 }), 'none')
-  assert.equal(classify({ dx: -3, dy: 0, drawerOpen: true }), 'none')
+test('classifySwipe: lock slop — sub-lockPx strokes are none', () => {
+  assert.equal(classify({ dx: 7, dy: 0 }), 'none')
+  assert.equal(classify({ dx: -7, dy: 0, drawerOpen: true }), 'none')
 })
 
-test('classifySwipe: direction bias — diagonal strokes are none', () => {
-  // |dx| = 10, |dy| = 8 → 10 <= 1.5*8 = 12 → none
-  assert.equal(classify({ dx: 10, dy: 8 }), 'none')
-  // |dx| = 20, |dy| = 8 → 20 > 12 → allowed
-  assert.equal(classify({ dx: 20, dy: 8, velX: 1 }), 'open')
+test('classifySwipe: axis lock — horizontal-dominant strokes pass, vertical-dominant are none', () => {
+  // |dx| = 10, |dy| = 9 → 10 > 9 → horizontal-dominant → keeps axis lock
+  assert.equal(classify({ dx: 10, dy: 9, velX: 0.6 }), 'open')
+  // |dx| = 10, |dy| = 10 → not strictly dominant → none
+  assert.equal(classify({ dx: 10, dy: 10, velX: 0.6 }), 'none')
+  // a natural ~45° diagonal (80,60): |dx| > |dy| → accepted (was rejected
+  // by the old 1.5× bias — the "识别成对话内容滚动" fix)
+  assert.equal(classify({ dx: 80, dy: 60 }), 'open')
 })
 
 test('classifySwipe: closed drawer — rightward distance opens', () => {
-  // 78px / 390 = 0.20 → exactly at threshold → open
-  assert.equal(classify({ dx: 78, dy: 0 }), 'open')
+  // 62px / 390 = 0.159 → ≥ 0.16? exactly 62px is 0.1589… → uses 63px
+  assert.equal(classify({ dx: 63, dy: 0 }), 'open')
   assert.equal(classify({ dx: 80, dy: 0 }), 'open')
 })
 
@@ -66,7 +68,7 @@ test('classifySwipe: closed drawer — leftward never opens', () => {
 })
 
 test('classifySwipe: closed drawer — velocity opens short fast strokes', () => {
-  // dx = 50px (ratio 0.128 < 0.20) but velX = 0.7 px/ms ≥ 0.45 → open
+  // dx = 50px (ratio 0.128 < 0.16) but velX = 0.7 px/ms ≥ 0.45 → open
   assert.equal(classify({ dx: 50, dy: 0, velX: 0.7 }), 'open')
   // slow long drag still opens by distance
   assert.equal(classify({ dx: 100, dy: 0, velX: 0.1 }), 'open')
@@ -75,8 +77,8 @@ test('classifySwipe: closed drawer — velocity opens short fast strokes', () =>
 })
 
 test('classifySwipe: open drawer — rightward distance closes', () => {
-  // 63px / 390 = 0.162 → ≥ 0.16 → close
-  assert.equal(classify({ dx: 63, dy: 0, drawerOpen: true }), 'close')
+  // 51px / 390 = 0.13 → exactly at threshold → close
+  assert.equal(classify({ dx: 51, dy: 0, drawerOpen: true }), 'close')
   assert.equal(classify({ dx: 70, dy: 0, drawerOpen: true }), 'close')
 })
 
@@ -91,7 +93,7 @@ test('classifySwipe: open drawer — velocity closes short fast strokes', () => 
 })
 
 test('classifySwipe: velocity must agree with the stroke direction', () => {
-  // A rightward-stroke below the distance threshold (60px < 78px open
+  // A rightward-stroke below the distance threshold (60px < 62px open
   // threshold) with negative velocity is contradictory → none
   assert.equal(classify({ dx: 60, dy: 0, velX: -0.8 }), 'none')
 })
@@ -114,19 +116,21 @@ test('classifySwipe: reduced-motion is irrelevant to the decision', () => {
 })
 
 test('slidingVelocity: empty / single-sample returns 0', () => {
-  assert.equal(slidingVelocity([], 120, 1000), 0)
-  assert.equal(slidingVelocity([{ t: 900, x: 10 }], 120, 1000), 0)
+  assert.equal(slidingVelocity([], 60, 1000), 0)
+  assert.equal(slidingVelocity([{ t: 900, x: 10 }], 60, 1000), 0)
 })
 
-test('slidingVelocity: recent-window instantaneous speed', () => {
+test('slidingVelocity: end-segment (tail-slope) instantaneous speed', () => {
   const samples = [
     { t: 800, x: 0 },
     { t: 900, x: 20 },
     { t: 950, x: 30 },
     { t: 980, x: 45 },
   ]
-  // Window (1000-120=880..1000): t=900..980 → (45-20)/(980-900) = 0.3125
-  assert.equal(slidingVelocity(samples, 120, 1000), 0.3125)
+  // Window (1000-60=940..1000): last two in-window samples are t=950 and
+  // t=980 → (45-30)/(980-950) = 0.5 — the end-of-stroke slope, not the
+  // window average (which would be 0.3125 over 900..980).
+  assert.equal(slidingVelocity(samples, 60, 1000), 0.5)
 })
 
 test('slidingVelocity: ignores stale samples outside the window', () => {
@@ -136,42 +140,48 @@ test('slidingVelocity: ignores stale samples outside the window', () => {
     { t: 950, x: 320 },
     { t: 980, x: 326 },
   ]
-  assert.equal(slidingVelocity(samples, 120, 1000), (326 - 320) / (980 - 950))
+  assert.equal(slidingVelocity(samples, 60, 1000), (326 - 320) / (980 - 950))
 })
 
 test('slidingVelocity: zero time span returns 0', () => {
   assert.equal(
     slidingVelocity(
       [
-        { t: 900, x: 10 },
-        { t: 900, x: 20 },
+        { t: 950, x: 10 },
+        { t: 950, x: 20 },
       ],
-      120,
+      60,
       1000,
     ),
     0,
   )
 })
 
-test('hitTestStart: inside / outside the left hotspot', () => {
-  const t = { hotspotWidthPx: 24 }
+test('hitTestStart: inside / outside the left start zone (48px)', () => {
+  const t = { startZonePx: 48 }
   assert.equal(hitTestStart(0, 390, false, t), true)
   assert.equal(hitTestStart(24, 390, false, t), true)
-  assert.equal(hitTestStart(25, 390, false, t), false)
+  assert.equal(hitTestStart(48, 390, false, t), true)
+  assert.equal(hitTestStart(49, 390, false, t), false)
   assert.equal(hitTestStart(389, 390, false, t), false)
 })
 
-test('hitTestStart: RTL mirrors to the right edge', () => {
-  const t = { hotspotWidthPx: 24 }
+test('hitTestStart: RTL mirrors to the right edge (48px)', () => {
+  const t = { startZonePx: 48 }
   assert.equal(hitTestStart(389, 390, true, t), true)
   assert.equal(hitTestStart(366, 390, true, t), true)
-  assert.equal(hitTestStart(365, 390, true, t), false)
+  assert.equal(hitTestStart(342, 390, true, t), true)
+  assert.equal(hitTestStart(341, 390, true, t), false)
 })
 
 test('hitTestStart: viewport edge bounds', () => {
-  const t = { hotspotWidthPx: 24 }
+  const t = { startZonePx: 48 }
   assert.equal(hitTestStart(-1, 390, false, t), false)
   assert.equal(hitTestStart(390, 390, false, t), false)
+  // RTL mirrors: x=390 is the logical left edge (edge = 390-390 = 0 → in zone)
+  assert.equal(hitTestStart(390, 390, true, t), true)
+  // Negative clientX in RTL is off the right side → never in the zone
+  assert.equal(hitTestStart(-1, 390, true, t), false)
 })
 
 // --- gesture-guard ---
