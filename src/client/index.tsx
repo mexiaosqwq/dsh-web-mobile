@@ -21,6 +21,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const inject = ['slots', 'layout', 'locale', 'sessionLogDownload']
 
 /**
+ * Session-id shape the installed host's sessionLogDownload.download expects.
+ * Derived, never imported, so one program type-checks against every host
+ * generation: 0.1.1 types the parameter as plain string, 0.1.2-alpha.1 brands
+ * it Branded<'SessionId'>. The runtime value is always the host's own id.
+ */
+type DownloadSessionId = Parameters<ClientContext['sessionLogDownload']['download']>[0]
+
+/**
  * Mobile-adaptive shell, browser half: injects the mobile stylesheet, then
  * contributes the directory toggle to the session header and the backdrop +
  * floating button to the shell overlay.
@@ -190,7 +198,11 @@ export function apply(ctx: ClientContext): void {
     order: 5,
     locale: NS,
     inject: () => ({
-      downloadSessionLog: (sessionId: string) => ctx.sessionLogDownload.download(sessionId),
+      // The component's internal id is a plain string (slot runtime typing);
+      // the host-generation brand boundary lives here and only here, hence
+      // the double assertion (string and Branded<'SessionId'> do not overlap).
+      downloadSessionLog: (sessionId: string) =>
+        ctx.sessionLogDownload.download(sessionId as unknown as DownloadSessionId),
       toggleSidebar: () => ctx.layout.toggleSidebar(),
     }),
   }, MobileDrawerFooter))
