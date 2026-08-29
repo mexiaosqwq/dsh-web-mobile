@@ -110,6 +110,16 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
   [data-mobile-nav="frame"] > :first-child {
     touch-action: pan-y !important;
   }
+
+  /* prefers-reduced-motion: the drawer's .28s slide is motion; drop it
+     (audit S2 2026-08-27 — the old reduce block only covered the settings
+     sheet and its mask). Same idiom as the animation:none blocks below. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-mobile-nav="frame"] > :first-child {
+      transition: none !important;
+    }
+  }
+
   [data-mobile-nav="frame"] > [data-mobile-nav="hotspot"] {
     position: absolute !important;
     inset-inline-start: 0 !important;
