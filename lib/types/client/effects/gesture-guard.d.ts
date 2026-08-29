@@ -16,6 +16,12 @@
  * Non-gesture taps leave the registry empty, so the host's own close / tap /
  * self-healing logic keeps working untouched.
  */
+/** Flag the live stroke as axis-locked horizontal (called by tryLock). */
+export declare function markStrokeLocked(): void;
+/** Clear the axis-lock flag (called by reset and on a new pointer epoch). */
+export declare function clearStrokeLocked(): void;
+/** True while a stroke is axis-locked horizontal (host handlers yield). */
+export declare function isStrokeLocked(): boolean;
 /**
  * Register that the stroke ending on `target` is a gesture. The mark covers
  * `target` itself and every ancestor up to and including `upTo` (when given

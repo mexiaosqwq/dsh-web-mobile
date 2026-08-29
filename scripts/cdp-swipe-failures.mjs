@@ -261,6 +261,32 @@ async function main() {
     text: `open=${b2.open} (期望 true 保持打开: 距离51px/速度不足) cancels=${b2.cancels}`,
   })
 
+  // B3. S0 回归（2026-08-27 审计）：起点落在宿主关闭集合元素（newSession 行）
+  //     右滑 170px。修复前：宿主 onDrawerPointerUp 注册更早、同一 capture
+  //     相位先跑，先 toggle；手势层随后用锁定时快照判 'close' 再 toggle ——
+  //     双翻抵消，抽屉保持打开，手势看似失灵。
+  //     修复后：轴锁定（pointermove 阶段置位 isStrokeLocked）使宿主让位，
+  //     手势单翻关闭。
+  await ensureOpen()
+  const b3pt = await evalv(`(() => {
+    const row = document.querySelector('[class*="newSession"]')
+    if (!row) return null
+    const r = row.getBoundingClientRect()
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
+  })()`)
+  if (b3pt) {
+    const x0 = Math.min(b3pt.x, 200)
+    await swipe(x0, b3pt.y, x0 + 170, b3pt.y, 150)
+    await sleep(700)
+    const b3 = await state()
+    record('B3 S0: newSession行起点右滑170px(宿主让位单翻关闭)', {
+      ok: b3.open === false,
+      text: `open=${b3.open} (期望 false: 宿主让位; 修复前=true 双翻抵消) cancels=${b3.cancels}`,
+    })
+  } else {
+    console.log('B3 跳过: 无 newSession 行（hero/blank 阶段）')
+  }
+
   // ===== C. 浏览器滚动行为观察 =====
   const diag = await evalv(`({
     cancels: window.__diag.cancels,

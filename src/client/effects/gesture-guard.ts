@@ -21,6 +21,33 @@
 const consumed = new Map<EventTarget, number>()
 
 /**
+ * True while the live stroke is axis-locked horizontal. Unlike the consume
+ * marks (written at the gesture layer's OWN pointerup, after
+ * classification), this flag is written at tryLock time — during
+ * pointermove, strictly before any pointerup can fire — so a host handler
+ * registered earlier in the capture phase can consult it on the same
+ * release event without losing the race (audit S0/S1, 2026-08-27): while
+ * the flag is up, the pointerup it is seeing is a swipe release, never a
+ * tap, classified or not.
+ */
+let strokeLocked = false
+
+/** Flag the live stroke as axis-locked horizontal (called by tryLock). */
+export function markStrokeLocked(): void {
+  strokeLocked = true
+}
+
+/** Clear the axis-lock flag (called by reset and on a new pointer epoch). */
+export function clearStrokeLocked(): void {
+  strokeLocked = false
+}
+
+/** True while a stroke is axis-locked horizontal (host handlers yield). */
+export function isStrokeLocked(): boolean {
+  return strokeLocked
+}
+
+/**
  * True when the value looks like a DOM node that can carry an ancestor
  * chain. Feature-detected (no `instanceof Element`) so the guard stays
  * importable and testable in non-DOM environments (node:test).

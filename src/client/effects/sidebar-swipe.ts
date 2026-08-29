@@ -1,6 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installMobileEffect, getFrame, addReconcilerTask } from './phone-chrome.ts'
-import { markGestureConsumed, consumeIfGestured } from './gesture-guard.ts'
+import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 
 /**
@@ -8,8 +8,8 @@ import type { ReconcilerTask } from '../core/reconciler-core.ts'
  * transform — A 档 per docs/specs/2026-08-27-sidebar-swipe-gestures.md).
  *
  * Two gestures, both a rightward stroke:
- * - edge swipe-in: the pointer goes down inside the left hotspot (24px) and
- *   the drawer is closed → opens it;
+ * - edge swipe-in: the pointer goes down within START_ZONE_PX (48px) of the
+ *   left edge and the drawer is closed → opens it;
  * - content swipe-out: the pointer goes down anywhere inside the open drawer
  *   content and the drawer is open → closes it.
  *
@@ -21,11 +21,15 @@ import type { ReconcilerTask } from '../core/reconciler-core.ts'
  * follow-the-finger design).
  *
  * Coexistence with the host's overlay interactions (document capture click /
- * pointerup + the iOS self-healing re-dispatch) is via the gesture-guard
- * predicate: a classified swipe marks its target chain as consumed, the
- * host handlers' first line returns early for consumed events, and a
- * capture-phase click handler swallows the synthetic tap that follows the
- * stroke — so a swipe can never toggle twice or navigate a row.
+ * pointerup) is two-layered via gesture-guard.ts: (1) tryLock publishes an
+ * axis-lock flag the instant the stroke locks horizontal — during
+ * pointermove, strictly before any pointerup — and the host handlers yield
+ * on it first, because they are registered EARLIER and the post-release
+ * consume marks do not exist yet on the stroke's own release event (audit
+ * S0: the host toggled first and the gesture toggled back, net zero);
+ * (2) a classified swipe additionally marks its target chain consumed so
+ * the synthetic click after the stroke can never toggle twice or navigate
+ * a row.
  */
 
 /**
@@ -256,6 +260,11 @@ function tryLock(event: PointerEvent): boolean {
   }
   tracking = true
   lockDrawerOpen = drawerOpen()
+  // Publish the lock to the host handlers (see gesture-guard.ts): they run
+  // EARLIER in this release event's capture phase, before endStroke writes
+  // any consume mark — the flag is their only ordering-proof yield signal
+  // (audit S0/S1).
+  markStrokeLocked()
   return true
 }
 
@@ -331,6 +340,7 @@ function reset(): void {
   trackingPointer = 0
   tracking = false
   samples = []
+  clearStrokeLocked()
 }
 
 /** The logical reading direction of the frame (RTL support). */
@@ -389,6 +399,7 @@ export function installSidebarSwipe(ctx: ClientContext): void {
       // the short CONSUME_WINDOW_MS — keeps the next genuine tap alive
       // instead of eating it at the document-capture click handler.
       consumedEl = null
+      clearStrokeLocked() // belt-and-suspenders: a lost stroke must not leak its lock into this epoch
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
       if (trackingPointer !== 0 && trackingPointer !== event.pointerId) return
       beginStroke(event, frameRtl(), viewportWidth())
