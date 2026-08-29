@@ -247,10 +247,11 @@ test('gesture-guard: axis-lock flag yields the host before any consume mark exis
   assert.equal(isStrokeLocked(), false, 'reset clears the lock')
 })
 
-test('gesture-guard: target chain of the synthetic re-dispatched click', () => {
-  // The host's self-healing path re-dispatches a click whose target is the
-  // ROW ROOT, an ancestor of the original release point. A mark made on the
-  // release point with upTo=frame must cover that synthetic click.
+test('gesture-guard: mark chain covers the synthetic click ancestor target (upTo)', () => {
+  // After a stroke the browser dispatches a synthetic click whose target is
+  // the release point or an ancestor of it (e.g. the row root). Production
+  // marks up to the DRAWER; this test pins the chain invariant with a
+  // root-anchored stub.
   const { child, parent, root } = makeChain()
   markGestureConsumed(child, 100, root)
   assert.equal(consumeIfGestured({ target: parent }), true)

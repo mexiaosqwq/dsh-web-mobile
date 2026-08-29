@@ -321,12 +321,11 @@ function endStroke(
   // then mark the stroke consumed so the tap's synthetic click cannot
   // double-toggle or navigate a row. The mark walks the ancestor chain up
   // to the DRAWER (not the frame): the synthetic click always lands on the
-  // stroke's own start target (left-edge hotspot / drawer content), never
+  // stroke's own start target (left-edge start zone / drawer content), never
   // on the backdrop — but the backdrop is a frame child, so marking up to
   // the frame would make the host treat a genuine backdrop tap within the
-  // 1s window as consumed and swallow the close (the "tap twice to close"
-  // bug). The host's synthetic re-dispatched click targets the row root,
-  // which sits inside the drawer and is still covered.
+  // 300ms window as consumed and swallow the close (the "tap twice to close"
+  // bug).
   const drawer = findDrawer()
   const markUpTo = drawer ?? null
   markGestureConsumed(event.target, CONSUME_WINDOW_MS, markUpTo)
