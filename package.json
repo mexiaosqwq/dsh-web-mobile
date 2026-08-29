@@ -29,7 +29,7 @@
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/build-client.mjs",
     "verify": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
     "smoke:cdp": "node scripts/cdp-probe.mjs",
-    "test:core": "node --test tests/reconciler-core.test.ts tests/sidebar-swipe.test.ts",
+    "test:core": "node --test tests/reconciler-core.test.ts tests/sidebar-swipe.test.ts tests/installed-list.test.ts tests/market-gallery-style.test.ts",
     "prepack": "npm run build"
   },
   "dsh": {
@@ -52,15 +52,15 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
+    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
     "react": "^18.2.0",
-    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-layout": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-settings": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-sidebar": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
+    "@deepseek-ai/dsh-client-ui-sidebar": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0 || >=0.1.2-a <0.2.0",
     "@deepseek-ai/dsh-session-log-export": "^0.1.0-rc.6 || >=0.1.1-rc.0 <0.2.0"
   },
   "devDependencies": {
@@ -69,5 +69,13 @@
     "@types/react-dom": "~18.3.0",
     "typescript": "^6.0.3"
   },
-  "packageManager": "pnpm@11.7.0"
+  "packageManager": "pnpm@11.7.0",
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    }
+  }
 }

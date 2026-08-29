@@ -22,7 +22,7 @@
 ```sh
 pnpm install                       # install (pnpm@11.7.0, lockfile v9)
 pnpm verify                        # type-check host + client halves (tsc --noEmit)
-pnpm test:core                     # node --test tests/reconciler-core.test.ts (unit tests)
+pnpm test:core                     # node --test tests/reconciler-core.test.ts tests/sidebar-swipe.test.ts tests/installed-list.test.ts tests/market-gallery-style.test.ts (unit tests)
 pnpm build                         # tsc host && tsc client && node scripts/build-client.mjs
 npm run prepack                    # runs npm run build before packaging
 npm pack                           # package smoke check (invokes prepack)
