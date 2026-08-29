@@ -7,6 +7,15 @@ import type { ReconcilerTask } from '../core/reconciler-core.ts'
 // _root and can mention turns in its model line). The CSS then lays the
 // marked row out as ONE horizontally scrolling line with every metric
 // reachable.
+// Fast-path predicate: is the previously marked strip still alive in place?
+// Re-verifying one anchor per flush is O(1); the full-tree hunt in mark()
+// grows with the conversation and runs on every streaming token.
+export function statsAnchorAlive(el: Element | null): boolean {
+  if (el === null || !el.isConnected) return false
+  if (el.closest('[data-phase]') === null) return false
+  return el.closest('[class*="_composerStack"]') !== null
+}
+
 export function createStatsLineTask(): ReconcilerTask {
   // The composer root renders the TPS readout ("TPS 89.4 tok/s") as its
   // own row BELOW the status strip; fold it into the strip so every
@@ -36,6 +45,18 @@ export function createStatsLineTask(): ReconcilerTask {
     }
   }
   const mark = (): void => {
+    // Fast path: the marked strip usually survives React rebuilds between
+    // tokens; re-verifying the anchor is O(1) while the full-tree hunt below
+    // grows with the conversation. moveTps still re-runs so a rebuilt TPS
+    // readout is re-folded.
+    const anchor = document.querySelector('[data-mobile-nav="stats"]')
+    if (anchor !== null && statsAnchorAlive(anchor)) {
+      moveTps(anchor)
+      return
+    }
+    // Stale marker on a node that left the composer stack/phase context:
+    // drop it so the slow path can re-anchor cleanly.
+    anchor?.removeAttribute('data-mobile-nav')
     for (const root of document.querySelectorAll('[data-phase] [class*="_root"]')) {
       // The status row lives inside the composer stack; message-area
       // blocks can also mention turns/steps and must be skipped.
