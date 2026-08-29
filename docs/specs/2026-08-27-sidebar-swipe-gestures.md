@@ -19,9 +19,9 @@
 ### 方案定义
 
 ```
-屏幕左缘 24px 热区右滑 / 抽屉内容区右滑
+屏幕左缘 48px 识别区右滑 / 抽屉内容区右滑
   → 记录起点/位移/最近窗口速度
-  → 方向锁定（|dx| > 1.5·|dy| 且 |dx| > 8px）
+  → 方向锁定（首段 8px 内 |dx| > |dy|，纯横向支配）
   → release 时按"位移比例 OR 速度"判定
   → 命中：直接 ctx.layout.toggleSidebar()（动画全交现有 .28s CSS transition）
   → 未命中：无操作
@@ -67,9 +67,9 @@
 
 | 文件 | 改动 |
 |---|---|
-| `src/client/effects/gesture-guard.ts` | **新增**，零 import；`markGestureConsumed(target, windowMs)` / `consumeIfGestured(event)` 共存契约 |
+| `src/client/effects/gesture-guard.ts` | **新增**，零 import；`markGestureConsumed(target, windowMs, upTo?)`（upTo 收敛到 drawer 是「点两次才关」修复核心）+ 轴锁定标志 `markStrokeLocked`/`clearStrokeLocked`/`isStrokeLocked`（S0）+ `consumeIfGestured(event)` 共存契约 |
 | `src/client/effects/sidebar-swipe.ts` | **新增**；仅 import 同目录 `./phone-chrome.ts` + runtime 类型；纯判定函数 + `installSidebarSwipe(ctx)` |
-| `src/client/effects/phone-chrome.ts` | `installOverlayInteractions` 的 onDrawerClick / onDrawerPointerUp 首行加 `if (consumeIfGestured(event)) return`（2 行谓词） |
+| `src/client/effects/phone-chrome.ts` | `installOverlayInteractions` 的 onDrawerClick / onDrawerPointerUp 首行加 `if (isStrokeLocked() || consumeIfGestured(event)) return`（2 行谓词；`isStrokeLocked` 为 S0 修复新增：轴锁定发生在 pointermove，严格早于任何 pointerup） |
 | `src/client/styles/layout.css.ts` | 追加：热区 section + **drawer 滚动容器 `touch-action: pan-y`**（关键一行） |
 | `src/client/index.tsx` | `installOverlayInteractions(ctx)` 后加一行 `installSidebarSwipe(ctx)` |
 
@@ -104,8 +104,8 @@ export function installSidebarSwipe(ctx: ClientContext): void
 ### 状态机
 
 ```
-IDLE ──pointerdown(几何命中: 左缘24px 或 drawer 内容区, 非 kebab/backdrop, 无 aria-modal, cooldown 外)──▶ ARMED
-ARMED ──位移锁定(|dx|>1.5|dy| 且 |dx|>8px)──▶ TRACKING
+IDLE ──pointerdown(几何命中: 左缘48px识别区 或 drawer 内容区, 非 kebab/backdrop, 无 aria-modal, cooldown 外)──▶ ARMED
+ARMED ──位移锁定(首段8px内 |dx|>|dy|)──▶ TRACKING
 TRACKING ──每帧采样(窗口速度) + 每帧查 aria-modal(升起即取消)──▶ release
 RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ctx.layout.toggleSidebar()（记 cooldown）
                         └──▶ 'none' / pointercancel / visibilitychange(hidden) / blur → 直接 IDLE
@@ -119,7 +119,7 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 
 宿主 `installOverlayInteractions` 已在 document 捕获阶段监听 click + pointerup（含 iOS click 被抑制时"宏任务后重发 click"的自愈逻辑），且**先注册先执行**——纯新增文件不碰宿主无法共存，必须走谓词：
 
-1. 宿主 `onDrawerClick` / `onDrawerPointerUp` 首行 `if (consumeIfGestured(event)) return`（phone-chrome.ts 改 2 行）
+1. 宿主 `onDrawerClick` / `onDrawerPointerUp` 首行 `if (isStrokeLocked() || consumeIfGestured(event)) return`（phone-chrome.ts 改 2 行；`isStrokeLocked` 防同一 release 事件上宿主先跑、consume 标记尚未写入的 S0 抢跑）
 2. 手势层判定为手势后 `markGestureConsumed(up.target 链, 300)` 并同步 `toggleSidebar()`
 3. 手势层自身注册 document 捕获 click：`consumeIfGestured` 命中 → `stopPropagation() + preventDefault()` → 挡住**元素级**监听（FAB/backdrop 的 `addEventListener('click', toggleSidebar)`）
 
@@ -192,7 +192,9 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 - 打开/关闭手势间须等待 cooldown 350ms 过期（探针每步后 `sleep(500)`）
 - 偶发边缘滑出超时（run 1）为 headless 触摸合成抖动，重跑即稳定
 
-**合并期修正（2026-08-27，维护者）**：consume 标记窗 1000→300ms + 手势层 consumedEl 门控每次 pointerdown 清空——WebKit 壳会整体抑制手势后的合成 click，长窗不清空会把用户下一次真实 tap 吞成死点击（upTo 不在链上时标记延伸到 document 根，短窗过期即兜底）。共存机制现基于 #32 nav-arm 方案（上文「自愈重发」为 v2.1.5 基线的历史方案）；终值参数以 AGENTS.md 为准（slop 4、open 0.20、close 0.16、vel 0.45/0.45）。
+**合并期修正（2026-08-27，维护者）**：consume 标记窗 1000→300ms + 手势层 consumedEl 门控每次 pointerdown 清空——WebKit 壳会整体抑制手势后的合成 click，长窗不清空会把用户下一次真实 tap 吞成死点击（upTo 不在链上时标记延伸到 document 根，短窗过期即兜底）。共存机制现基于 #32 nav-arm 方案（上文「自愈重发」为 v2.1.5 基线的历史方案）；终值参数见上文「本方案参数（实装值，第三轮调优 2026-08-27）」表：START_ZONE 48 / lock 8 / open 0.16 / close 0.13 / vel 0.45/0.45。
+
+**维护期修正（2026-08-29，依据 docs/audits/2026-08-27-sidebar-swipe-latent-defects.md）**：① 宿主 `onDrawerClick`/`onDrawerPointerUp` 首行谓词升级为 `isStrokeLocked() || consumeIfGestured(event)`（S0/S1：宿主 capture pointerup 注册序先于手势层，consume 事后标记在同一 release 事件上尚未写入，唯有序型前移的轴锁定标志能防抢跑/双翻抵消——`isStrokeLocked` 在 `tryLock`（pointermove 阶段）置位、`reset` 清除，严格早于任何 pointerup，无时序竞态）；② 热区 DOM 元素已删除（C1–C3：判定纯几何 48px，`cdp-swipe-probe.mjs` 改 `swipe.start-zone-48-opens`/`swipe.start-zone-49-ignored` 行为断言）。上文历史段落残留的「24px 热区」「1.5× 偏置」「自愈重发」字样为历史记录，以「本方案参数」表、状态机与本文共存的机制描述为准。
 
 ---
 
