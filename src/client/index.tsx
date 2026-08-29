@@ -89,6 +89,13 @@ export function apply(ctx: ClientContext): void {
       })
     }
     const apply = (): void => {
+      // The market rows only exist while the market UI is mounted (inside a
+      // settings dialog). Skip the full-document class-substring scan on every
+      // streamed mutation frame with no dialog open; dshmarket keeps the
+      // data-dsh-market-root marker (1.20.x), [role="dialog"] covers the
+      // settings dialog generically so a marker change degrades to cost, not
+      // to a silently dead effect.
+      if (document.querySelector('[data-dsh-market-root], [role="dialog"]') === null) return
       document.querySelectorAll<HTMLElement>(rowSelector).forEach((row) => {
         set(row, {
           'flex-wrap': 'wrap',
