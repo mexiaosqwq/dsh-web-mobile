@@ -117,33 +117,6 @@ dsh plugin --profile web add link:/path/to/dsh-web-mobile
 - 完成 phase 2-4 代码重组，优化 !important 使用
 - 哈希类选择器全量改为子串匹配并补 `:not` 守卫，救活一批静默失效的规则（PR #27/#28 系列）
 
-### v2.0.0
-
-**修复**
-
-- iOS Safari 输入 `ask_user_question` 时不再自动放大
-- 移动端会话头部稳定：文件按钮不跑出头部，模式徽标/按钮布局不乱
-- 输入区在窄屏下一行排列，权限/模型下拉不被裁剪、不互相遮挡
-- 点文件行打开预览不再被误判为关闭，预览能正常弹出
-- `?mobile-nav-debug=1` 不再因自身写入触发页面冻结
-- dshmarket 搜索框、已安装插件列表在移动端布局正常
-
-**移除**
-
-- 移除触觉反馈（HapticRow / haptic 设置项）
-
-**兼容**
-
-- 放宽 `@deepseek-ai/*` peer 依赖范围，支持 0.1.1 rc 版本
-
-### v1.5.0
-
-- 修复抽屉关闭回归：背板点击、Escape、导航点击收起、悬浮按钮恢复
-- preview/explorer 互斥对称，预览浮层不再误开或残留
-- dispose 还原完整，退出移动端布局后桌面无残留
-- reconciler 重构：统一全树观察，减少无效刷新
-- 新增 CDP 回归门禁 `smoke:cdp`
-
 ## 兼容插件
 
 - [dsh-web-ui](https://www.npmjs.com/package/@linxin666/dsh-web-ui-all)——**0.1.20**
