@@ -95,18 +95,13 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
 
   /* Drawer swipe gestures (edge swipe-in / content swipe-out, see
      docs/specs/2026-08-27-sidebar-swipe-gestures.md).
-     Two rules are load-bearing for the gesture layer:
-     - touch-action: pan-y on the drawer lets horizontal pointermove events
-       reach the gesture code — WITHOUT it the browser treats a horizontal
-       stroke as a pan, fires pointercancel and the gesture never classifies
-       (vertical panning stays intact).
-     - The left-edge hotspot strip (data-mobile-nav="hotspot") is the visual
-       affordance for swipe-in. It is pointer-events:none: start-hit is
-       decided purely by geometry on the document capture listener, so the
-       strip must never swallow taps aimed at content behind it (backdrop,
-       FAB, drawer toggle). z-index 30 sits above the backdrop (also 30, but
-       the backdrop is appended after the hotspot, so DOM order keeps the
-       backdrop on top) and below the drawer (40). */
+     One rule is load-bearing for the gesture layer: touch-action: pan-y on
+     the drawer lets horizontal pointermove events reach the gesture code —
+     WITHOUT it the browser treats a horizontal stroke as a pan, fires
+     pointercancel and the gesture never classifies (vertical panning stays
+     intact). Start-hit is decided purely by geometry on the document
+     capture listener (START_ZONE_PX = 48px); there is no hotspot element
+     (removed per audit C2, 2026-08-27). */
   [data-mobile-nav="frame"] > :first-child {
     touch-action: pan-y !important;
   }
@@ -118,17 +113,6 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
     [data-mobile-nav="frame"] > :first-child {
       transition: none !important;
     }
-  }
-
-  [data-mobile-nav="frame"] > [data-mobile-nav="hotspot"] {
-    position: absolute !important;
-    inset-inline-start: 0 !important;
-    top: 0 !important;
-    bottom: 0 !important;
-    width: 24px;
-    z-index: 30 !important;
-    pointer-events: none !important;
-    -webkit-tap-highlight-color: transparent;
   }
 
   /* Drag handles are useless on touch and would float over the drawer. */

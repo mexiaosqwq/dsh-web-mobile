@@ -16,7 +16,7 @@
 //   4. backdrop count stays exactly 1 across open→close→open;
 //   5. post-gesture zero side effects (no FAB/backdrop second click, no
 //      session switch);
-//   6. desktop ≥1024px: no hotspot DOM, no listener side effects;
+//   6. desktop ≥1024px: no mobile DOM, no listener side effects;
 //   7. vertical pan does not trigger a gesture (touch-action: pan-y).
 //
 // Reuses the CDP infrastructure pattern from scripts/cdp-probe.mjs (spawn
@@ -32,7 +32,6 @@ import { join } from 'node:path'
 const DEFAULT_URL = 'http://127.0.0.1:3456/'
 const DEFAULT_TIMEOUT_MS = 30_000
 const CHROME_GRACE_MS = 5_000
-const HOTSPOT_SELECTOR = '[data-mobile-nav="frame"] > [data-mobile-nav="hotspot"]'
 const DRAWER_SELECTOR = '[data-mobile-nav="frame"] > :first-child'
 const FRAME_SELECTOR = '[data-mobile-nav="frame"]'
 const BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]'
@@ -229,8 +228,6 @@ async function drawerState(client) {
     const frame = document.querySelector(${JSON.stringify(FRAME_SELECTOR)})
     const drawer = document.querySelector(${JSON.stringify(DRAWER_SELECTOR)})
     const rect = drawer === null ? null : drawer.getBoundingClientRect()
-    const hotspot = document.querySelector(${JSON.stringify(HOTSPOT_SELECTOR)})
-    const hotspotRect = hotspot === null ? null : hotspot.getBoundingClientRect()
     return {
       frame: frame !== null,
       collapsed: frame === null ? null : frame.hasAttribute('data-sidebar-collapsed'),
@@ -239,8 +236,6 @@ async function drawerState(client) {
       drawerHeight: rect === null ? 0 : rect.height,
       drawerTransform: drawer === null ? null : getComputedStyle(drawer).transform,
       drawerTransition: drawer === null ? null : getComputedStyle(drawer).transitionProperty,
-      hotspotCount: document.querySelectorAll(${JSON.stringify(HOTSPOT_SELECTOR)}).length,
-      hotspotWidth: hotspotRect === null ? 0 : hotspotRect.width,
       touchAction: drawer === null ? null : getComputedStyle(drawer).touchAction,
       viewport: { width: innerWidth, height: innerHeight },
     }
@@ -360,7 +355,7 @@ async function main() {
       }
     })
 
-    // --- Boot: plugin style + frame marker + hotspot ---
+    // --- Boot: plugin style + frame marker ---
     const boot = await waitFor('mobile plugin boot', config.timeoutMs, signal, async () => {
       const state = await client.evaluate(`(() => ({
         styleCount: document.querySelectorAll(${JSON.stringify(STYLE_SELECTOR)}).length,
@@ -385,10 +380,23 @@ async function main() {
     })()`)
     await sleep(500, signal)
 
-    // Hotspot presence + drawer touch-action (key CSS lines).
+    // Drawer touch-action (key CSS line) + START_ZONE boundary (audit C3:
+    // the behavioral parameter nobody locked — x=48 opens, x=49 does not,
+    // per hitTestStart's inclusive `edge <= startZonePx`).
     const initial = await drawerState(client)
-    check('swipe.hotspot-mounted', initial.hotspotCount === 1 && initial.hotspotWidth === 24, `count=${initial.hotspotCount} width=${initial.hotspotWidth}`)
     check('swipe.drawer-touch-action', initial.touchAction === 'pan-y', `touchAction=${initial.touchAction}`)
+
+    await touchSwipe(client, 48, 300, 168, 300, 140, signal)
+    await waitDrawer(client, 'start-zone x=48 opens', config.timeoutMs, signal, true)
+    pass('swipe.start-zone-48-opens', 'open=true')
+    await sleep(500, signal)
+    await touchSwipe(client, 120, 300, 280, 300, 140, signal)
+    await waitDrawer(client, 'close for x=49 probe', config.timeoutMs, signal, false)
+    await sleep(500, signal)
+    await touchSwipe(client, 49, 300, 169, 300, 140, signal)
+    await sleep(700, signal)
+    const beyondZone = await drawerState(client)
+    check('swipe.start-zone-49-ignored', beyondZone.collapsed === true, `collapsed=${beyondZone.collapsed}`)
 
     // --- Checklist 7: vertical pan must NOT open the drawer ---
     const y0 = 200
@@ -504,7 +512,6 @@ async function main() {
     await setViewport(client, 1280, 800, false, false)
     await sleep(600, signal) // allow the mobile effect to re-arm
     const desktop = await drawerState(client)
-    check('swipe.desktop-no-hotspot', desktop.hotspotCount === 0, `hotspotCount=${desktop.hotspotCount}`)
     check('swipe.desktop-no-frame', desktop.frame === false, `frame=${desktop.frame}`)
     check('swipe.desktop-no-backdrop', desktop.backdropCount === 0, `backdropCount=${desktop.backdropCount}`)
     const desktopTransform = await client.evaluate(`(() => {
