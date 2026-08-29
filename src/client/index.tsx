@@ -7,6 +7,7 @@ import { installFrameController, installOverlayInteractions, installPhoneChrome,
 import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
+import { createRafScheduler } from './core/raf-scheduler.ts'
 import { installDebugBadge } from './debug.ts'
 import { NS, en, zh } from './i18n/locales.ts'
 import type { MobileNavKey } from './i18n/locales.ts'
@@ -127,12 +128,20 @@ export function apply(ctx: ClientContext): void {
       if (mq.matches) apply()
     }
     arm()
+    // Streaming floods this observer with document-wide childList batches;
+    // coalesce to one apply per frame and re-check the breakpoint at flush
+    // time so a queued callback never writes mobile styles on desktop.
+    const scheduler = createRafScheduler(
+      (cb) => window.requestAnimationFrame(cb),
+      (id) => window.cancelAnimationFrame(id),
+    )
     const mo = new MutationObserver(() => {
-      if (mq.matches) apply()
+      if (mq.matches) scheduler.schedule(() => { if (mq.matches) apply() })
     })
     mo.observe(document.documentElement, { childList: true, subtree: true })
     mq.addEventListener('change', arm)
     return () => {
+      scheduler.cancel()
       mo.disconnect()
       mq.removeEventListener('change', arm)
       clear()
