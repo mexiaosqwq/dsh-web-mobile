@@ -37,7 +37,7 @@ const FRAME_SELECTOR = '[data-mobile-nav="frame"]'
 const BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]'
 const FAB_SELECTOR = '[data-mobile-nav="fab"]'
 const TOGGLE_SELECTOR = '[data-mobile-nav="toggle"]'
-const STYLE_SELECTOR = 'style[data-plugin="@dsh-external/dsh-mobile-nav"]'
+const STYLE_SELECTOR = 'style[data-plugin="dsh-mobile-nav"]'
 
 const results = []
 function record(status, name, detail = '') {
@@ -237,6 +237,8 @@ async function drawerState(client) {
       drawerTransform: drawer === null ? null : getComputedStyle(drawer).transform,
       drawerTransition: drawer === null ? null : getComputedStyle(drawer).transitionProperty,
       touchAction: drawer === null ? null : getComputedStyle(drawer).touchAction,
+      rootOverscrollX: getComputedStyle(document.documentElement).overscrollBehaviorX,
+      bodyOverscrollX: getComputedStyle(document.body).overscrollBehaviorX,
       viewport: { width: innerWidth, height: innerHeight },
     }
   })()`)
@@ -380,23 +382,202 @@ async function main() {
     })()`)
     await sleep(500, signal)
 
-    // Drawer touch-action (key CSS line) + START_ZONE boundary (audit C3:
-    // the behavioral parameter nobody locked — x=48 opens, x=49 does not,
-    // per hitTestStart's inclusive `edge <= startZonePx`).
+    // Drawer touch-action (key CSS line) + the root overscroll gate + the
+    // START_ZONE boundary (audit C3: the behavioral parameter nobody locked —
+    // at the zone edge one pixel opens, one beyond does not, per hitTestStart's
+    // inclusive `edge <= startZonePx`). The zone is ADAPTIVE: 45% of the live
+    // viewport width (startZonePxFor; 390px viewport → Math.round(175.5) =
+    // 176px), recomputed per stroke — portrait/landscape/tablet need no
+    // per-device tuning. It long since cleared Chrome Android's
+    // history-navigation trigger strip (EDGE_WIDTH_DP=48dp,
+    // NavigationHandler.java), which claimed edge strokes before the gesture
+    // layer could classify them ("页面直接返回上一页", 2026-08-29 user report).
+    // overscroll-behavior-x: none on the ROOT suppresses that browser gesture
+    // (only html/body count — Chromium issue 41483088); headless CDP cannot
+    // reproduce the gesture itself, so the computed style is the assertable
+    // contract here and the real-device feel needs a human pass.
     const initial = await drawerState(client)
     check('swipe.drawer-touch-action', initial.touchAction === 'pan-y', `touchAction=${initial.touchAction}`)
+    check(
+      'swipe.root-overscroll-x-none',
+      initial.rootOverscrollX === 'none' && initial.bodyOverscrollX === 'none',
+      `root=${initial.rootOverscrollX} body=${initial.bodyOverscrollX} (must be none: suppresses Chrome edge history navigation)`,
+    )
 
-    await touchSwipe(client, 48, 300, 168, 300, 140, signal)
-    await waitDrawer(client, 'start-zone x=48 opens', config.timeoutMs, signal, true)
-    pass('swipe.start-zone-48-opens', 'open=true')
+    // The boundary is derived from the same formula the client uses, so the
+    // probe tracks future ratio changes instead of hardcoding 176.
+    const zone = Math.round(initial.viewport.width * 0.45)
+    await touchSwipe(client, zone, 300, zone + 120, 300, 140, signal)
+    await waitDrawer(client, `start-zone x=${zone} opens`, config.timeoutMs, signal, true)
+    pass('swipe.start-zone-edge-opens', `x=${zone} open=true`)
     await sleep(500, signal)
-    await touchSwipe(client, 120, 300, 280, 300, 140, signal)
-    await waitDrawer(client, 'close for x=49 probe', config.timeoutMs, signal, false)
+    // Close swipe starts inside the open drawer (~280px wide) and stays
+    // within the 390px probe viewport regardless of the zone size.
+    await touchSwipe(client, 200, 300, 340, 300, 140, signal)
+    await waitDrawer(client, 'close for beyond-zone probe', config.timeoutMs, signal, false)
     await sleep(500, signal)
-    await touchSwipe(client, 49, 300, 169, 300, 140, signal)
+    await touchSwipe(client, zone + 1, 300, zone + 121, 300, 140, signal)
     await sleep(700, signal)
     const beyondZone = await drawerState(client)
-    check('swipe.start-zone-49-ignored', beyondZone.collapsed === true, `collapsed=${beyondZone.collapsed}`)
+    check('swipe.start-zone-beyond-ignored', beyondZone.collapsed === true, `x=${zone + 1} collapsed=${beyondZone.collapsed}`)
+
+    // --- B 档 follow assertions (2026-08-29 controlled upgrade) ---
+    // Only the CLOSE direction follows the finger. An open stroke must NOT
+    // write any inline transform: the host mounts a different subtree for the
+    // collapsed column (a ~206px rail with no session rows), so following it
+    // would drag the wrong UI into view; opening stays release-classified and
+    // the host's .28s transition plays it. For a close-follow the drawer
+    // carries inline translateX moving monotonically toward the closed slot,
+    // the release clears the inline pair (the open state must end at computed
+    // transform:none — the containing-block invariant), and a mid-stroke
+    // pointercancel springs it back with NO commit. The host's closed slot on
+    // this viewport is beyond the left edge, so follow values are negative.
+    const inlineTx = async () => {
+      const r = await client.send('Runtime.evaluate', {
+        expression:
+          '(() => { const f = document.querySelector(\'[data-mobile-nav="frame"]\'); const d = f?.firstElementChild; if (!d) return null; const r = d.getBoundingClientRect(); return JSON.stringify({ inline: d.style.transform, inlineT: d.style.transition, computed: getComputedStyle(d).transform, left: Math.round(r.left), width: Math.round(r.width), items: d.querySelectorAll(\'[role="treeitem"]\').length, collapsed: f.hasAttribute(\'data-sidebar-collapsed\') }) })()',
+        returnByValue: true,
+      })
+      return JSON.parse(r.result.value)
+    }
+    const txOf = (s) => {
+      const m = /translateX\((-?[\d.]+)px\)/.exec(s ?? '')
+      return m === null ? NaN : Number(m[1])
+    }
+    // The COMPUTED translate is the only honest follow signal: the open state
+    // carries `transform: none !important` from our own stylesheet, so a
+    // normal inline declaration loses the cascade and the drawer sits still
+    // while `element.style.transform` reads back perfectly (the invisible
+    // follow of 2026-08-29). Assert computed geometry, never inline strings.
+    const computedTxOf = (s) => {
+      const m = /matrix\(([^)]+)\)/.exec(s ?? '')
+      if (m === null) return s === 'none' ? 0 : NaN
+      const parts = m[1].split(',').map((v) => Number(v.trim()))
+      return parts.length === 6 ? parts[4] : NaN
+    }
+    const touch = (x, y) => [{ x, y, radiusX: 2, radiusY: 2, force: 1, id: 0 }]
+
+    // 1. an OPEN stroke early-commits at OPEN_FOLLOW_ARM_PX and then follows
+    //    the finger with the REAL drawer subtree (mounted, session tree
+    //    present) sliding out of its -110% slot.
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touch(40, 300) })
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(100, 300) })
+    await sleep(60, signal)
+    const f1 = await inlineTx()
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(170, 300) })
+    await sleep(60, signal)
+    const f2 = await inlineTx()
+    check(
+      'swipe.open-follow-visible',
+      f1 !== null && f2 !== null &&
+        computedTxOf(f1.computed) < 0 && computedTxOf(f2.computed) < 0 &&
+        computedTxOf(f2.computed) > computedTxOf(f1.computed) &&
+        f2.left > f1.left && f1.inlineT === 'none',
+      `computed ${f1?.computed} (left=${f1?.left}) → ${f2?.computed} (left=${f2?.left}) (drawer must slide out under the finger)`,
+    )
+    // The followed element must be the REAL drawer, not the collapsed rail:
+    // the host state is flipped at arm time precisely so React mounts the
+    // session tree before the finger reveals anything (2026-08-29).
+    check(
+      'swipe.open-follow-real-subtree',
+      f2 !== null && f2.collapsed === false && f2.items > 0 && f2.width > 260,
+      `collapsed=${f2?.collapsed} treeitems=${f2?.items} width=${f2?.width} (must be the mounted drawer, not the 206px rail)`,
+    )
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await waitDrawer(client, 'open release commits open', config.timeoutMs, signal, true)
+    await sleep(450, signal) // let the .28s host transition finish
+    const f3 = await inlineTx()
+    check(
+      'swipe.open-release-transform-none',
+      f3.inline === '' && f3.inlineT === '' && f3.computed === 'none',
+      `inline='${f3.inline}' transition='${f3.inlineT}' computed=${f3.computed} (open must end transform:none)`,
+    )
+
+    // 2. legacy rightward close (no follow) returns to the closed state
+    await sleep(500, signal) // cooldown
+    await touchSwipe(client, 150, 300, 280, 300, 140, signal)
+    await waitDrawer(client, 'legacy close after follow tests', config.timeoutMs, signal, false)
+    await sleep(500, signal)
+
+    // 3. pointercancel during an open stroke: no commit, no inline residue
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touch(40, 300) })
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(120, 300) })
+    await sleep(60, signal)
+    await client.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+    await sleep(450, signal)
+    const c2 = await inlineTx()
+    const cState = await drawerState(client)
+    check(
+      'swipe.cancel-open-stroke-reverts',
+      c2.inline === '' && c2.inlineT === '' && c2.computed !== 'none' && cState.collapsed === true,
+      `after='${c2.inline}'/${c2.computed} collapsed=${cState.collapsed} (an ARMED open follow must toggle the host back)`,
+    )
+
+    // 4. close-follow: inline translateX tracks the finger toward the slot
+    await sleep(500, signal) // cooldown
+    await touchSwipe(client, 8, 300, 200, 300, 140, signal) // open
+    await waitDrawer(client, 'reopen for close-follow', config.timeoutMs, signal, true)
+    await sleep(500, signal)
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touch(200, 300) })
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(160, 300) })
+    await sleep(60, signal)
+    const k1 = await inlineTx()
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(120, 300) })
+    await sleep(60, signal)
+    const k1b = await inlineTx()
+    check(
+      'swipe.close-follow-drag-transform',
+      !Number.isNaN(txOf(k1.inline)) && !Number.isNaN(txOf(k1b.inline)) && txOf(k1b.inline) < txOf(k1.inline) && txOf(k1b.inline) < 0 && k1b.inlineT === 'none',
+      `tx1=${k1.inline} → tx2=${k1b.inline} transition='${k1b.inlineT}' (monotonic toward the closed slot)`,
+    )
+    // The follow must be VISIBLE, not merely declared: computed transform and
+    // the drawer's viewport rect have to move with the finger.
+    check(
+      'swipe.close-follow-visible',
+      computedTxOf(k1.computed) < 0 && computedTxOf(k1b.computed) < computedTxOf(k1.computed) && k1b.left < k1.left && k1b.left < 0,
+      `computed ${k1.computed} (left=${k1.left}) → ${k1b.computed} (left=${k1b.left}) (inline must WIN the cascade)`,
+    )
+    await client.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+    await sleep(450, signal)
+    const k2 = await inlineTx()
+    const kState = await drawerState(client)
+    // The follow must be able to reach the drawer's REAL closed slot
+    // (-110% of its OWN width). The slot used to be read off the CLOSED host
+    // — the narrower nav rail — so the drag froze ~81px short of the edge:
+    // the drawer stalled under a still-moving finger (user report 「半开不开」)
+    // and the release had to creep the remainder (「停在我最终滑动的地方，
+    // 之后消失」). Needs a long stroke, so start at the frame's right side
+    // (legal since close strokes accept the whole frame).
+    const kWide = await client.evaluate(`(() => {
+      const d = document.querySelector('[data-mobile-nav="frame"]')?.firstElementChild
+      return d ? Math.round(d.getBoundingClientRect().width) : null
+    })()`)
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touch(380, 300) })
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(340, 300) })
+    await sleep(40, signal)
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(2, 300) })
+    await sleep(60, signal)
+    const kFar = await inlineTx()
+    check(
+      'swipe.close-follow-reaches-slot',
+      computedTxOf(kFar.computed) <= -kWide,
+      `width=${kWide} travel=-378 computed=${kFar.computed} (must clear -110% of the OPEN drawer width, not the collapsed rail's -226.7px slot)`,
+    )
+    await client.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+    await sleep(450, signal)
+    const kFar2 = await inlineTx()
+    const kFarState = await drawerState(client)
+    check(
+      'swipe.follow-cancel-close-reverts',
+      k2.inline === '' && k2.inlineT === '' && k2.computed === 'none' && kState.collapsed === false &&
+        kFar2.inline === '' && kFar2.computed === 'none' && kFarState.collapsed === false,
+      `after='${k2.inline}'/${k2.computed} collapsed=${kState.collapsed}; long-travel after='${kFar2.inline}'/${kFar2.computed} collapsed=${kFarState.collapsed}`,
+    )
+    // leave the drawer closed for the following checklists
+    await sleep(500, signal)
+    await touchSwipe(client, 150, 300, 280, 300, 140, signal)
+    await waitDrawer(client, 'close after close-follow cancel', config.timeoutMs, signal, false)
+    await sleep(500, signal)
 
     // --- Checklist 7: vertical pan must NOT open the drawer ---
     const y0 = 200
@@ -439,6 +620,39 @@ async function main() {
     await waitDrawer(client, 'reopen for double-backdrop check', config.timeoutMs, signal, true)
     const reopen = await drawerState(client)
     check('swipe.backdrop-single-reopen', reopen.backdropCount === 1, `count=${reopen.backdropCount}`)
+    await sleep(500, signal)
+
+    // --- Checklist 4b: closing accepts BOTH directions and the WHOLE frame ---
+    // (2026-08-29 sixth round, user report 「根本没法左滑关闭」+「希望打开抽屉
+    //  之后以外的部分可以进行左滑」.) The drawer is open here.
+    await touchSwipe(client, 200, 300, 60, 300, 140, signal) // leftward, inside the drawer
+    const leftClosed = await waitDrawer(client, 'leftward close from inside the drawer', config.timeoutMs, signal, false)
+    check('swipe.close-leftward-inside', leftClosed !== null, 'collapsed=true (pushing the drawer back into its slot must close it)')
+    await sleep(500, signal)
+
+    // Reopen, then close with a leftward stroke that STARTS on the backdrop
+    // (the ~28% of the screen beside the drawer, which used to reject every
+    // stroke). The synthetic backdrop click must not re-open it.
+    await touchSwipe(client, 8, 300, 200, 300, 140, signal)
+    await waitDrawer(client, 'reopen for backdrop-start close', config.timeoutMs, signal, true)
+    await sleep(500, signal)
+    const backdropStartX = await client.evaluate(`(() => {
+      const d = document.querySelector('[data-mobile-nav="frame"]')?.firstElementChild
+      if (!d) return null
+      return Math.round(d.getBoundingClientRect().right + 40)
+    })()`)
+    await touchSwipe(client, backdropStartX, 300, backdropStartX - 140, 300, 140, signal)
+    const backClosed = await waitDrawer(client, 'backdrop-start leftward close', config.timeoutMs, signal, false)
+    await sleep(500, signal)
+    const afterBackdropClose = await drawerState(client)
+    check(
+      'swipe.close-from-backdrop-area',
+      backClosed !== null && afterBackdropClose.collapsed === true && afterBackdropClose.backdropCount === 0,
+      `startX=${backdropStartX} collapsed=${afterBackdropClose.collapsed} backdrops=${afterBackdropClose.backdropCount} (a stroke beside the drawer must close it, and its synthetic backdrop click must not re-open it)`,
+    )
+    // Back to open for the checklists that follow.
+    await touchSwipe(client, 8, 300, 200, 300, 140, signal)
+    await waitDrawer(client, 'reopen after bidirectional close checks', config.timeoutMs, signal, true)
     await sleep(500, signal)
 
     // --- Checklist 5: post-gesture zero side effects ---

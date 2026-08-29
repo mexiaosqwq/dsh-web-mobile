@@ -70,7 +70,7 @@ const modules = order
   .join('\n')
 
 const wrapped = [
-  'window.__ModuleLoader__.load({ id: "@dsh-external/dsh-mobile-nav", factory: (require) => {',
+  'window.__ModuleLoader__.load({ id: "dsh-mobile-nav", factory: (require) => {',
   'var __modules = {};',
   modules,
   'var __cache = {};',

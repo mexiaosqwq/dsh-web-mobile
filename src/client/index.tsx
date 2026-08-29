@@ -41,8 +41,8 @@ export function apply(ctx: ClientContext): void {
 
   ctx.effect(() => {
     const tag = document.createElement('style')
-    tag.dataset.plugin = '@dsh-external/dsh-mobile-nav'
-    tag.dataset.pluginCss = '@dsh-external/dsh-mobile-nav/mobile.css'
+    tag.dataset.plugin = 'dsh-mobile-nav'
+    tag.dataset.pluginCss = 'dsh-mobile-nav/mobile.css'
     tag.textContent = MOBILE_CSS
     document.head.appendChild(tag)
     // Keep this stylesheet last in <head> so its overrides win over the

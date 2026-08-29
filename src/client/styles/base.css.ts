@@ -102,11 +102,22 @@ export const BASE_CSS = `
   background: rgba(0, 0, 0, .45);
   cursor: pointer;
   animation: dsh-mobile-nav-fade .2s var(--ds-ease-in-out, ease-in-out);
+  /* Fade-out twin of the mount animation: the task eases the dimming away
+     (inline opacity 0 + pointer-events none) and removes the element after
+     the fade. Also used by the gesture layer so the backdrop fades in step
+     with a close-follow commit's slide-out. */
+  transition: opacity .2s var(--ds-ease-in-out, ease-in-out);
   -webkit-tap-highlight-color: transparent;
 }
 @keyframes dsh-mobile-nav-fade {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-mobile-nav="backdrop"] {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 /* Settings sheet entrance: the official dialog mounts with no animation at
    all, so it snaps in. Fade + slight rise/scale reads as a proper sheet. */

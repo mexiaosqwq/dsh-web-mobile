@@ -178,15 +178,15 @@ async function main() {
 
   // ===== A. 打开手势回归（drawer 关闭态，2026-08-27 优化后） =====
 
-  // A1. 起点 40px（视觉热区 24px 外，但在 48px 识别区内）横滑 100px
-  //     —— 优化前失败（"识别成滚动"）；startZone 48px 后应打开
+  // A1. 起点 40px（48px 时代在区外；识别区自适应 45% 视口宽后深在区内）
+  //     横滑 100px —— 优化前失败（"识别成滚动"），此后各轮扩区应继续打开
   await ensureClosed()
   await swipe(40, 400, 140, 400, 150)
   await sleep(700)
   const a1 = await state()
-  record('A1 起点40px横滑100px(识别区外起步)', {
+  record('A1 起点40px横滑100px(识别区内起步)', {
     ok: a1.open === true,
-    text: `open=${a1.open} (期望 true: 48px 识别区覆盖) cancels=${a1.cancels}`,
+    text: `open=${a1.open} (期望 true: 45% 视口识别区覆盖) cancels=${a1.cancels}`,
   })
 
   // 复位到关闭态（A1 已打开）
@@ -287,7 +287,46 @@ async function main() {
     console.log('B3 跳过: 无 newSession 行（hero/blank 阶段）')
   }
 
-  // ===== C. 浏览器滚动行为观察 =====
+  // ===== C. 横向滚动容器让位（第四~五轮调优 2026-08-29：识别区 48px→96px→45% 视口宽） =====
+
+  // C1. 45% 识别区（≈176px@390）覆盖 stats 条左段 / 消息内代码块等 overflow-x:auto
+  //     容器。手势层必须让位：起指在真实横向滚动容器内的 stroke 归该容器
+  //     原生 pan——既不能 preventDefault 掉它的滚动（原生手势被杀），也不
+  //     能把横滑误判成"开抽屉"。注入贴左缘的真实横向滚动容器（内容 600px
+  //     > 容器 120px），从 x=40 横滑 120px（超过 62px 打开阈值）。
+  //     断言 = headless 可观测契约：open=false（手势层让位）+ cancels>=1
+  //     （浏览器认领了 pan，与真机同语义）。scrollLeft 仅记录不判定——
+  //     对照实验（~/tmp/hs-control.mjs，无插件 data:URL 页）证明 headless
+  //     对 CDP 合成触摸只发 pointercancel 不落盘滚动（sl=0, c=1），伪影与
+  //     插件无关；真机滚动由 touch-action:pan-x + overflow 原生保证。
+  await ensureClosed()
+  await evalv(`(() => {
+    const strip = document.createElement('div')
+    strip.id = 'probe-hscroller'
+    strip.style.cssText = 'position:fixed;left:0;top:150px;width:120px;height:140px;overflow-x:auto;touch-action:pan-x;z-index:500;background:rgba(0,128,255,.15)'
+    strip.innerHTML = '<div style="width:600px;height:100%;background:linear-gradient(to right,#08f,#f08)"></div>'
+    document.body.appendChild(strip)
+  })()`)
+  await sleep(200)
+  await swipe(40, 220, 160, 220, 150)
+  await sleep(700)
+  const c1 = await state()
+  const c1strip = await evalv(`(() => {
+    const strip = document.getElementById('probe-hscroller')
+    return strip === null ? null : {
+      scrollLeft: strip.scrollLeft,
+      scrollWidth: strip.scrollWidth,
+      clientWidth: strip.clientWidth,
+    }
+  })()`)
+  record('C1 横向滚动容器内横滑120px(让位不开抽屉)', {
+    ok: c1.open === false && c1.cancels >= 1 && c1strip !== null && c1strip.scrollWidth > c1strip.clientWidth,
+    text: `open=${c1.open} (期望 false: scroller 让位) cancels=${c1.cancels} (期望 >=1: 浏览器认领原生 pan) scrollLeft=${c1strip ? c1strip.scrollLeft : 'n/a'} (仅记录: headless 不落盘合成触摸滚动)`,
+  })
+  await evalv(`(() => { const s = document.getElementById('probe-hscroller'); if (s) s.remove() })()`)
+  await sleep(300)
+
+  // ===== D. 浏览器滚动行为观察 =====
   const diag = await evalv(`({
     cancels: window.__diag.cancels,
     targets: window.__diag.cancelTargets,

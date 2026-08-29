@@ -3,4 +3,4 @@
 # the host half is an empty apply so the row exists in the host Loader.
 - insert:
     - id: dsh-mobile-nav
-      name: '@dsh-external/dsh-mobile-nav'
+      name: 'dsh-mobile-nav'
