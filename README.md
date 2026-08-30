@@ -44,14 +44,14 @@ dsh plugin --profile web add dsh-web-mobile
 
 仓库自带构建产物，无 `allowBuilds` 拦截。装完重启 `dsh web`。
 
-> 包名说明：2026-08-30 起 npm 包名由 `dsh-mobile-nav` 更名为 `dsh-web-mobile`（与 GitHub 仓库名统一，旧名已整包撤下）；更早的 `@dsh-external/dsh-mobile-nav` 亦不复存在。装过旧名的用户请**先移除再装新名**（新旧并存会把同一插件注册两份）：
+> 包名说明：2026-08-30 起 npm 包名由 `dsh-mobile-nav` 更名为 `dsh-web-mobile`（与 GitHub 仓库名统一，旧 npm 名已整包撤下）；更早的 `@dsh-external/dsh-mobile-nav` 亦不复存在。装过旧版的用户请**先移除再装新名**（patch 行 id 随包名一起换了，新旧并存会把同一插件注册两份）：
 >
 > ```sh
-> dsh plugin --profile web rm dsh-mobile-nav
-> dsh plugin --profile web add dsh-web-mobile
+> dsh plugin --profile web rm dsh-mobile-nav      # 2.1.x 及更早的装法键名是 @dsh-external/dsh-mobile-nav，同样先 rm
+> dsh plugin --profile web add dsh-web-mobile     # GitHub 直装：dsh plugin --profile web add github:mexiaosqwq/dsh-web-mobile
 > ```
 >
-> 旧名在 npm 上已消失，滞留不迁移的话，这个死依赖会让 profile 里后续任何插件安装/更新报 404。
+> 不迁移的后果分路线：npm 装法留下死依赖，profile 里后续任何插件安装/更新都会 404；GitHub 直装拉到新代码后，旧键名与包内新名失配，重启 `dsh web` 时该插件加载失败。两种路线都是 `rm` 旧键名即解。
 
 本地开发：
 
