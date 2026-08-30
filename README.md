@@ -44,7 +44,14 @@ dsh plugin --profile web add dsh-web-mobile
 
 仓库自带构建产物，无 `allowBuilds` 拦截。装完重启 `dsh web`。
 
-> 包名说明：2026-08-30 起 npm 包名由 `dsh-mobile-nav` 更名为 `dsh-web-mobile`（与 GitHub 仓库名统一，旧名已整包撤下）；更早的 `@dsh-external/dsh-mobile-nav` 亦不复存在。
+> 包名说明：2026-08-30 起 npm 包名由 `dsh-mobile-nav` 更名为 `dsh-web-mobile`（与 GitHub 仓库名统一，旧名已整包撤下）；更早的 `@dsh-external/dsh-mobile-nav` 亦不复存在。装过旧名的用户请**先移除再装新名**（新旧并存会把同一插件注册两份）：
+>
+> ```sh
+> dsh plugin --profile web rm dsh-mobile-nav
+> dsh plugin --profile web add dsh-web-mobile
+> ```
+>
+> 旧名在 npm 上已消失，滞留不迁移的话，这个死依赖会让 profile 里后续任何插件安装/更新报 404。
 
 本地开发：
 
