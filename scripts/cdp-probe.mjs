@@ -15,7 +15,7 @@ const DEFAULT_URL = 'http://127.0.0.1:3080/';
 const DEFAULT_TIMEOUT_MS = 30_000;
 const CHROME_GRACE_MS = 5_000;
 const CHIP_SELECTOR = '[data-gitgraph-chip-anchor] [data-gitgraph-chip]';
-const MOBILE_STYLE_SELECTOR = 'style[data-plugin="@dsh-external/dsh-mobile-nav"]';
+const MOBILE_STYLE_SELECTOR = 'style[data-plugin="dsh-mobile-nav"]';
 const MOBILE_FRAME_SELECTOR = '[data-mobile-nav="frame"]';
 const MOBILE_DRAWER_SELECTOR = '[data-mobile-nav="frame"] > :first-child';
 const MOBILE_BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]';

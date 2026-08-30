@@ -92,6 +92,26 @@ export const MISC_CSS = `@media (max-width: 1023px) {
   [data-question-key] [class*="_customTextarea"] {
     font-size: 16px !important;
   }
+
+  /* ---------- drawer session tree: skip off-screen rendering ----------
+     The drawer mounts ~389 nodes at once (the open gesture early-commits
+     the host state while the drawer is still off-screen), and during
+     streaming every token commit re-lays-out tree rows that are not even
+     visible. content-visibility: auto lets the engine skip layout and
+     paint of the session tree while it is outside the viewport (the arm
+     moment of the open gesture) and of off-screen rows when the drawer is
+     open on a long conversation. contain-intrinsic-size keeps the scroll
+     geometry stable while rows are skipped. Scoped to the drawer tree via
+     the frame marker + first child so the explorer sheet tree (a different
+     subtree) is not affected. Measured with CDP Tracing on an empty
+     conversation at 1x CPU (2026-08-29): biggest script task 104 -> 66ms,
+     max rAF gap 167 -> 33ms; the benefit scales with conversation length.
+     Desktop untouched (this block lives inside the max-width: 1023px
+     media query). */
+  [data-mobile-nav="frame"] > :first-child [role="tree"] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 600px;
+  }
 }
 
 /* ---------- tablet / wide mobile: keep sheets from becoming full-width ----------

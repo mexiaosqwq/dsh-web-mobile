@@ -7,6 +7,7 @@ import { installFrameController, installOverlayInteractions, installPhoneChrome,
 import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
+import { createRafScheduler } from './core/raf-scheduler.ts'
 import { installDebugBadge } from './debug.ts'
 import { NS, en, zh } from './i18n/locales.ts'
 import type { MobileNavKey } from './i18n/locales.ts'
@@ -40,8 +41,8 @@ export function apply(ctx: ClientContext): void {
 
   ctx.effect(() => {
     const tag = document.createElement('style')
-    tag.dataset.plugin = '@dsh-external/dsh-mobile-nav'
-    tag.dataset.pluginCss = '@dsh-external/dsh-mobile-nav/mobile.css'
+    tag.dataset.plugin = 'dsh-mobile-nav'
+    tag.dataset.pluginCss = 'dsh-mobile-nav/mobile.css'
     tag.textContent = MOBILE_CSS
     document.head.appendChild(tag)
     // Keep this stylesheet last in <head> so its overrides win over the
@@ -88,6 +89,13 @@ export function apply(ctx: ClientContext): void {
       })
     }
     const apply = (): void => {
+      // The market rows only exist while the market UI is mounted (inside a
+      // settings dialog). Skip the full-document class-substring scan on every
+      // streamed mutation frame with no dialog open; dshmarket keeps the
+      // data-dsh-market-root marker (1.20.x), [role="dialog"] covers the
+      // settings dialog generically so a marker change degrades to cost, not
+      // to a silently dead effect.
+      if (document.querySelector('[data-dsh-market-root], [role="dialog"]') === null) return
       document.querySelectorAll<HTMLElement>(rowSelector).forEach((row) => {
         set(row, {
           'flex-wrap': 'wrap',
@@ -127,12 +135,20 @@ export function apply(ctx: ClientContext): void {
       if (mq.matches) apply()
     }
     arm()
+    // Streaming floods this observer with document-wide childList batches;
+    // coalesce to one apply per frame and re-check the breakpoint at flush
+    // time so a queued callback never writes mobile styles on desktop.
+    const scheduler = createRafScheduler(
+      (cb) => window.requestAnimationFrame(cb),
+      (id) => window.cancelAnimationFrame(id),
+    )
     const mo = new MutationObserver(() => {
-      if (mq.matches) apply()
+      if (mq.matches) scheduler.schedule(() => { if (mq.matches) apply() })
     })
     mo.observe(document.documentElement, { childList: true, subtree: true })
     mq.addEventListener('change', arm)
     return () => {
+      scheduler.cancel()
       mo.disconnect()
       mq.removeEventListener('change', arm)
       clear()

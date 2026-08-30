@@ -2,34 +2,80 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { getFrame } from './phone-chrome.ts'
 
+/** Fade the CURRENT backdrop out (pointer-events off + opacity 0). Called by
+ * the gesture layer when a close commit starts animating, so the dimming
+ * fades WITH the drawer's slide-out instead of vanishing after it. The
+ * element itself is removed later by the task's normal remove path (the
+ * marker flip schedules it). */
+export function fadeOverlayOut(): void {
+  fadeHook?.()
+}
+
+let fadeHook: (() => void) | null = null
+
+/** Removal is deferred by one fade so the dimming eases out instead of
+ * snapping (user request 2026-08-29 「背景黑色遮罩进行渐变动画」; the fade-IN
+ * already existed as a mount animation). */
+const BACKDROP_FADE_MS = 200
+
 export function createOverlayTask(
   t: TranslateNS<'mobileNav'>,
   toggleSidebar: () => void,
 ): ReconcilerTask {
   let backdrop: HTMLDivElement | null = null
   let fab: HTMLButtonElement | null = null
+  let backdropRemoveTimer: number | null = null
+  /** True while the backdrop carries our inline faded state. Guards the
+   * restore branch: while a late close commit is animating, the marker is
+   * STILL open, so a plain open-branch restore would undo the pre-fade. */
+  let faded = false
   const drawerOpen = (): boolean => {
     const frame = getFrame()
     return frame !== null && !frame.hasAttribute('data-sidebar-collapsed')
   }
   const heroPhase = (): boolean =>
     document.querySelector('[data-phase="active"]') === null
+  fadeHook = (): void => {
+    if (backdrop === null) return
+    faded = true
+    backdrop.style.pointerEvents = 'none'
+    backdrop.style.opacity = '0'
+  }
   return {
     name: 'overlay-backdrop-fab',
     scopes: ['*', 'data-sidebar-collapsed', 'data-phase'],
     ensure: () => {
       const frame = getFrame()
       if (frame === null) return
-      if (drawerOpen() && backdrop === null) {
-        backdrop = document.createElement('div')
-        backdrop.dataset.mobileNav = 'backdrop'
-        backdrop.setAttribute('role', 'button')
-        backdrop.setAttribute('aria-label', t('backdrop'))
-        backdrop.addEventListener('click', toggleSidebar)
-        frame.appendChild(backdrop)
-      } else if (!drawerOpen() && backdrop !== null) {
-        backdrop.remove()
-        backdrop = null
+      if (drawerOpen()) {
+        if (backdrop === null) {
+          backdrop = document.createElement('div')
+          backdrop.dataset.mobileNav = 'backdrop'
+          backdrop.setAttribute('role', 'button')
+          backdrop.setAttribute('aria-label', t('backdrop'))
+          backdrop.addEventListener('click', toggleSidebar)
+          frame.appendChild(backdrop)
+          faded = false
+        } else if (faded && backdropRemoveTimer !== null) {
+          // Quick close→reopen inside the fade window: cancel the pending
+          // removal and let the CSS transition ease the dimming back in.
+          window.clearTimeout(backdropRemoveTimer)
+          backdropRemoveTimer = null
+          faded = false
+          backdrop.style.removeProperty('pointer-events')
+          backdrop.style.removeProperty('opacity')
+        }
+      } else if (backdrop !== null) {
+        backdrop.style.pointerEvents = 'none'
+        backdrop.style.opacity = '0'
+        faded = true
+        if (backdropRemoveTimer === null) {
+          backdropRemoveTimer = window.setTimeout(() => {
+            backdropRemoveTimer = null
+            backdrop?.remove()
+            backdrop = null
+          }, BACKDROP_FADE_MS + 60)
+        }
       }
       if (heroPhase() && !drawerOpen() && fab === null) {
         fab = document.createElement('button')
@@ -49,6 +95,11 @@ export function createOverlayTask(
       }
     },
     dispose: () => {
+      if (backdropRemoveTimer !== null) {
+        window.clearTimeout(backdropRemoveTimer)
+        backdropRemoveTimer = null
+      }
+      fadeHook = null
       backdrop?.remove()
       backdrop = null
       fab?.remove()

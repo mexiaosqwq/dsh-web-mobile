@@ -5,16 +5,29 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
 
 @media (max-width: 1023px) {
   /* --- Phone chrome ---
-     The system status bar stays visible (no fullscreen). Two adjustments
+     The system status bar stays visible (no fullscreen). Three adjustments
      make it behave:
      - touch-action: pan-y kills double-tap-to-zoom (and the 300ms tap
-       delay) while keeping vertical pan and pinch zoom. pan-y (not
-       manipulation) also forbids HORIZONTAL pan on the root: a left-edge
-       horizontal drag would otherwise be claimed by the browser as a pan
-       (firing pointercancel) before the sidebar swipe layer can classify
-       it. touch-action does not inherit — only touches landing directly on
-       the root background are affected, so inner horizontal scrolling of
-       content containers is untouched.
+       delay) while keeping vertical pan. pan-y (not manipulation) also
+       forbids HORIZONTAL pan on the root: a left-edge horizontal drag would
+       otherwise be claimed by the browser as a pan (firing pointercancel)
+       before the sidebar swipe layer can classify it. touch-action does not
+       inherit and the behavior intersection stops at the first scroll
+       container, so only touches landing directly on the root background
+       are affected — inner horizontal scrolling of content containers is
+       untouched. Note pan-y does NOT include pinch-zoom (that is the
+       manipulation alias = pan-x pan-y pinch-zoom); zoom stays disabled,
+       which reads as app-like.
+     - overscroll-behavior-x: none suppresses the browser's edge history
+       navigation on the root scroller — Android Chrome claims a horizontal
+       stroke that STARTS within its edge band (EDGE_WIDTH_DP=48dp,
+       NavigationHandler.java) and navigates BACK, the exact gesture that
+       opens the drawer ("页面直接返回上一页", 2026-08-29 user report). Only
+       html/body count for this (Chromium issue 41483088: inner containers
+       are ignored by the navigation path). iOS Safari's edge back-swipe has
+       no CSS opt-out (WebKit bug 240183) — there the widened gesture start
+       zone (96px, beyond every browser's edge-claim strip) is the
+       mitigation.
      - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
        status bar / notch height; the rules below push the app content below
        it so the status bar never covers anything. Off notched phones (or in
@@ -23,6 +36,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
   html,
   body {
     touch-action: pan-y !important;
+    overscroll-behavior-x: none !important;
   }
 
   /* AppFrame: the drawer takes the sidebar column out of grid flow, so the
