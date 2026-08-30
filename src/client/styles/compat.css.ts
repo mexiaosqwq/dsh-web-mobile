@@ -3,7 +3,7 @@
 // and closes in this file. Concatenation order still matters for the
 // cascade (compat intentionally overrides layout), just not for syntax.
 
-export const COMPAT_CSS = `@media (max-width: 1023px) {
+export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   /* ---------- dsh-web-ui family compatibility ----------
      The linxin666 plugin suite extends the shell frame directly:
        - aionui-panel appends two trailing grid columns (explorer / preview)
@@ -754,7 +754,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) {
   max-width: 100% !important;
 }
 /* ===== 已安装列表：手机端纵向重排 ===== */
-@media (max-width: 1023px) {
+@media (max-width: 1023px) and (pointer: coarse) {
   [class*="irow"]:not([class*="irowActions"]):not([class*="irowTrailing"]) {
     flex-wrap: wrap !important;
     align-items: center !important;

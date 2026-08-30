@@ -6,7 +6,7 @@ test('market gallery uses responsive horizontal image items', () => {
   const containerRule = /\[data-mobile-nav="frame"\] \[class\*="cardShots"\] \{([\s\S]*?)\n\}/.exec(COMPAT_CSS)?.[1]
   const itemRule = /\[data-mobile-nav="frame"\] \[class\*="cardShots"\] > \[class\*="cardShot"\] \{([\s\S]*?)\n\}/.exec(COMPAT_CSS)?.[1]
 
-  assert.match(COMPAT_CSS, /^@media \(max-width: 1023px\) \{/)
+  assert.match(COMPAT_CSS, /^@media \(max-width: 1023px\) and \(pointer: coarse\) \{/)
   assert.ok(containerRule)
   assert.match(containerRule, /flex-wrap: nowrap !important/)
   assert.match(containerRule, /overflow-x: auto !important/)

@@ -80,6 +80,9 @@ async function main() {
   await send('Emulation.setDeviceMetricsOverride', {
     width: 390, height: 844, deviceScaleFactor: 3, mobile: true, touch: true,
   })
+  // MOBILE_QUERY gates the mobile shell on (pointer: coarse); headless has no
+  // pointer, so touch emulation must arm the mobile branch.
+  await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 })
   await send('Page.navigate', { url: URL })
   await sleep(6000)
 

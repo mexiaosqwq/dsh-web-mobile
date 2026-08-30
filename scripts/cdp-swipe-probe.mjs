@@ -179,6 +179,12 @@ async function setViewport(client, width, height, mobile, touch) {
     mobile: !!mobile,
     touch: !!touch,
   })
+  // MOBILE_QUERY gates the mobile shell on (pointer: coarse); headless has no
+  // pointer, so touch emulation must arm it (and release it for desktop).
+  await client.send('Emulation.setTouchEmulationEnabled', {
+    enabled: !!touch,
+    maxTouchPoints: 5,
+  })
 }
 
 async function rectFor(client, selector) {

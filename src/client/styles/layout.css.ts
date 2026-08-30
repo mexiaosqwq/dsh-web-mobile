@@ -1,9 +1,9 @@
 // layout — split from src/client/mobile.css.ts (2026-08-16), order preserved.
 // Self-contained: the mobile media query opens and closes in this file.
 
-export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
+export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND touch-primary pointer) ---------- */
 
-@media (max-width: 1023px) {
+@media (max-width: 1023px) and (pointer: coarse) {
   /* --- Phone chrome ---
      The system status bar stays visible (no fullscreen). Three adjustments
      make it behave:

@@ -3,7 +3,7 @@ import { MobileNavToggle } from './components/MobileNavToggle.tsx'
 import { MobileDrawerFooter } from './components/MobileDrawerFooter.tsx'
 import { MOBILE_CSS } from './styles/index.ts'
 
-import { installFrameController, installOverlayInteractions, installPhoneChrome, installReconciler, registerReconcileTasks } from './effects/phone-chrome.ts'
+import { installFrameController, installOverlayInteractions, installPhoneChrome, installReconciler, registerReconcileTasks, MOBILE_QUERY } from './effects/phone-chrome.ts'
 import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
@@ -61,7 +61,7 @@ export function apply(ctx: ClientContext): void {
   // the selector on outer rows only; irowActions/irowTrailing are nested
   // flex containers and must retain the market's own action geometry.
   ctx.effect(() => {
-    const mq = window.matchMedia('(max-width: 1023px)')
+    const mq = window.matchMedia(MOBILE_QUERY)
     const rowSelector = '[class*="irow"]:not([class*="irowActions"]):not([class*="irowTrailing"])'
     const set = (el: HTMLElement, props: Record<string, string>): void => {
       for (const [key, value] of Object.entries(props)) {

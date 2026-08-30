@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { MISC_CSS } from '../src/client/styles/misc.css.ts'
 
 test('drawer session tree skips off-screen rendering on mobile only', () => {
-  const block = MISC_CSS.match(/@media \(max-width: 1023px\) \{[\s\S]*?\n\}/)
+  const block = MISC_CSS.match(/@media \(max-width: 1023px\) and \(pointer: coarse\) \{[\s\S]*?\n\}/)
   assert.ok(block, 'mobile media block exists')
   assert.match(block[0], /\[data-mobile-nav="frame"\] > :first-child \[role="tree"\] \{[\s\S]*?content-visibility: auto;/)
   assert.match(block[0], /\[data-mobile-nav="frame"\] > :first-child \[role="tree"\] \{[\s\S]*?contain-intrinsic-size: auto 600px;/)

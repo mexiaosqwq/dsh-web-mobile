@@ -138,6 +138,13 @@ async function setViewport(client, width, height, mobile) {
     deviceScaleFactor: mobile ? 2 : 1,
     mobile: !!mobile,
   });
+  // MOBILE_QUERY is "(max-width: 1023px) and (pointer: coarse)"; headless has
+  // no pointer at all, so the mobile branch arms only with touch emulation.
+  // Desktop viewports must disable it or the coarse guard never releases.
+  await client.send('Emulation.setTouchEmulationEnabled', {
+    enabled: !!mobile,
+    maxTouchPoints: 5,
+  });
 }
 
 async function rectFor(client, selector) {

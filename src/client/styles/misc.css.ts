@@ -2,7 +2,7 @@
 // Self-contained: each section (composer / tablet / desktop) carries its own
 // media query.
 
-export const MISC_CSS = `@media (max-width: 1023px) {
+export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   /* ---------- hero composer on mobile ----------
      The official hero card carries a 2-line textarea plus a tall tool row,
      which reads oversized on a phone. Tighten the empty-state rhythm: keep
@@ -120,7 +120,7 @@ export const MISC_CSS = `@media (max-width: 1023px) {
    desktop-mode tall windows) the same full-bleed sheet leaves content
    clustered at the left edge with a large dead zone on the right. Cap and
    center the modal sheets and the aionui bottom sheets instead. */
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 768px) and (max-width: 1023px) and (pointer: coarse) {
   /* All modal dialogs: centered, never edge-to-edge. The settings sheet has
      a higher-specificity full-width rule above, so repeat its selector here
      to win; the generic export/other-modal rule is covered by the second
@@ -155,15 +155,24 @@ export const MISC_CSS = `@media (max-width: 1023px) {
   }
 }
 
-/* ---------- desktop: the mobile controls must never appear ---------- */
+/* ---------- desktop / non-touch: the mobile controls must never appear ----------
+   Exact complement of the mobile query "(max-width: 1023px) and (pointer:
+   coarse)" as a comma list (NOT A or NOT B): any viewport ≥1024px, plus any
+   narrow viewport whose primary pointer is a mouse (fine) or absent (none).
+   The pointer terms are what keep the header Files button off narrow desktop
+   windows — the slot renders the buttons at every width, so before this the
+   only guard was the width term (2026-08-30 PC leak: split windows and OS
+   display scaling dropped the CSS viewport below 1024px and armed the whole
+   mobile shell on desktop). */
 
-@media (min-width: 1024px) {
+@media (min-width: 1024px), (pointer: fine), (pointer: none) {
   [data-mobile-nav="toggle"],
   [data-mobile-nav="files"],
   [data-mobile-nav="fab"],
   [data-mobile-nav="backdrop"],
   [data-mobile-nav="session-log"],
   [data-mobile-nav="explorer"],
+  [data-mobile-nav="preview-full-toggle"],
   [data-mobile-nav="drawer-actions"] {
     display: none !important;
   }

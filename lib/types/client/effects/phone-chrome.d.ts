@@ -1,8 +1,18 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
 import type { ReconcilerTask } from '../core/reconciler-core.ts';
-/** Same breakpoint as the shell's SIDEBAR_AUTO_COLLAPSE (viewport < 1024). */
-export declare const MOBILE_QUERY = "(max-width: 1023px)";
-/** Desktop no-op boundary, kept next to the mobile query for one source of truth. */
+/** Same width bound as the shell's SIDEBAR_AUTO_COLLAPSE (viewport < 1024),
+ *  ANDed with a touch-primary pointer guard. Width alone cannot tell a phone
+ *  from a desktop window: split views and OS display scaling push a PC's CSS
+ *  viewport below 1024px too, and the whole mobile shell (drawer, header
+ *  Files button, gestures) would mount there. (pointer: coarse) keeps the
+ *  adaptation on touch-primary devices — phones, tablets, DSHA — while any
+ *  mouse-driven window stays desktop at every width. Headless probes have no
+ *  pointer at all: arm the mobile branch with Emulation.setTouchEmulation-
+ *  Enabled before asserting mobile UI. */
+export declare const MOBILE_QUERY = "(max-width: 1023px) and (pointer: coarse)";
+/** Informational wide-bound for the debug badge. The authoritative desktop
+ *  guard is the CSS hide block in misc.css.ts — the exact complement of
+ *  MOBILE_QUERY — because slot-rendered controls exist at every width. */
 export declare const DESKTOP_QUERY = "(min-width: 1024px)";
 /**
  * Re-arm a mobile-only DOM effect on every width change. Replaces the
