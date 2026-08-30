@@ -71,7 +71,7 @@ const CLICK_GRACE_MS = 1000
 const SWALLOWED_TYPES = ['mouseover', 'mouseout', 'mouseenter', 'mouseleave'] as const
 
 export function installSubagentChipTouch(ctx: ClientContext): void {
-  installMobileEffect(ctx, 'dsh-mobile-nav: lineage chip touch toggle', () => {
+  installMobileEffect(ctx, 'dsh-web-mobile: lineage chip touch toggle', () => {
     if (typeof PointerEvent === 'undefined') return undefined
 
     let swallowUntil = 0

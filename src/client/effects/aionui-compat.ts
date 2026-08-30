@@ -3,7 +3,7 @@ import { getFrame, installMobileEffect, type ReconcilerTask } from './phone-chro
 
 /** dsh-web-ui 兼容：explorer / preview 列的显隐标记与升起动画（同域同机制，合并一处）。 */
 export function installAionuiCompat(ctx: ClientContext): void {
-  installMobileEffect(ctx, 'dsh-mobile-nav: aionui explorer close marker', () => {
+  installMobileEffect(ctx, 'dsh-web-mobile: aionui explorer close marker', () => {
     const onChevronClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
       if (target === null || !target.closest('.aionui-collapse-chevron')) return
@@ -13,7 +13,7 @@ export function installAionuiCompat(ctx: ClientContext): void {
     return () => document.removeEventListener('click', onChevronClick, true)
   })
 
-  installMobileEffect(ctx, 'dsh-mobile-nav: preview sheet open marker', () => {
+  installMobileEffect(ctx, 'dsh-web-mobile: preview sheet open marker', () => {
     const closePreview = (): void => {
       getFrame()?.removeAttribute('data-aionui-preview-open')
       getFrame()?.removeAttribute('data-mobile-preview-full')

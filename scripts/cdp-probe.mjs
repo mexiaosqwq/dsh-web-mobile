@@ -1,4 +1,4 @@
-// CDP regression probe for dsh-mobile-nav.
+// CDP regression probe for dsh-web-mobile.
 // Inputs (environment): DSH_PROBE_URL (default http://127.0.0.1:3080/),
 // DSH_PROBE_SESSION_ID (required), DSH_PROBE_CHROME (default chromium),
 // DSH_PROBE_TIMEOUT_MS (default 30000), DSH_PROBE_REQUIRE_CHIP (0 or 1, default 0).
@@ -15,7 +15,7 @@ const DEFAULT_URL = 'http://127.0.0.1:3080/';
 const DEFAULT_TIMEOUT_MS = 30_000;
 const CHROME_GRACE_MS = 5_000;
 const CHIP_SELECTOR = '[data-gitgraph-chip-anchor] [data-gitgraph-chip]';
-const MOBILE_STYLE_SELECTOR = 'style[data-plugin="dsh-mobile-nav"]';
+const MOBILE_STYLE_SELECTOR = 'style[data-plugin="dsh-web-mobile"]';
 const MOBILE_FRAME_SELECTOR = '[data-mobile-nav="frame"]';
 const MOBILE_DRAWER_SELECTOR = '[data-mobile-nav="frame"] > :first-child';
 const MOBILE_BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]';
@@ -607,7 +607,7 @@ async function main() {
     const port = await allocatePort();
     const cacheRoot = join(homedir(), '.cache');
     await mkdir(cacheRoot, { recursive: true });
-    profileDir = await mkdtemp(join(cacheRoot, 'dsh-mobile-nav-probe-'));
+    profileDir = await mkdtemp(join(cacheRoot, 'dsh-web-mobile-probe-'));
 
     chrome = spawn(config.chromePath, [
       '--headless=new',

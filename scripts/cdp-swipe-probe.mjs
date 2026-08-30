@@ -1,4 +1,4 @@
-// CDP swipe-gesture probe for dsh-mobile-nav (A 档: release-classified,
+// CDP swipe-gesture probe for dsh-web-mobile (A 档: release-classified,
 // zero inline transform, no gesture-layer backdrop).
 //
 // Usage: DSH_PROBE_URL=<isolated-instance-url> node scripts/cdp-swipe-probe.mjs
@@ -37,7 +37,7 @@ const FRAME_SELECTOR = '[data-mobile-nav="frame"]'
 const BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]'
 const FAB_SELECTOR = '[data-mobile-nav="fab"]'
 const TOGGLE_SELECTOR = '[data-mobile-nav="toggle"]'
-const STYLE_SELECTOR = 'style[data-plugin="dsh-mobile-nav"]'
+const STYLE_SELECTOR = 'style[data-plugin="dsh-web-mobile"]'
 
 const results = []
 function record(status, name, detail = '') {
@@ -292,7 +292,7 @@ async function main() {
     const port = await allocatePort()
     const cacheRoot = join(homedir(), '.cache')
     await mkdir(cacheRoot, { recursive: true })
-    profileDir = await mkdtemp(join(cacheRoot, 'dsh-mobile-nav-swipe-probe-'))
+    profileDir = await mkdtemp(join(cacheRoot, 'dsh-web-mobile-swipe-probe-'))
 
     chrome = spawn(config.chromePath, [
       '--headless=new',

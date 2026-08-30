@@ -101,7 +101,7 @@ export const BASE_CSS = `
   z-index: 30;
   background: rgba(0, 0, 0, .45);
   cursor: pointer;
-  animation: dsh-mobile-nav-fade .2s var(--ds-ease-in-out, ease-in-out);
+  animation: dsh-web-mobile-fade .2s var(--ds-ease-in-out, ease-in-out);
   /* Fade-out twin of the mount animation: the task eases the dimming away
      (inline opacity 0 + pointer-events none) and removes the element after
      the fade. Also used by the gesture layer so the backdrop fades in step
@@ -109,7 +109,7 @@ export const BASE_CSS = `
   transition: opacity .2s var(--ds-ease-in-out, ease-in-out);
   -webkit-tap-highlight-color: transparent;
 }
-@keyframes dsh-mobile-nav-fade {
+@keyframes dsh-web-mobile-fade {
   from { opacity: 0; }
   to { opacity: 1; }
 }
@@ -121,7 +121,7 @@ export const BASE_CSS = `
 }
 /* Settings sheet entrance: the official dialog mounts with no animation at
    all, so it snaps in. Fade + slight rise/scale reads as a proper sheet. */
-@keyframes dsh-mobile-nav-sheet-in {
+@keyframes dsh-web-mobile-sheet-in {
   from {
     opacity: 0;
     transform: translateY(14px) scale(.98);
@@ -132,7 +132,7 @@ export const BASE_CSS = `
   }
 }
 /* Preview sheet rise: the aionui preview column opens as a bottom sheet. */
-@keyframes dsh-mobile-nav-sheet-up {
+@keyframes dsh-web-mobile-sheet-up {
   from {
     opacity: 0;
     transform: translateY(28px);

@@ -66,5 +66,5 @@ export function installDebugBadge(ctx: ClientContext): void {
       clearInterval(timer)
       badge.remove()
     }
-  }, 'dsh-mobile-nav: debug badge')
+  }, 'dsh-web-mobile: debug badge')
 }

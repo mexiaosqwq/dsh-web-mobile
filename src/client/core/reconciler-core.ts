@@ -66,7 +66,7 @@ export function createReconcilerCore(options: ReconcilerCoreOptions): Reconciler
     options.onError ??
     ((taskName, error, phase) => {
       console.error(
-        `[dsh-mobile-nav] reconciler task ${taskName}${phase === 'dispose' ? ' dispose' : ''} failed`,
+        `[dsh-web-mobile] reconciler task ${taskName}${phase === 'dispose' ? ' dispose' : ''} failed`,
         error,
       )
     })

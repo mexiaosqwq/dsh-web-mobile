@@ -37,12 +37,12 @@ type DownloadSessionId = Parameters<ClientContext['sessionLogDownload']['downloa
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-mobile-nav: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-web-mobile: dictionaries')
 
   ctx.effect(() => {
     const tag = document.createElement('style')
-    tag.dataset.plugin = 'dsh-mobile-nav'
-    tag.dataset.pluginCss = 'dsh-mobile-nav/mobile.css'
+    tag.dataset.plugin = 'dsh-web-mobile'
+    tag.dataset.pluginCss = 'dsh-web-mobile/mobile.css'
     tag.textContent = MOBILE_CSS
     document.head.appendChild(tag)
     // Keep this stylesheet last in <head> so its overrides win over the
@@ -53,7 +53,7 @@ export function apply(ctx: ClientContext): void {
     return () => {
       tag.remove()
     }
-  }, 'dsh-mobile-nav: styles')
+  }, 'dsh-web-mobile: styles')
 
   // Hard-fix the installed-plugins list text layout: the host market UI
   // injects its own CSS after this plugin's stylesheet, so CSS overrides can
@@ -153,7 +153,7 @@ export function apply(ctx: ClientContext): void {
       mq.removeEventListener('change', arm)
       clear()
     }
-  }, 'dsh-mobile-nav: installed-list-inline-styles')
+  }, 'dsh-web-mobile: installed-list-inline-styles')
 
 
   // Shared mobile infrastructure: frame marker ownership and the single
@@ -168,7 +168,7 @@ export function apply(ctx: ClientContext): void {
     return () => {
       for (const stop of stops) stop()
     }
-  }, 'dsh-mobile-nav: reconciler infrastructure')
+  }, 'dsh-web-mobile: reconciler infrastructure')
 
 
 

@@ -969,7 +969,7 @@ function frameRtl(): boolean {
 
 /** Install the gesture layer for the current mobile breakpoint. */
 export function installSidebarSwipe(ctx: ClientContext): void {
-  installMobileEffect(ctx, 'dsh-mobile-nav: sidebar swipe gestures', () => {
+  installMobileEffect(ctx, 'dsh-web-mobile: sidebar swipe gestures', () => {
     const viewportWidth = (): number =>
       window.innerWidth || document.documentElement.clientWidth || 0
 

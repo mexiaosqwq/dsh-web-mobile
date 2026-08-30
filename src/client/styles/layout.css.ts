@@ -646,12 +646,12 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout ---------- */
     max-height: min(800px, calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
     flex-direction: column !important;
     border-radius: 14px !important;
-    animation: dsh-mobile-nav-sheet-in .22s var(--ds-ease-out, ease-in-out);
+    animation: dsh-web-mobile-sheet-in .22s var(--ds-ease-out, ease-in-out);
   }
   /* The settings sheet's dimmed mask fades in with the panel (the mask is
      the first child of the overlay that directly contains the sheet). */
   :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"]))) > :first-child {
-    animation: dsh-mobile-nav-fade .18s var(--ds-ease-out, ease-in-out);
+    animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out);
   }
   @media (prefers-reduced-motion: reduce) {
     [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])),

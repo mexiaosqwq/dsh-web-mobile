@@ -128,7 +128,7 @@ const core = createReconcilerCore({
 export function installReconciler(ctx: ClientContext): () => void {
   if (reconcilerInstalled) return () => {}
   reconcilerInstalled = true
-  installMobileEffect(ctx, 'dsh-mobile-nav: DOM reconciler', () => {
+  installMobileEffect(ctx, 'dsh-web-mobile: DOM reconciler', () => {
     // Coalesce every mutation burst (typing, animations, per-token TPS
     // re-renders) into one dirty-key pass per animation frame. Each task
     // declares scopes so only intersecting tasks run on a given flush.
@@ -189,7 +189,7 @@ export function addReconcilerTask(task: ReconcilerTask): () => void {
  *   touch-action: manipulation (which keeps pan and pinch zoom).
  */
 export function installPhoneChrome(ctx: ClientContext): void {
-  installMobileEffect(ctx, 'dsh-mobile-nav: status bar theme + viewport + zoom guard', () => {
+  installMobileEffect(ctx, 'dsh-web-mobile: status bar theme + viewport + zoom guard', () => {
     const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
     const originalViewport = viewport?.content ?? ''
     const themeMeta = document.createElement('meta')
@@ -242,7 +242,7 @@ export function installPhoneChrome(ctx: ClientContext): void {
  *   excluded — they open a menu that must survive the tap.
  */
 export function installOverlayInteractions(ctx: ClientContext): void {
-  installMobileEffect(ctx, 'dsh-mobile-nav: drawer close (Escape + navigate)', () => {
+  installMobileEffect(ctx, 'dsh-web-mobile: drawer close (Escape + navigate)', () => {
     const toggleSidebar = (): void => ctx.layout.toggleSidebar()
     const drawerOpen = (): boolean => {
       const frame = getFrame()

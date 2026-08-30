@@ -52,7 +52,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) {
     border-radius: 14px !important;
     overflow: hidden !important;
     box-shadow: 0 -4px 28px rgba(0, 0, 0, .18) !important;
-    animation: dsh-mobile-nav-sheet-up .24s var(--ds-ease-out, ease-in-out) !important;
+    animation: dsh-web-mobile-sheet-up .24s var(--ds-ease-out, ease-in-out) !important;
   }
   /* Preview (file content) bottom sheet. Gated shut by default: the suite
      persists open preview tabs in localStorage and restores them on load,
@@ -73,7 +73,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) {
     overflow: hidden !important;
     box-shadow: 0 -4px 28px rgba(0, 0, 0, .18) !important;
     z-index: 56 !important;
-    animation: dsh-mobile-nav-sheet-up .24s var(--ds-ease-out, ease-in-out) !important;
+    animation: dsh-web-mobile-sheet-up .24s var(--ds-ease-out, ease-in-out) !important;
     /* Fullscreen toggle (issue #8): animate the geometry change instead of
        snapping. visibility is deliberately not listed, so opening/closing
        the sheet stays instant; the open/close keyframes own transform. */
@@ -174,13 +174,13 @@ export const COMPAT_CSS = `@media (max-width: 1023px) {
     display: inline-flex !important;
   }
   /* Icon swap on the frame fullscreen marker. */
-  [data-mobile-nav="preview-full-toggle"] .dsh-mobile-nav-full-out {
+  [data-mobile-nav="preview-full-toggle"] .dsh-web-mobile-full-out {
     display: none !important;
   }
-  [data-mobile-nav="frame"][data-mobile-preview-full] [data-aionui-preview-col] [data-mobile-nav="preview-full-toggle"] .dsh-mobile-nav-full-in {
+  [data-mobile-nav="frame"][data-mobile-preview-full] [data-aionui-preview-col] [data-mobile-nav="preview-full-toggle"] .dsh-web-mobile-full-in {
     display: none !important;
   }
-  [data-mobile-nav="frame"][data-mobile-preview-full] [data-aionui-preview-col] [data-mobile-nav="preview-full-toggle"] .dsh-mobile-nav-full-out {
+  [data-mobile-nav="frame"][data-mobile-preview-full] [data-aionui-preview-col] [data-mobile-nav="preview-full-toggle"] .dsh-web-mobile-full-out {
     display: inline !important;
   }
   /* Fullscreen preview: the sheet fills the whole viewport (notch included);
