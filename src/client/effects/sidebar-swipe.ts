@@ -424,6 +424,20 @@ function takeoverActive(): boolean {
   )
 }
 
+/**
+ * Whether a live, non-collapsed text selection owns the pointer stroke.
+ * A selection-handle drag (and a long-press selection that appears between
+ * pointerdown and the axis lock) is horizontally dominant and geometrically
+ * indistinguishable from a drawer swipe — the browser must keep it (#43,
+ * iPad WebKit). Feature-detected so the node:test suite can import the
+ * predicate without a DOM.
+ */
+export function selectionOwnsStroke(): boolean {
+  if (typeof window === 'undefined') return false
+  const sel = window.getSelection()
+  return sel !== null && !sel.isCollapsed
+}
+
 /** Whether the swipe layer is on cooldown (animation in flight). */
 function onCooldown(): boolean {
   return performance.now() < cooldownUntil
@@ -732,6 +746,13 @@ function beginStroke(
   if (onCooldown()) return false
   if (modalOpen()) return false
   if (takeoverActive()) return false
+  // A live text selection owns the stroke (a selection-handle drag is
+  // horizontally dominant and geometrically identical to a swipe — #43,
+  // iPad WebKit): yield before any geometric test. This also blocks
+  // swipe-open while a stale selection is alive; one tap collapses the
+  // selection everywhere, and backdrop tap-to-close is unaffected (a tap
+  // never reaches tryLock).
+  if (selectionOwnsStroke()) return false
   if (!(event.target instanceof Element)) return false
   // A stroke beginning inside a genuinely horizontally scrollable container
   // belongs to that scroller (the stats line, a message code block, any
@@ -996,6 +1017,15 @@ export function installSidebarSwipe(ctx: ClientContext): void {
         return
       }
       if (!tracking) {
+        // A long-press selection can appear AFTER pointerdown but BEFORE the
+        // axis lock (#43 second timing window): abandon the stroke and hand
+        // the touch back so the handles become draggable (reset() also lifts
+        // the touchmove preventDefault). Once locked the gesture stays
+        // committed — a selection never appears mid-swipe.
+        if (selectionOwnsStroke()) {
+          reset()
+          return
+        }
         if (tryLock(event)) {
           pushSample(event)
           applyFollow(ctx, event.clientX - startX)

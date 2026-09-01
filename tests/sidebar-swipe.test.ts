@@ -7,6 +7,7 @@ import {
   followTranslate,
   followOpenTransform,
   findHorizontalScroller,
+  selectionOwnsStroke,
   startZonePxFor,
   type SwipeThresholds,
   type SwipeChainNode,
@@ -441,4 +442,35 @@ test('followOpenTransform: RTL mirrors both the axis and the slot sign', () => {
     'translateX(max(0px, calc(101% - 40px)))',
   )
   assert.equal(followOpenTransform(40, true), null)
+})
+
+test('selectionOwnsStroke: a live non-collapsed selection owns the stroke (#43)', () => {
+  const g = globalThis as { window?: unknown }
+  const originalWindow = g.window
+  const setSelection = (sel: { isCollapsed: boolean } | null): void => {
+    g.window = { getSelection: () => sel }
+  }
+  try {
+    // Handle drag: the selection already exists when the finger goes down.
+    setSelection({ isCollapsed: false })
+    assert.equal(selectionOwnsStroke(), true)
+    // No live selection (or a caret): the swipe layer stays armed.
+    setSelection({ isCollapsed: true })
+    assert.equal(selectionOwnsStroke(), false)
+    setSelection(null)
+    assert.equal(selectionOwnsStroke(), false)
+  } finally {
+    g.window = originalWindow
+  }
+})
+
+test('selectionOwnsStroke: feature-detected false without a DOM window', () => {
+  const g = globalThis as { window?: unknown }
+  const originalWindow = g.window
+  delete g.window
+  try {
+    assert.equal(selectionOwnsStroke(), false)
+  } finally {
+    g.window = originalWindow
+  }
 })

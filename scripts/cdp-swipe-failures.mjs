@@ -329,6 +329,82 @@ async function main() {
   await evalv(`(() => { const s = document.getElementById('probe-hscroller'); if (s) s.remove() })()`)
   await sleep(300)
 
+  // ===== E. 划词选择所有权（#43，iPad WebKit 报告：左缘划词被开抽屉手势劫持） =====
+  // 非塌缩选区（拖拽选择手柄 / 长按选区）与抽屉滑出几何上不可区分：
+  // selectionOwnsStroke() 双点让位——beginStroke 全局门 + onPointerMove 轴锁前。
+  // headless 里用程序化选区替代真实长按：手势层只读 window.getSelection()，
+  // 与真实长按选词走同一判定路径。
+  const injectSelText = async () => {
+    await evalv(`(() => {
+      const p = document.createElement('div')
+      p.id = 'probe-seltext'
+      p.style.cssText = 'position:fixed;left:8px;top:300px;width:220px;height:48px;z-index:500;background:rgba(0,200,0,.12);font:14px sans-serif;padding:4px;box-sizing:border-box'
+      p.textContent = 'probe selection text for issue 43'
+      document.body.appendChild(p)
+    })()`)
+    await sleep(100)
+  }
+  const setSelection = async (len) => {
+    const ok = await evalv(`(() => {
+      const p = document.getElementById('probe-seltext')
+      if (!p) return false
+      const node = p.firstChild
+      const sel = document.getSelection()
+      sel.setBaseAndExtent(node, 0, node, ${len})
+      return !sel.isCollapsed
+    })()`)
+    if (!ok) throw new Error('程序化选区创建失败')
+  }
+  const clearSelection = async () => {
+    await evalv('document.getSelection().removeAllRanges()')
+  }
+
+  // E1. 选区已存在（拖手柄场景）：起指即让位，抽屉不得打开，且选区必须
+  //     仍存活（preventDefault 不得杀掉划词）。清除选区后同一手势应正常
+  //     打开——对照证明让位是选区因果，不是手势层变聋。
+  await ensureClosed()
+  await injectSelText()
+  await setSelection(6)
+  await swipe(12, 400, 130, 400, 150)
+  await sleep(700)
+  const e1 = await state()
+  const e1sel = await evalv('!document.getSelection().isCollapsed')
+  record('E1 选区已存在+标准打开手势(应让位不开抽屉)', {
+    ok: e1.open === false && e1sel === true,
+    text: `open=${e1.open} (期望 false: beginStroke 让位) 选区仍存活=${e1sel} (期望 true: 划词不被劫持) cancels=${e1.cancels}`,
+  })
+  await clearSelection()
+  await sleep(500) // cooldown 350ms 过期
+  await swipe(12, 400, 130, 400, 150)
+  await sleep(700)
+  const e1c = await state()
+  record('E1c 对照:清除选区后同一手势(应正常打开)', {
+    ok: e1c.open === true,
+    text: `open=${e1c.open} (期望 true: 让位仅由选区因果触发)`,
+  })
+  await ensureClosed()
+
+  // E2. 第二时间窗：pointerdown 后、轴锁定前（<8px）选区才出现（长按选词
+  //     完成）。onPointerMove 必须在 tryLock 前让位——抽屉不得打开。
+  await setSelection(6)
+  await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 12, y: 400 }] })
+  await sleep(60)
+  await setSelection(10)
+  await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 40, y: 400 }] })
+  await sleep(40)
+  await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 130, y: 400 }] })
+  await sleep(40)
+  await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await sleep(700)
+  const e2 = await state()
+  record('E2 锁定前选区出现(应让位不开抽屉)', {
+    ok: e2.open === false,
+    text: `open=${e2.open} (期望 false: tryLock 前 selectionOwnsStroke 让位) cancels=${e2.cancels}`,
+  })
+  await clearSelection()
+  await evalv(`(() => { const s = document.getElementById('probe-seltext'); if (s) s.remove() })()`)
+  await sleep(300)
+
   // ===== D. 浏览器滚动行为观察 =====
   const diag = await evalv(`({
     cancels: window.__diag.cancels,
@@ -357,7 +433,9 @@ async function main() {
 
   ws.close()
   chrome.kill()
-  await rm(profileDir, { recursive: true, force: true })
+  // chrome lingers flushing its profile after kill on slow devices; a
+  // cleanup race must not turn an all-PASS run into exit 1.
+  await rm(profileDir, { recursive: true, force: true }).catch(() => {})
   process.exit(0)
 }
 

@@ -112,6 +112,15 @@ export interface SwipeChainNode {
  * for the gesture layer.
  */
 export declare function findHorizontalScroller(node: SwipeChainNode | null): SwipeChainNode | null;
+/**
+ * Whether a live, non-collapsed text selection owns the pointer stroke.
+ * A selection-handle drag (and a long-press selection that appears between
+ * pointerdown and the axis lock) is horizontally dominant and geometrically
+ * indistinguishable from a drawer swipe — the browser must keep it (#43,
+ * iPad WebKit). Feature-detected so the node:test suite can import the
+ * predicate without a DOM.
+ */
+export declare function selectionOwnsStroke(): boolean;
 /** Install the gesture layer for the current mobile breakpoint. */
 export declare function installSidebarSwipe(ctx: ClientContext): void;
 //# sourceMappingURL=sidebar-swipe.d.ts.map
