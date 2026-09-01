@@ -545,6 +545,41 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] [data-phase] header > :first-child > :last-child {
     display: none !important;
   }
+  /* View tabs strip (official [role="tablist"] under the crumbs row).
+     Desktop ships a single flex row (gap: 36) sized for the two stock tabs
+     (对话/轨迹). Plugins register further views (memory / skill / todo
+     panels, per-plugin settings pages), and once the count passes two the
+     shrinkable buttons collapse to their min-content: CJK labels stack one
+     glyph per line (staircase), latin labels break word-per-line — the
+     strip eats a screenful of vertical space (#41, 8 tabs, HarmonyOS
+     browser). Scroll the strip horizontally instead — the standard mobile
+     tab-bar pattern — with every label kept whole (flex-shrink: 0 +
+     nowrap). Affordance is the peek: the naturally cut-off tab at the right
+     edge says "more this way" (unlike the settings navList, whose buttons
+     nearly fit and would show no cut edge), which is why this strip scrolls
+     while that one wraps. touch-action: pan-x opts the strip into
+     horizontal panning — the root's pan-y intersection stops at this first
+     scroll container (same mechanism as the drawer's pan-y), so the page
+     never scrolls sideways. overscroll-behavior-x: contain stops a flick
+     from chaining past the ends; snap keeps tabs edge-aligned after a
+     fling; the scrollbar stays hidden like every native tab bar. */
+  [data-mobile-nav="frame"] [data-phase] header [role="tablist"] {
+    flex-wrap: nowrap;
+    gap: 0 16px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+  [data-mobile-nav="frame"] [data-phase] header [role="tablist"]::-webkit-scrollbar {
+    display: none;
+  }
+  [data-mobile-nav="frame"] [data-phase] header [role="tablist"] > button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
   /* Header crowding on narrow phones.
      A background-job trigger in the header actions, or the subagent lineage
      count ("N 个子代理") living inside the crumbs nav, consumes the width the
