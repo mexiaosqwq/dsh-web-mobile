@@ -182,6 +182,42 @@ export function addReconcilerTask(task: ReconcilerTask): () => void {
 }
 
 /**
+ * Whether the page runs on iOS / iPadOS WebKit, where focusing a text field
+ * whose computed font-size is below 16px zooms the whole visual viewport
+ * (#45). Every other engine ignores field font-size, so the 16px floor in
+ * misc.css.ts is gated on this marker instead of applying to every phone —
+ * Android would only get bigger search boxes for no benefit.
+ *
+ * Pure and injectable so the decision table is unit-testable:
+ * - The feature probe is the reliable signal: `font: -apple-system-body` is
+ *   Safari-only and `-webkit-touch-callout` is an iOS property, so the pair
+ *   is true on iOS WebKit (including Chrome / Edge / Opera on iOS, which are
+ *   WebKit and zoom identically) and false on Chromium (measured) and on
+ *   macOS Safari.
+ * - The UA fallback covers engines whose CSS.supports is missing or which
+ *   parse the probe differently: iPhone / iPad / iPod UAs, plus iPadOS 13+
+ *   which reports a Macintosh UA and is told apart by its touch points.
+ */
+export function detectIosWebKit(
+  nav: { userAgent: string; maxTouchPoints: number },
+  supports: ((condition: string) => boolean) | null,
+): boolean {
+  if (supports !== null) {
+    try {
+      if (supports('(font: -apple-system-body) and (-webkit-touch-callout: none)')) return true
+    } catch {
+      // A UA that rejects the condition string falls through to the UA test.
+    }
+  }
+  const ua = nav.userAgent
+  if (/iP(hone|ad|od)/.test(ua)) return true
+  return /Macintosh/.test(ua) && nav.maxTouchPoints > 1
+}
+
+/** Marker the iOS-only zoom-guard CSS is scoped to (html element). */
+const IOS_MARKER = 'data-mobile-nav-ios'
+
+/**
  * Phone chrome: KEEP the system status bar (no fullscreen) and make it
  * blend into the page. On narrow screens:
  * - The viewport meta gains viewport-fit=cover, so env(safe-area-inset-top)
@@ -194,9 +230,11 @@ export function addReconcilerTask(task: ReconcilerTask): () => void {
  *   Android then paints the status bar / URL bar with the page's own base
  *   color, so the status bar reads as part of the UI instead of a foreign
  *   strip. The drawer paints the same strip on iOS / notch displays.
- * - gesturestart is suppressed as the legacy-iOS fallback for double-tap
- *   zoom; modern browsers are covered by the stylesheet's
- *   touch-action: manipulation (which keeps pan and pinch zoom).
+ * - documentElement carries data-mobile-nav-ios on iOS WebKit so the
+ *   stylesheet can hold every text field at >=16px and Safari never
+ *   focus-zooms the viewport (#45). Double-tap zoom is off through
+ *   touch-action; pinch zoom stays available on purpose — it is the only way
+ *   back out of a zoom the browser applied on its own.
  */
 export function installPhoneChrome(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: status bar theme + viewport + zoom guard', () => {
@@ -205,13 +243,17 @@ export function installPhoneChrome(ctx: ClientContext): void {
     const themeMeta = document.createElement('meta')
     themeMeta.name = 'theme-color'
     const bodyBg = (): string => getComputedStyle(document.body).backgroundColor
+    const root = document.documentElement
 
     const sync = (): void => {
       if (viewport !== null) {
-        // iOS Safari auto-zooms when focusing any field below 16px unless the
-        // viewport meta carries maximum-scale=1. The host page may set that
-        // flag; this rewrite REPLACES the meta, so carry the token forward
-        // instead of dropping it (dispose restores the original anyway).
+        // maximum-scale=1 is NOT added here: iOS 10+ ignores it for user
+        // pinch zoom but other engines honor it, so writing it would only
+        // take zoom away from Android. The field font-size floor is the fix
+        // that actually stops focus zoom (#45). The host page may still set
+        // the flag itself; this rewrite REPLACES the meta, so carry the
+        // token forward instead of dropping it (dispose restores the
+        // original anyway).
         const locked = /(^|,)\s*maximum-scale\s*=/.test(viewport.content)
         viewport.content = `width=device-width, initial-scale=1${locked ? ', maximum-scale=1' : ''}, viewport-fit=cover`
       }
@@ -221,17 +263,20 @@ export function installPhoneChrome(ctx: ClientContext): void {
     const restore = (): void => {
       if (viewport !== null) viewport.content = originalViewport
       themeMeta.remove()
+      root.removeAttribute(IOS_MARKER)
     }
-    const onGestureStart = (event: Event) => event.preventDefault()
     const observer = new MutationObserver(() => {
       themeMeta.content = bodyBg()
     })
     observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
-    document.addEventListener('gesturestart', onGestureStart)
+    const cssSupports =
+      typeof CSS !== 'undefined' && typeof CSS.supports === 'function'
+        ? (condition: string): boolean => CSS.supports(condition)
+        : null
+    if (detectIosWebKit(navigator, cssSupports)) root.setAttribute(IOS_MARKER, '')
     sync()
     return () => {
       observer.disconnect()
-      document.removeEventListener('gesturestart', onGestureStart)
       restore()
     }
   })

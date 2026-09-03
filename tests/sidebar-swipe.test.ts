@@ -474,3 +474,66 @@ test('selectionOwnsStroke: feature-detected false without a DOM window', () => {
     g.window = originalWindow
   }
 })
+
+test('selectionOwnsStroke: a focused text control owns the stroke via selectionStart/End (#44)', () => {
+  const g = globalThis as { window?: unknown; document?: unknown }
+  const originalWindow = g.window
+  const originalDocument = g.document
+  // The document selection stays COLLAPSED for the whole stroke while a
+  // composer selection is live — measured on a real iPad (#44).
+  g.window = { getSelection: () => ({ isCollapsed: true }) }
+  const setActive = (active: unknown): void => {
+    g.document = { activeElement: active }
+  }
+  try {
+    // Composer handle drag: the textarea reports the live range.
+    setActive({ tagName: 'TEXTAREA', selectionStart: 0, selectionEnd: 20 })
+    assert.equal(selectionOwnsStroke(), true)
+    // <input> is covered by the same element-level model.
+    setActive({ tagName: 'INPUT', selectionStart: 2, selectionEnd: 5 })
+    assert.equal(selectionOwnsStroke(), true)
+    // A caret (collapsed range) inside a focused field is NOT a selection:
+    // the swipe layer must stay armed, or the drawer would become
+    // unreachable whenever the composer holds focus.
+    setActive({ tagName: 'TEXTAREA', selectionStart: 3, selectionEnd: 3 })
+    assert.equal(selectionOwnsStroke(), false)
+    // Input types without a text selection report null (measured in
+    // Chromium: number / email / checkbox).
+    setActive({ tagName: 'INPUT', selectionStart: null, selectionEnd: null })
+    assert.equal(selectionOwnsStroke(), false)
+    // Older engines throw InvalidStateError instead of reporting null; the
+    // predicate must not let that escape into a pointer handler.
+    setActive({
+      tagName: 'INPUT',
+      get selectionStart(): number {
+        throw new Error('InvalidStateError')
+      },
+      selectionEnd: null,
+    })
+    assert.equal(selectionOwnsStroke(), false)
+    // Non-field focus (a button, the body) is never a selection owner.
+    setActive({ tagName: 'BUTTON', selectionStart: 0, selectionEnd: 9 })
+    assert.equal(selectionOwnsStroke(), false)
+    setActive(null)
+    assert.equal(selectionOwnsStroke(), false)
+  } finally {
+    g.window = originalWindow
+    if (originalDocument === undefined) delete g.document
+    else g.document = originalDocument
+  }
+})
+
+test('selectionOwnsStroke: the document selection still wins with no focused field (#43 regression)', () => {
+  const g = globalThis as { window?: unknown; document?: unknown }
+  const originalWindow = g.window
+  const originalDocument = g.document
+  g.window = { getSelection: () => ({ isCollapsed: false }) }
+  g.document = { activeElement: null }
+  try {
+    assert.equal(selectionOwnsStroke(), true)
+  } finally {
+    g.window = originalWindow
+    if (originalDocument === undefined) delete g.document
+    else g.document = originalDocument
+  }
+})

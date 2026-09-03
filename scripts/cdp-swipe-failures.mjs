@@ -402,6 +402,71 @@ async function main() {
     text: `open=${e2.open} (期望 false: tryLock 前 selectionOwnsStroke 让位) cancels=${e2.cancels}`,
   })
   await clearSelection()
+
+  // E3. #44（#43 的后续报告，iPad WebKit）：composer 的 <textarea> 内选区。
+  //     text control 的选区**不出现在** window.getSelection() 里（实测
+  //     taStart=0 taEnd=20 而 docCollapsed=true），所以只读文档选区的旧
+  //     实现会照常开抽屉并把选区拖没。判定改读 document.activeElement 的
+  //     selectionStart/End，此处用真实 composer textarea 复现：聚焦 + 程序
+  //     化选中前 20 字符，再走标准左缘打开手势。
+  const composerSelection = await evalv(`(() => {
+    const ta = document.querySelector('[data-phase] [class*="_card"]:has(textarea) textarea')
+    if (ta === null) return null
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+    setter.call(ta, 'probe composer selection text for issue 44')
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    ta.focus()
+    ta.setSelectionRange(0, 20)
+    return {
+      focused: document.activeElement === ta,
+      start: ta.selectionStart,
+      end: ta.selectionEnd,
+      docCollapsed: document.getSelection().isCollapsed,
+    }
+  })()`)
+  if (composerSelection === null) throw new Error('未找到 composer textarea')
+  await swipe(12, 400, 130, 400, 150)
+  await sleep(700)
+  const e3 = await state()
+  const e3sel = await evalv(`(() => {
+    const ta = document.activeElement
+    if (ta === null || ta.tagName !== 'TEXTAREA') return { alive: false, start: null, end: null }
+    return { alive: ta.selectionStart !== ta.selectionEnd, start: ta.selectionStart, end: ta.selectionEnd }
+  })()`)
+  record('E3 textarea 内选区+标准打开手势(应让位不开抽屉, #44)', {
+    ok: e3.open === false && e3sel.alive === true,
+    text: `open=${e3.open} (期望 false: activeElement 选区让位) 选区仍存活=${e3sel.alive} [${e3sel.start},${e3sel.end}] (期望 true: 拖手柄不被劫持) docCollapsed=${composerSelection.docCollapsed} (期望 true: 文档选区看不到 text control 选区，正是 #44 的根因)`,
+  })
+  await evalv(`(() => {
+    const ta = document.querySelector('[data-phase] [class*="_card"]:has(textarea) textarea')
+    if (ta === null) return
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+    setter.call(ta, '')
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    ta.blur()
+  })()`)
+  await ensureClosed()
+  await sleep(500)
+
+  // E3c 对照：光标塌缩（无选区）时同一手势必须照常开抽屉——让位只由"存在
+  //     选区"触发，聚焦输入框本身不能把边缘手势变聋（否则 autoFocus 的
+  //     composer 会永久掐死打开手势）。
+  await evalv(`(() => {
+    const ta = document.querySelector('[data-phase] [class*="_card"]:has(textarea) textarea')
+    if (ta === null) return
+    ta.focus()
+    ta.setSelectionRange(0, 0)
+  })()`)
+  await swipe(12, 400, 130, 400, 150)
+  await sleep(700)
+  const e3c = await state()
+  record('E3c 对照:聚焦但光标塌缩(应正常打开, #44)', {
+    ok: e3c.open === true,
+    text: `open=${e3c.open} (期望 true: 塌缩光标不拥有 stroke)`,
+  })
+  await evalv(`(() => { const ta = document.activeElement; if (ta && ta.blur) ta.blur() })()`)
+  await ensureClosed()
+
   await evalv(`(() => { const s = document.getElementById('probe-seltext'); if (s) s.remove() })()`)
   await sleep(300)
 

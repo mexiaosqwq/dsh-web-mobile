@@ -93,6 +93,43 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     font-size: 16px !important;
   }
 
+  /* ---------- iOS WebKit: hold every text field at >=16px so Safari never
+      focus-zooms the viewport (#45) ----------
+      Report (iPhone 15 Pro Max): the page magnifies as soon as a field takes
+      focus, sometimes also when switching sessions (the host composer mounts
+      with autoFocus), and it stays magnified until the app is closed and
+      reopened or rotated landscape->portrait.
+      Mechanism: iOS Safari enlarges the visual viewport whenever a focused
+      input / textarea computes below 16px, and it only zooms back out on
+      blur — a chat shell keeps the composer focused, so the zoom has no
+      moment to revert; before this fix the root touch-action also withheld
+      pinch-zoom, so the user could not pull it back out either (see
+      layout.css.ts). maximum-scale=1 in the viewport meta is NOT the fix:
+      iOS 10+ ignores it for user pinch zoom while other engines honor it, so
+      writing it would only take zoom away from Android. Raising the fields is
+      the fix that stays inside the standard.
+      Gated on html[data-mobile-nav-ios] (phone-chrome.ts detectIosWebKit)
+      because only WebKit on iOS zooms on focus: Android and desktop keep the
+      compact 13px search boxes they were designed with. The floor covers
+      every text-entry field on the page, including the ones portalled
+      outside the frame (settings dialogs, the market sheet, third-party
+      panels) — a phone can reach all of them. Button-like and widget inputs
+      are excluded (nothing to type, no keyboard), and select is left alone on
+      purpose: it would break the composer's 28px access-mode control, and a
+      native picker overlays the screen instead of leaving a zoomed page
+      behind. The composer's mirror / backdrop layers ride along with the
+      textarea: they measure the autosize height and paint the highlight, so
+      all three must share one font-size or the caret drifts off the text
+      (they inherit 16px from the host card today — the rule locks that in on
+      hosts whose composer ships smaller). */
+  html[data-mobile-nav-ios] textarea,
+  html[data-mobile-nav-ios] [contenteditable="true"],
+  html[data-mobile-nav-ios] [data-input-mirror],
+  html[data-mobile-nav-ios] [data-input-backdrop],
+  html[data-mobile-nav-ios] input:not([type="button"]):not([type="checkbox"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="image"]):not([type="radio"]):not([type="range"]):not([type="reset"]):not([type="submit"]) {
+    font-size: 16px !important;
+  }
+
   /* ---------- drawer session tree: skip off-screen rendering ----------
      The drawer mounts ~389 nodes at once (the open gesture early-commits
      the host state while the drawer is still off-screen), and during

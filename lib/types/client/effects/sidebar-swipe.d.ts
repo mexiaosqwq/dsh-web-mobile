@@ -119,6 +119,19 @@ export declare function findHorizontalScroller(node: SwipeChainNode | null): Swi
  * indistinguishable from a drawer swipe — the browser must keep it (#43,
  * iPad WebKit). Feature-detected so the node:test suite can import the
  * predicate without a DOM.
+ *
+ * TWO selection models must be read, because they are disjoint:
+ * - the DOCUMENT selection (window.getSelection) covers message-flow text
+ *   and contenteditable hosts;
+ * - a selection inside a text control lives on the ELEMENT as
+ *   selectionStart/selectionEnd and is INVISIBLE to window.getSelection —
+ *   measured on the composer during a hijacked stroke (#44, real iPad):
+ *   taStart=0 taEnd=20 while the document selection reported isCollapsed.
+ *   Reading only the document selection let the swipe layer arm, lock, and
+ *   collapse the composer selection the user was extending.
+ * document.activeElement is the right anchor for the element model: a handle
+ * drag keeps focus inside the control, and it also covers strokes whose
+ * points land outside the control's own box.
  */
 export declare function selectionOwnsStroke(): boolean;
 /** Install the gesture layer for the current mobile breakpoint. */

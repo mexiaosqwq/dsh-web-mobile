@@ -431,11 +431,40 @@ function takeoverActive(): boolean {
  * indistinguishable from a drawer swipe — the browser must keep it (#43,
  * iPad WebKit). Feature-detected so the node:test suite can import the
  * predicate without a DOM.
+ *
+ * TWO selection models must be read, because they are disjoint:
+ * - the DOCUMENT selection (window.getSelection) covers message-flow text
+ *   and contenteditable hosts;
+ * - a selection inside a text control lives on the ELEMENT as
+ *   selectionStart/selectionEnd and is INVISIBLE to window.getSelection —
+ *   measured on the composer during a hijacked stroke (#44, real iPad):
+ *   taStart=0 taEnd=20 while the document selection reported isCollapsed.
+ *   Reading only the document selection let the swipe layer arm, lock, and
+ *   collapse the composer selection the user was extending.
+ * document.activeElement is the right anchor for the element model: a handle
+ * drag keeps focus inside the control, and it also covers strokes whose
+ * points land outside the control's own box.
  */
 export function selectionOwnsStroke(): boolean {
   if (typeof window === 'undefined') return false
   const sel = window.getSelection()
-  return sel !== null && !sel.isCollapsed
+  if (sel !== null && !sel.isCollapsed) return true
+  if (typeof document === 'undefined') return false
+  const el = document.activeElement as HTMLTextAreaElement | null
+  if (el === null) return false
+  const tag = el.tagName
+  if (tag !== 'TEXTAREA' && tag !== 'INPUT') return false
+  // Input types without a text selection (checkbox, number, email, …) report
+  // null here — measured in Chromium — and older WebKit/Gecko throw
+  // InvalidStateError instead. Both mean "no text selection is being
+  // dragged", never "the control owns this stroke", so neither may be
+  // allowed to escape from a pointer handler.
+  try {
+    const { selectionStart: start, selectionEnd: end } = el
+    return typeof start === 'number' && typeof end === 'number' && start !== end
+  } catch {
+    return false
+  }
 }
 
 /** Whether the swipe layer is on cooldown (animation in flight). */

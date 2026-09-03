@@ -7,17 +7,21 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   /* --- Phone chrome ---
      The system status bar stays visible (no fullscreen). Three adjustments
      make it behave:
-     - touch-action: pan-y kills double-tap-to-zoom (and the 300ms tap
-       delay) while keeping vertical pan. pan-y (not manipulation) also
-       forbids HORIZONTAL pan on the root: a left-edge horizontal drag would
-       otherwise be claimed by the browser as a pan (firing pointercancel)
-       before the sidebar swipe layer can classify it. touch-action does not
-       inherit and the behavior intersection stops at the first scroll
-       container, so only touches landing directly on the root background
-       are affected — inner horizontal scrolling of content containers is
-       untouched. Note pan-y does NOT include pinch-zoom (that is the
-       manipulation alias = pan-x pan-y pinch-zoom); zoom stays disabled,
-       which reads as app-like.
+     - touch-action: pan-y pinch-zoom kills double-tap-to-zoom (and the 300ms
+       tap delay) while keeping vertical pan. Omitting pan-x (i.e. not using
+       the manipulation alias) forbids HORIZONTAL pan on the root: a
+       left-edge horizontal drag would otherwise be claimed by the browser as
+       a pan (firing pointercancel) before the sidebar swipe layer can
+       classify it. touch-action does not inherit and the behavior
+       intersection stops at the first scroll container, so only touches
+       landing directly on the root background are affected — inner
+       horizontal scrolling of content containers is untouched. pinch-zoom is
+       listed on purpose (#45): a bare pan-y also drops pinch, and then a
+       zoom the browser applied by itself — iOS enlarges the viewport when a
+       field under 16px takes focus — can no longer be undone by the user,
+       so the app stays magnified until it is reopened or rotated. Two-finger
+       zoom is also the WCAG 1.4.4 escape hatch and costs the gesture layer
+       nothing: pinch is not a horizontal pan.
      - overscroll-behavior-x: none suppresses the browser's edge history
        navigation on the root scroller — Android Chrome claims a horizontal
        stroke that STARTS within its edge band (EDGE_WIDTH_DP=48dp,
@@ -35,7 +39,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        status bar) the inset is 0 and nothing shifts. */
   html,
   body {
-    touch-action: pan-y !important;
+    touch-action: pan-y pinch-zoom !important;
     overscroll-behavior-x: none !important;
   }
 
@@ -109,15 +113,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
 
   /* Drawer swipe gestures (edge swipe-in / content swipe-out, see
      docs/specs/2026-08-27-sidebar-swipe-gestures.md).
-     One rule is load-bearing for the gesture layer: touch-action: pan-y on
-     the drawer lets horizontal pointermove events reach the gesture code —
+     One rule is load-bearing for the gesture layer: dropping pan-x on the
+     drawer lets horizontal pointermove events reach the gesture code —
      WITHOUT it the browser treats a horizontal stroke as a pan, fires
      pointercancel and the gesture never classifies (vertical panning stays
      intact). Start-hit is decided purely by geometry on the document
      capture listener (START_ZONE_PX = 48px); there is no hotspot element
-     (removed per audit C2, 2026-08-27). */
+     (removed per audit C2, 2026-08-27). pinch-zoom rides along with the
+     root value so a browser-applied zoom stays undoable inside the drawer
+     too (#45); touch-action intersects down the ancestor chain, so a bare
+     pan-y here would cancel the root's pinch permission. */
   [data-mobile-nav="frame"] > :first-child {
-    touch-action: pan-y !important;
+    touch-action: pan-y pinch-zoom !important;
   }
 
   /* prefers-reduced-motion: the drawer's .28s slide is motion; drop it
