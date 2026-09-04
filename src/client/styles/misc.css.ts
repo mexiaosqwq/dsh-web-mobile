@@ -121,9 +121,17 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
       textarea: they measure the autosize height and paint the highlight, so
       all three must share one font-size or the caret drifts off the text
       (they inherit 16px from the host card today — the rule locks that in on
-      hosts whose composer ships smaller). */
+      hosts whose composer ships smaller).
+      The contenteditable branch is the forward-looking one: dsh
+      0.1.2-rc.1 replaces the composer textarea with a Lexical
+      contenteditable whose card reads font-size:
+      var(--dsh-content-font-size, 14px), i.e. 14px by default — squarely in
+      the zoom-triggering range. Match the attribute rather than the value
+      "true" (Lexical writes "true", other hosts use plaintext-only or the
+      bare attribute) and exclude contenteditable="false", which Lexical puts
+      on decorator nodes inside the editor. */
   html[data-mobile-nav-ios] textarea,
-  html[data-mobile-nav-ios] [contenteditable="true"],
+  html[data-mobile-nav-ios] [contenteditable]:not([contenteditable="false"]),
   html[data-mobile-nav-ios] [data-input-mirror],
   html[data-mobile-nav-ios] [data-input-backdrop],
   html[data-mobile-nav-ios] input:not([type="button"]):not([type="checkbox"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="image"]):not([type="radio"]):not([type="range"]):not([type="reset"]):not([type="submit"]) {

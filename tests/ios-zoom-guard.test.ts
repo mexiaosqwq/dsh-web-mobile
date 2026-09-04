@@ -72,6 +72,13 @@ test('the 16px floor is scoped to the iOS marker and to text-entry fields', () =
   }
   // select keeps its own size on purpose (28px composer access-mode control).
   assert.ok(!selectors.some((selector) => /\bselect\b/.test(selector)))
+  // The editable branch must match the attribute, not the value "true": the
+  // 0.1.2-rc.1 Lexical composer is a 14px contenteditable, and other hosts
+  // ship plaintext-only or the bare attribute. Decorator nodes marked
+  // contenteditable="false" stay excluded.
+  const editable = selectors.find((selector) => selector.includes('[contenteditable'))
+  assert.ok(editable)
+  assert.equal(editable, 'html[data-mobile-nav-ios] [contenteditable]:not([contenteditable="false"])')
   // The floor lives inside the mobile branch, like every other mobile rule.
   assert.match(MISC_CSS, /^@media \(max-width: 1023px\) and \(pointer: coarse\) \{/)
   assert.ok(MISC_CSS.indexOf('data-mobile-nav-ios') < MISC_CSS.indexOf('@media (min-width: 1024px)'))

@@ -169,6 +169,31 @@ async function main() {
       }
     })()`)
 
+  // dsh 0.1.2-rc.1 swaps the composer textarea for a Lexical contenteditable
+  // whose card reads font-size: var(--dsh-content-font-size, 14px) — 14px by
+  // default, i.e. squarely in the zoom-triggering range. The installed host
+  // still ships the 16px textarea, so inject the shape the next host renders:
+  // a 14px editable holding a contenteditable="false" decorator at 12px,
+  // which the floor must NOT touch.
+  const editableProbe = () =>
+    evalv(`(() => {
+      const host = document.querySelector('[data-phase]') || document.body
+      const editor = document.createElement('div')
+      editor.setAttribute('contenteditable', 'true')
+      editor.setAttribute('role', 'textbox')
+      editor.style.fontSize = '14px'
+      const decorator = document.createElement('span')
+      decorator.setAttribute('contenteditable', 'false')
+      decorator.style.fontSize = '12px'
+      decorator.textContent = 'chip'
+      editor.appendChild(decorator)
+      host.appendChild(editor)
+      const read = (el) => Number.parseFloat(getComputedStyle(el).fontSize)
+      const out = { editable: read(editor), decorator: read(decorator) }
+      editor.remove()
+      return out
+    })()`)
+
   const describe = (fields) =>
     fields.filter((f) => f.visible).map((f) => `${f.cls || f.tag.toLowerCase()}=${f.fontSize}`).join(' ')
 
@@ -204,6 +229,12 @@ async function main() {
     !/\bpan-x\b/.test(a.touchAction.html) && !/\bpan-x\b/.test(a.touchAction.body),
     `html=${a.touchAction.html} body=${a.touchAction.body}`,
   )
+  const aEditable = await editableProbe()
+  check(
+    'A7 非 iOS 下 14px 可编辑域不被抬高',
+    aEditable.editable === 14 && aEditable.decorator === 12,
+    `editable=${aEditable.editable} decorator=${aEditable.decorator} (期望 14/12: 安卓不放大，抬字号只会改版式)`,
+  )
 
   // ===== B. 手机 + iPhone UA =====
   await send('Emulation.setUserAgentOverride', { userAgent: IPHONE_UA })
@@ -234,6 +265,12 @@ async function main() {
     'B5 iOS 下同样保留 pinch-zoom 且禁横向 pan',
     b.touchAction.html.includes('pinch-zoom') && !/\bpan-x\b/.test(b.touchAction.html),
     `html=${b.touchAction.html} drawer=${b.touchAction.drawer}`,
+  )
+  const bEditable = await editableProbe()
+  check(
+    'B6 iOS 下 14px 可编辑域抬到 16px，装饰节点不动',
+    bEditable.editable === 16 && bEditable.decorator === 12,
+    `editable=${bEditable.editable} decorator=${bEditable.decorator} (0.1.2-rc.1 的 Lexical composer 就是这形状: 14px contenteditable + contenteditable=false 装饰节点)`,
   )
 
   // ===== C. 桌面（鼠标指针）+ iPhone UA =====
