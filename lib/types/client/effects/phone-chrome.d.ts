@@ -68,25 +68,6 @@ export declare function detectIosWebKit(nav: {
     userAgent: string;
     maxTouchPoints: number;
 }, supports: ((condition: string) => boolean) | null): boolean;
-/**
- * Phone chrome: KEEP the system status bar (no fullscreen) and make it
- * blend into the page. On narrow screens:
- * - The viewport meta gains viewport-fit=cover, so env(safe-area-inset-top)
- *   is the real status-bar / notch height and the stylesheet can push every
- *   surface below it (off notched phones, or in a browser tab where the
- *   layout viewport already sits below the status bar, the inset is 0 and
- *   nothing shifts).
- * - A theme-color meta tracks the shell background (the official theme is
- *   toggled by body[data-ds-dark-theme], which flips --dsw-alias-bg-base):
- *   Android then paints the status bar / URL bar with the page's own base
- *   color, so the status bar reads as part of the UI instead of a foreign
- *   strip. The drawer paints the same strip on iOS / notch displays.
- * - documentElement carries data-mobile-nav-ios on iOS WebKit so the
- *   stylesheet can hold every text field at >=16px and Safari never
- *   focus-zooms the viewport (#45). Double-tap zoom is off through
- *   touch-action; pinch zoom stays available on purpose — it is the only way
- *   back out of a zoom the browser applied on its own.
- */
 export declare function installPhoneChrome(ctx: ClientContext): void;
 /**
  * Drawer close interactions that are plain event listeners, not DOM
