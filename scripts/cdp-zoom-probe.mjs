@@ -236,6 +236,41 @@ async function main() {
     `editable=${aEditable.editable} decorator=${aEditable.decorator} (期望 14/12: 安卓不放大，抬字号只会改版式)`,
   )
 
+  // A8-A10. viewport meta 所有权（PR #46）：插件武装期间拥有该 meta，宿主
+  // 改写 / 换节点 / 迟到注入都必须被重申，且写入内容里绝不能出现缩放锁
+  // （maximum-scale / user-scalable）——那会把安卓的缩放一并拿掉。
+  const viewportOf = async () =>
+    await evalv(`(() => { const m = document.querySelector('meta[name="viewport"]'); return m === null ? null : m.content })()`)
+  const armed = await viewportOf()
+  check(
+    'A8 武装期 viewport 由插件拥有且无缩放锁',
+    armed === 'width=device-width, initial-scale=1, viewport-fit=cover',
+    `content=${JSON.stringify(armed)} (期望恰好 width/initial-scale/viewport-fit: 出现 maximum-scale 或 user-scalable 即 WCAG 1.4.4 回归)`,
+  )
+  await evalv(`(() => { document.querySelector('meta[name="viewport"]').content = 'width=device-width, initial-scale=1, maximum-scale=1' })()`)
+  await sleep(200)
+  const rewritten = await viewportOf()
+  check(
+    'A9 宿主改写被重申回来',
+    rewritten === 'width=device-width, initial-scale=1, viewport-fit=cover',
+    `content=${JSON.stringify(rewritten)} (期望重申: 否则 viewport-fit=cover 静默失效、安全区归零)`,
+  )
+  await evalv(`(() => {
+    const old = document.querySelector('meta[name="viewport"]')
+    old.remove()
+    const next = document.createElement('meta')
+    next.name = 'viewport'
+    next.content = 'width=device-width, initial-scale=1'
+    document.head.appendChild(next)
+  })()`)
+  await sleep(200)
+  const replaced = await viewportOf()
+  check(
+    'A10 换节点后新 meta 也被接管',
+    replaced === 'width=device-width, initial-scale=1, viewport-fit=cover',
+    `content=${JSON.stringify(replaced)} (期望重申: head childList observer 必须重新绑定到新节点)`,
+  )
+
   // ===== B. 手机 + iPhone UA =====
   await send('Emulation.setUserAgentOverride', { userAgent: IPHONE_UA })
   await boot({ width: 430, height: 932, touch: true })

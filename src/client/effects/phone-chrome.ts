@@ -218,6 +218,18 @@ export function detectIosWebKit(
 const IOS_MARKER = 'data-mobile-nav-ios'
 
 /**
+ * Viewport content the plugin owns while the mobile branch is armed.
+ * Deliberately zoom-free: iOS 10+ ignores maximum-scale/user-scalable for
+ * user pinch but other engines honor them, so writing them would only take
+ * zoom away from Android/DSHA; the iOS focus-zoom fix is the >=16px field
+ * floor (data-mobile-nav-ios), not a zoom ban (#45).
+ */
+const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cover'
+
+const findViewportMeta = (): HTMLMetaElement | null =>
+  document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
+
+/**
  * Phone chrome: KEEP the system status bar (no fullscreen) and make it
  * blend into the page. On narrow screens:
  * - The viewport meta is OWNED by the plugin while armed:
@@ -240,18 +252,6 @@ const IOS_MARKER = 'data-mobile-nav-ios'
  *   touch-action; pinch zoom stays available on purpose — it is the only way
  *   back out of a zoom the browser applied on its own.
  */
-/**
- * Viewport content the plugin owns while the mobile branch is armed.
- * Deliberately zoom-free: iOS 10+ ignores maximum-scale/user-scalable for
- * user pinch but other engines honor them, so writing them would only take
- * zoom away from Android/DSHA; the iOS focus-zoom fix is the >=16px field
- * floor (data-mobile-nav-ios), not a zoom ban (#45).
- */
-const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cover'
-
-const findViewportMeta = (): HTMLMetaElement | null =>
-  document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
-
 export function installPhoneChrome(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: status bar theme + viewport + zoom guard', () => {
     const themeMeta = document.createElement('meta')
