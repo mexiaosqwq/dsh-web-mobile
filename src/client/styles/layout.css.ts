@@ -754,18 +754,28 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     overflow: visible;
   }
   /* Content toolbar (Open configuration file + close): grouped flush to
-     the right edge, and reparented INTO the nav row on mobile so it shares
-     one line with the tabs (user feedback 2026-08-16 — the toolbar's own
-     row left a full-width dead gap under the tabs). Anchored by class: the
-     header leaves the content subtree, so :first-child/:last-child anchors
-     would now hit the options area. Children carry official auto-margins
-     that would defeat flex-end, so neutralize them. The close button gets
-     a round tappable base so it reads as its own control, not part of the
-     outline button. _headerStatic is excluded: @linxin666 plugin settings
-     cards (pet / community plugins / skin center / live stats) name their
-     card header *_headerStatic, which would otherwise catch the round-base
-     rule on its full-width _headText span and paint a gray ellipse. */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) [class*="_header"]:not([class*="_headerActions"]):not([class*="_headerStatic"]) {
+     the right edge, and reparented INTO the nav row on mobile by the
+     settings-toolbar-reparent reconciler task, so it shares one line with
+     the tabs (user feedback 2026-08-16 — the toolbar's own row left a
+     full-width dead gap under the tabs). Children carry official
+     auto-margins that would defeat flex-end, so neutralize them. The close
+     button gets a round tappable base so it reads as its own control, not
+     part of the outline button.
+     Anchored structurally, not by class substring: a bare [class*="_header"]
+     also matches every plugin settings card header in the options area —
+     the official Plugins config cards (YyYd_a_header) and the dsh-web-ui-all
+     group cards (Kwoi6G_header / bpnj3G_header / Jh0q7G_header / jmhvDG_header /
+     rUBhvW_header, all sharing the upstream template text-align:left,
+     gap:12px, padding:14px 16px). The old broad anchor right-aligned their
+     text, gutted the padding and painted a 32px gray circle behind the
+     chevron (2026-09-05 sweep: 8 bleeding headers). The toolbar has two
+     structural homes, both covered below: after the reparent it is a direct
+     child of the nav row ([class*="_nav"]); before the reparent runs it is
+     the content column's direct child (the panel's :last-child). Card
+     headers live deeper — inside the options scroll area — and match
+     neither, so no per-plugin hash guards are needed. */
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > [class*="_nav"] > [class*="_header"]:not([class*="_headerActions"]),
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) {
     flex: 0 0 auto;
     justify-content: flex-end;
     align-items: center;
@@ -773,11 +783,13 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding: 0 0 0 4px;
     min-height: 40px;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) [class*="_header"]:not([class*="_headerActions"]):not([class*="_headerStatic"]) > * {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > [class*="_nav"] > [class*="_header"]:not([class*="_headerActions"]) > *,
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > * {
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) [class*="_header"]:not([class*="_headerActions"]):not([class*="_headerStatic"]) > :last-child {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > [class*="_nav"] > [class*="_header"]:not([class*="_headerActions"]) > :last-child,
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > :last-child {
     width: 32px;
     height: 32px;
     border-radius: 50% !important;
