@@ -76,6 +76,7 @@ dsh plugin --profile web add link:/path/to/dsh-web-mobile
 - 宿主改写 viewport meta 后刘海安全区适配失效（PR #46 by @BuvkB）
 - 桌面窄窗口/系统显示缩放会误启移动端 UI（右上角 Files 按钮、底部状态条全套出现），现鼠标操作的窗口任何宽度都保持桌面版
 - 设置页「Plugins」配置卡与「Web UI Plugins」分组卡标题恢复官方样式：左对齐、标准内边距与间距、箭头无灰底
+- 移动端消息流排版与 DSH 0.1.2-rc.1 的 Lexical 输入框兼容，输入区不再出现左右死区（PR #47 by @johnhom1024）
 
 ### v2.3.0
 
