@@ -146,9 +146,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      The official message flow keeps desktop's 32px side gutters and 16px
      type. On a phone: shrink the type a notch and widen the lines by
      trimming the gutters (the sidebar drawer list keeps its size). The
-     flow's scroll container is the only _scroll element holding markdown
-     <p> paragraphs — the composer's own scroll (textarea) is excluded
-     via :has(p). */
+     flow's scroll container holds the markdown <p> paragraphs; since
+     DSH 0.1.2-rc.1 the composer is a Lexical contenteditable that also
+     renders real <p> paragraphs inside its own _scroll container, so the
+     composer must be excluded explicitly via
+     :not(:has([data-composer-input])). */
   /* The official main scroll body reserves scrollbar-gutter for desktop
      scrollbars (8px), which shoves every column off-center on a phone.
      Classic desktop scrollbars (Edge/Chrome) also occupy ~8-17px in a
@@ -177,7 +179,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     white-space: nowrap !important;
   }
 
-  [data-phase] [class*="_scroll"]:not([class*="_scrollBody"]):has(p) {
+  [data-phase]
+    [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) {
     padding-left: 20px;
     padding-right: 20px;
     font-size: 15px !important;
@@ -186,9 +189,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      list items, so the container's inherited 15px is not enough. User
      messages render their text in a div whose class carries _text_
      (16px too) — cover it as well. */
-  [data-phase] [class*="_scroll"]:not([class*="_scrollBody"]):has(p) p,
-  [data-phase] [class*="_scroll"]:not([class*="_scrollBody"]):has(p) li,
-  [data-phase] [class*="_scroll"]:not([class*="_scrollBody"]):has(p) [class*="_text_"] {
+  [data-phase]
+    [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) p,
+  [data-phase]
+    [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) li,
+  [data-phase]
+    [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) [
+      class*="_text_"
+    ] {
     font-size: 15px !important;
   }
 
