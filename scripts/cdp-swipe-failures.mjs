@@ -470,6 +470,61 @@ async function main() {
   await evalv(`(() => { const s = document.getElementById('probe-seltext'); if (s) s.remove() })()`)
   await sleep(300)
 
+  // ===== F. 双指捏合让位（#46 真机报告）=====
+  // 单指 stroke 期间的 touchmove preventDefault 是边缘手势优先的关键一行，
+  // 但它不能落在多指交互上：两指在屏＝浏览器自己的捏合缩放，preventDefault
+  // 会把缩放手势掐掉。iOS 上捏合是唯一的退出放大态的路径，所以掐掉它等于
+  // 复刻 #45 的陷阱。记录器挂在 document 捕获阶段但注册更晚，所以能读到
+  // 手势层是否已经 preventDefault。
+  await evalv(`(() => {
+    window.__tm = { total: 0, prevented: 0, multi: 0, multiPrevented: 0 }
+    document.addEventListener('touchmove', (e) => {
+      window.__tm.total += 1
+      if (e.defaultPrevented) window.__tm.prevented += 1
+      if (e.touches.length > 1) {
+        window.__tm.multi += 1
+        if (e.defaultPrevented) window.__tm.multiPrevented += 1
+      }
+    }, true)
+  })()`)
+
+  // F1. 双指从起点识别区内向外扩（模拟捏合放大）：第一指落在 x=40（识别区
+  //     内，单指时必然武装手势），第二指落在 x=200，两指同时移动。
+  await send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: 40, y: 400, id: 0 }, { x: 200, y: 420, id: 1 }],
+  })
+  await sleep(30)
+  for (let i = 1; i <= 6; i++) {
+    await send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: 40 - i * 4, y: 400 - i * 3, id: 0 }, { x: 200 + i * 6, y: 420 + i * 4, id: 1 }],
+    })
+    await sleep(16)
+  }
+  await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await sleep(700)
+  const f1 = await state()
+  const f1tm = await evalv('({ ...window.__tm })')
+  record('F1 双指捏合不被 preventDefault 且不开抽屉', {
+    ok: f1.open === false && f1tm.multi > 0 && f1tm.multiPrevented === 0,
+    text: `open=${f1.open} (期望 false: 两指不是抽屉手势) 多指 touchmove=${f1tm.multi} 其中被拦=${f1tm.multiPrevented} (期望 >0 / 0: 拦了就等于掐死捏合缩放)`,
+  })
+  await ensureClosed()
+
+  // F2. 对照：同一几何的单指手势必须照常武装并 preventDefault（证明 F1 的
+  //     放行不是把边缘优先整条路径改坏了）。
+  await evalv('(() => { window.__tm = { total: 0, prevented: 0, multi: 0, multiPrevented: 0 } })()')
+  await swipe(40, 400, 160, 400, 150)
+  await sleep(700)
+  const f2 = await state()
+  const f2tm = await evalv('({ ...window.__tm })')
+  record('F2 对照:单指同几何仍武装并 preventDefault', {
+    ok: f2.open === true && f2tm.prevented > 0 && f2tm.multi === 0,
+    text: `open=${f2.open} (期望 true) 单指 touchmove 被拦=${f2tm.prevented}/${f2tm.total} (期望 >0: 边缘优先仍在)`,
+  })
+  await ensureClosed()
+
   // ===== D. 浏览器滚动行为观察 =====
   const diag = await evalv(`({
     cancels: window.__diag.cancels,
