@@ -108,6 +108,23 @@ const OPEN_VELOCITY = 0.45
 const CLOSE_VELOCITY = 0.45
 /** Covers the .28s CSS transition; prevents reverse-gesture double-toggles. */
 const COOLDOWN_MS = 350
+/**
+ * Finger travel (any direction, from the stroke start) below which a stroke is
+ * still treated as a tap and its touchmoves are left untouched.
+ *
+ * Load-bearing for taps, not for swipes: WebKit never synthesizes the `click`
+ * for a touch sequence whose touchmove was preventDefault()-ed, and every
+ * touch that starts over the frame while the drawer is open arms a stroke
+ * (beginStroke). An unconditional touchmove preventDefault therefore deleted
+ * the click of any drawer row tap whose finger jittered by a pixel — the row
+ * only highlighted, its React onClick never ran, and since navigation never
+ * happened upstream's "close the drawer once the selected row changes"
+ * observer could never fire either (phone repro: "tap a session row two or
+ * three times"). 4px keeps micro-jitter inside the tap regime while staying
+ * well under both the 8px axis lock and the browser's own scroll slop, so an
+ * intentional swipe is still claimed on its first few pixels.
+ */
+const TOUCH_CLAIM_SLOP_PX = 4
 /** How long a consumed gesture mark stays live (covers the synthetic click).
  * Short by design: browsers dispatch the synthetic click within tens of ms,
  * while iOS shells suppress it entirely — a long window with no delivery
@@ -961,7 +978,22 @@ function tryLock(event: PointerEvent): boolean {
   return true
 }
 
-/** Append a sample and prune the window. */
+/**
+ * Whether a tracked stroke may preventDefault this touchmove.
+ *
+ * A locked stroke owns the touch (the axis decision is made); an unlocked one
+ * is still a tap candidate, and claiming a tap's touchmove costs the browser's
+ * synthesized click (see TOUCH_CLAIM_SLOP_PX). Pure so the tap/swipe boundary
+ * is unit-tested rather than inferred from a phone repro.
+ */
+export function shouldClaimTouchMove(locked: boolean, movedPx: number): boolean {
+  if (locked) return true
+  return Number.isFinite(movedPx) && movedPx >= TOUCH_CLAIM_SLOP_PX
+}
+
+/**
+ * Append a sample and prune the window. */
+
 function pushSample(event: PointerEvent): void {
   samples.push({ t: event.timeStamp, x: event.clientX })
   const cutoff = event.timeStamp - VELOCITY_WINDOW_MS
@@ -1256,12 +1288,24 @@ export function installSidebarSwipe(ctx: ClientContext): void {
     // belt-and-braces path for engines that hand the gesture to the
     // compositor without delivering a second pointerdown (#46 real-device
     // report: pinch-out zoomed but pinch-in would not zoom back).
+    //
+    // A stroke that has not axis-locked yet is still a TAP candidate, and
+    // preventing its touchmove deletes the click on WebKit (see
+    // TOUCH_CLAIM_SLOP_PX): micro-jitter inside the slop is therefore left
+    // entirely to the browser, so a row tap keeps its click — and with it the
+    // host's session switch plus the drawer close that rides on it.
     const onTouchMove = (event: TouchEvent): void => {
       if (trackingPointer === 0) return
       if (event.touches.length > 1) {
         abortStroke(ctx)
         return
       }
+      const touch = event.touches[0]
+      const movedPx =
+        touch === undefined
+          ? 0
+          : Math.max(Math.abs(touch.clientX - startX), Math.abs(touch.clientY - startY))
+      if (!shouldClaimTouchMove(tracking, movedPx)) return
       event.preventDefault()
     }
 
