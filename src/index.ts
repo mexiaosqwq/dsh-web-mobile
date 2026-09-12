@@ -71,6 +71,8 @@ function respond(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload)
 }
 
+export const name = 'dsh-web-mobile'
+
 export function apply(ctx: HostContext): void {
   // Transparent gzip/brotli for large JSON responses (long-session history
   // is megabytes on a phone). Patches http.ServerResponse.prototype; the
