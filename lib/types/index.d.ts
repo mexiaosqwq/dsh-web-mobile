@@ -42,5 +42,6 @@ export interface ScopedContext extends HostContext {
         }): unknown;
     };
 }
+export declare const name = "dsh-web-mobile";
 export declare function apply(ctx: HostContext): void;
 //# sourceMappingURL=index.d.ts.map
