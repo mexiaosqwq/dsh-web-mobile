@@ -8,6 +8,7 @@ import {
   followOpenTransform,
   findHorizontalScroller,
   selectionOwnsStroke,
+  shouldClaimTouchMove,
   startZonePxFor,
   type SwipeThresholds,
   type SwipeChainNode,
@@ -536,4 +537,30 @@ test('selectionOwnsStroke: the document selection still wins with no focused fie
     if (originalDocument === undefined) delete g.document
     else g.document = originalDocument
   }
+})
+
+// A tracked-but-unlocked stroke is still a tap candidate: preventing its
+// touchmove deletes the browser's synthesized click on WebKit, which is what
+// made a drawer row tap need two or three attempts (row only highlighted, the
+// host never navigated, and the drawer's close-on-navigation observer never
+// fired). Tap micro-jitter must therefore never be claimed; a locked stroke
+// owns the touch unconditionally.
+test('shouldClaimTouchMove leaves tap jitter to the browser', () => {
+  assert.equal(shouldClaimTouchMove(false, 0), false)
+  assert.equal(shouldClaimTouchMove(false, 1), false)
+  assert.equal(shouldClaimTouchMove(false, 3), false)
+  assert.equal(shouldClaimTouchMove(false, 4), true)
+  assert.equal(shouldClaimTouchMove(false, 12), true)
+})
+
+test('shouldClaimTouchMove always claims a locked stroke', () => {
+  assert.equal(shouldClaimTouchMove(true, 0), true)
+  assert.equal(shouldClaimTouchMove(true, 2), true)
+})
+
+test('shouldClaimTouchMove refuses a bogus travel reading', () => {
+  // Unmeasurable travel must not claim the touch: an unresolved reading is not
+  // evidence of a drag, and claiming it would delete the tap's click again.
+  assert.equal(shouldClaimTouchMove(false, Number.NaN), false)
+  assert.equal(shouldClaimTouchMove(false, Number.POSITIVE_INFINITY), false)
 })

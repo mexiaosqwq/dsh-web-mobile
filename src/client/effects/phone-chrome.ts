@@ -1,5 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { consumeIfGestured, isStrokeLocked } from './gesture-guard.ts'
+import { findSessionIdInFiber, isTapWithinSlop, reactFiberOf } from './session-row-fiber.ts'
 import { createReconcilerCore } from '../core/reconciler-core.ts'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { createPreviewCloseTask, createSheetRiseTask } from './aionui-compat.ts'
@@ -428,6 +429,120 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       navTimer = window.setTimeout(disarmNav, 2000)
     }
 
+    /**
+     * A finger travel limit for the tap fallback below: past this the release
+     * is a drag/scroll, not a tap, and must not navigate.
+     */
+    const TAP_NAV_SLOP_PX = 12
+    let touchDownAt: { x: number; y: number } | null = null
+
+    const onDrawerPointerDown = (event: PointerEvent): void => {
+      touchDownAt =
+        event.pointerType === 'touch' || event.pointerType === 'pen'
+          ? { x: event.clientX, y: event.clientY }
+          : null
+    }
+
+    /** Known session ids, per the host session list (fiber-id membership test). */
+    const sessionListSnapshot = (): { current?: string | null; ids?: readonly string[]; byId?: Record<string, unknown> } => {
+      try {
+        return ctx.sessions.list.getSnapshot()
+      } catch {
+        return {}
+      }
+    }
+
+    const isKnownSessionId = (id: string): boolean => {
+      const snapshot = sessionListSnapshot()
+      return snapshot.byId?.[id] !== undefined || (snapshot.ids ?? []).includes(id)
+    }
+
+    /**
+     * Session id of a tapped drawer row, or null when the release was not a tap
+     * on a resolvable row.
+     *
+     * The reference iPhone does not reliably synthesize a `click` for a row tap
+     * (measured: two identical taps, one with a click and one with none at all —
+     * no preventDefault, no touch/pointer cancel, no hit-target change), so the
+     * row's React onClick and with it the whole "navigate, then close the drawer
+     * once the selected row changes" chain never runs. The id is read from the
+     * row's React fiber chain (the DOM carries no session id) and handed to
+     * `ctx.sessions.open`, exactly what the row's own onClick does.
+     */
+    const tappedRowSessionId = (row: Element, event: PointerEvent): string | null => {
+      if (touchDownAt === null) return null
+      // Past this the release is a drag or a list scroll, not a tap.
+      if (!isTapWithinSlop(touchDownAt, { x: event.clientX, y: event.clientY }, TAP_NAV_SLOP_PX)) return null
+      const id = findSessionIdInFiber(reactFiberOf(row), isKnownSessionId)
+      if (id === null) return null
+      return sessionListSnapshot().current === id ? null : id
+    }
+
+    /** When the tap fallback last navigated (its trailing click is dropped). */
+    let fallbackNavAt = 0
+    let closeOnNavUnsub: (() => void) | null = null
+    let closeOnNavTimer: number | null = null
+    let closeOnNavDone = false
+
+    const disarmCloseOnNav = (): void => {
+      closeOnNavUnsub?.()
+      closeOnNavUnsub = null
+      if (closeOnNavTimer !== null) window.clearTimeout(closeOnNavTimer)
+      closeOnNavTimer = null
+    }
+
+    /**
+     * Close the drawer once the host reports the session actually selected,
+     * instead of waiting for the selected ROW to change in the DOM.
+     *
+     * Upstream's observer keys on a mutation, which only lands after React has
+     * committed the whole update — including rendering the conversation that was
+     * just opened — so the drawer (and the visible switch) waits on that render.
+     * The session-list store flips `current` during `sessions.open(id)` itself,
+     * so the close can start immediately. One-shot by construction: the
+     * subscription and its timeout are torn down by the first close, and the tap
+     * fallback deliberately does NOT arm the DOM observer for the same tap, so
+     * exactly one close can happen.
+     */
+    const closeOnNavigation = (id: string): void => {
+      disarmCloseOnNav()
+      closeOnNavDone = false
+      const fire = (): void => {
+        if (closeOnNavDone) return
+        closeOnNavDone = true
+        disarmCloseOnNav()
+        if (drawerOpen()) toggleSidebar()
+      }
+      const current = (): string | null => {
+        try {
+          return ctx.sessions.list.getSnapshot().current ?? null
+        } catch {
+          return null
+        }
+      }
+      try {
+        closeOnNavUnsub =
+          ctx.sessions.list.subscribe?.(() => {
+            if (current() !== id) return
+            // A fresh task, so the close never re-enters the host's own
+            // select() call stack.
+            window.setTimeout(fire, 0)
+          }) ?? null
+      } catch {
+        closeOnNavUnsub = null
+      }
+      // The subscription may land after the store already moved (the host
+      // notifies asynchronously): read the fact directly, and re-check once
+      // shortly after, so the close does not wait on a notification that has
+      // already been coalesced away.
+      if (current() === id) window.setTimeout(fire, 0)
+      window.setTimeout(() => {
+        if (closeOnNavDone) return
+        if (current() === id) fire()
+      }, 60)
+      closeOnNavTimer = window.setTimeout(disarmCloseOnNav, 900)
+    }
+
     const onDrawerClick = (event: MouseEvent): void => {
       // A classified swipe already toggled the drawer; never let its
       // synthetic tap also close it / navigate a row (gesture-guard).
@@ -437,7 +552,13 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       if (isStrokeLocked() || consumeIfGestured(event)) return
       // A touch row-tap owns the close (pointerup or the navigation observer);
       // let the row's click reach React without toggling the drawer twice.
-      if (performance.now() - lastTouchNavAt < 500) return
+      if (performance.now() - lastTouchNavAt < 500) {
+        // ...except when the tap already navigated through the fiber path: the
+        // row's own onClick would open the same session a second time, and the
+        // re-render that costs is what made the switch feel late.
+        if (performance.now() - fallbackNavAt < 600) event.stopPropagation()
+        return
+      }
       if (shouldCloseOnTapInsideDrawer(event.target)) toggleSidebar()
     }
 
@@ -461,8 +582,22 @@ export function installOverlayInteractions(ctx: ClientContext): void {
           // Already-selected row will not navigate; closing immediately is safe.
           toggleSidebar()
         } else {
-          // Unselected row: let navigation land, then close via the observer.
-          armNav()
+          const tappedId = tappedRowSessionId(row, event)
+          if (tappedId === null) {
+            // Unresolved id: the click path stays the only way in, so keep
+            // upstream's DOM-fact observer as the close.
+            armNav()
+          } else {
+            closeOnNavigation(tappedId)
+            try {
+              ctx.sessions.open(tappedId)
+              fallbackNavAt = performance.now()
+            } catch {
+              // The host refused the id: fall back to the observer path.
+              disarmCloseOnNav()
+              armNav()
+            }
+          }
         }
         return
       }
@@ -473,11 +608,14 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     }
 
     document.addEventListener('keydown', onKeyDown, true)
+    document.addEventListener('pointerdown', onDrawerPointerDown, true)
     document.addEventListener('click', onDrawerClick, true)
     document.addEventListener('pointerup', onDrawerPointerUp, true)
     return () => {
       disarmNav()
+      disarmCloseOnNav()
       document.removeEventListener('keydown', onKeyDown, true)
+      document.removeEventListener('pointerdown', onDrawerPointerDown, true)
       document.removeEventListener('click', onDrawerClick, true)
       document.removeEventListener('pointerup', onDrawerPointerUp, true)
     }

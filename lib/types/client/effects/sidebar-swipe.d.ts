@@ -134,6 +134,15 @@ export declare function findHorizontalScroller(node: SwipeChainNode | null): Swi
  * points land outside the control's own box.
  */
 export declare function selectionOwnsStroke(): boolean;
+/**
+ * Whether a tracked stroke may preventDefault this touchmove.
+ *
+ * A locked stroke owns the touch (the axis decision is made); an unlocked one
+ * is still a tap candidate, and claiming a tap's touchmove costs the browser's
+ * synthesized click (see TOUCH_CLAIM_SLOP_PX). Pure so the tap/swipe boundary
+ * is unit-tested rather than inferred from a phone repro.
+ */
+export declare function shouldClaimTouchMove(locked: boolean, movedPx: number): boolean;
 /** Install the gesture layer for the current mobile breakpoint. */
 export declare function installSidebarSwipe(ctx: ClientContext): void;
 //# sourceMappingURL=sidebar-swipe.d.ts.map
