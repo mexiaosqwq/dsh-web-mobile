@@ -138,10 +138,11 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
       blur — a chat shell keeps the composer focused, so the zoom has no
       moment to revert; before this fix the root touch-action also withheld
       pinch-zoom, so the user could not pull it back out either (see
-      layout.css.ts). maximum-scale=1 in the viewport meta is NOT the fix:
-      iOS 10+ ignores it for user pinch zoom while other engines honor it, so
-      writing it would only take zoom away from Android. Raising the fields is
-      the fix that stays inside the standard.
+      layout.css.ts). maximum-scale=1 in the viewport meta is NOT the fix
+      for iOS: iOS 10+ ignores it for user pinch zoom, so the field floor is
+      the only thing that stays inside the standard. (Android's zoom is
+      deliberately pinned via the viewport meta since 2026-09-16 — owner
+      decision for the Find X8 — see phone-chrome.ts VIEWPORT_CONTENT.)
       Gated on html[data-mobile-nav-ios] (phone-chrome.ts detectIosWebKit)
       because only WebKit on iOS zooms on focus: Android and desktop keep the
       compact 13px search boxes they were designed with. The floor covers

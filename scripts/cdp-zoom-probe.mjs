@@ -237,23 +237,24 @@ async function main() {
   )
 
   // A8-A10. viewport meta 所有权（PR #46）：插件武装期间拥有该 meta，宿主
-  // 改写 / 换节点 / 迟到注入都必须被重申，且写入内容里绝不能出现缩放锁
-  // （maximum-scale / user-scalable）——那会把安卓的缩放一并拿掉。
+  // 改写 / 换节点 / 迟到注入都必须被重申。写入内容含 maximum-scale=1 +
+  // user-scalable=no（2026-09-16 所有者决定：安卓钉死缩放，防任何浏览器
+  // 缩放扭曲布局；iOS 忽略这两项，其 #45 恢复路径不受影响）。
   const viewportOf = async () =>
     await evalv(`(() => { const m = document.querySelector('meta[name="viewport"]'); return m === null ? null : m.content })()`)
   const armed = await viewportOf()
   check(
-    'A8 武装期 viewport 由插件拥有且无缩放锁',
-    armed === 'width=device-width, initial-scale=1, viewport-fit=cover',
-    `content=${JSON.stringify(armed)} (期望恰好 width/initial-scale/viewport-fit: 出现 maximum-scale 或 user-scalable 即 WCAG 1.4.4 回归)`,
+    'A8 武装期 viewport 由插件拥有且带缩放锁',
+    armed === 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
+    `content=${JSON.stringify(armed)} (期望 width/initial-scale/maximum-scale=1/user-scalable=no/viewport-fit: 安卓缩放钉死，iOS 忽略缩放锁)`,
   )
   await evalv(`(() => { document.querySelector('meta[name="viewport"]').content = 'width=device-width, initial-scale=1, maximum-scale=1' })()`)
   await sleep(200)
   const rewritten = await viewportOf()
   check(
     'A9 宿主改写被重申回来',
-    rewritten === 'width=device-width, initial-scale=1, viewport-fit=cover',
-    `content=${JSON.stringify(rewritten)} (期望重申: 否则 viewport-fit=cover 静默失效、安全区归零)`,
+    rewritten === 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
+    `content=${JSON.stringify(rewritten)} (期望重申: 否则缩放锁与 viewport-fit=cover 静默失效)`,
   )
   await evalv(`(() => {
     const old = document.querySelector('meta[name="viewport"]')
@@ -267,7 +268,7 @@ async function main() {
   const replaced = await viewportOf()
   check(
     'A10 换节点后新 meta 也被接管',
-    replaced === 'width=device-width, initial-scale=1, viewport-fit=cover',
+    replaced === 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
     `content=${JSON.stringify(replaced)} (期望重申: head childList observer 必须重新绑定到新节点)`,
   )
 

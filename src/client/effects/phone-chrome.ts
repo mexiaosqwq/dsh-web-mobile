@@ -230,12 +230,15 @@ const IOS_MARKER = 'data-mobile-nav-ios'
 
 /**
  * Viewport content the plugin owns while the mobile branch is armed.
- * Deliberately zoom-free: iOS 10+ ignores maximum-scale/user-scalable for
- * user pinch but other engines honor them, so writing them would only take
- * zoom away from Android/DSHA; the iOS focus-zoom fix is the >=16px field
- * floor (data-mobile-nav-ios), not a zoom ban (#45).
+ * Zoom is deliberately PINNED on Android (Oppo Find X8, ColorOS/Chrome
+ * and DSHA WebView): maximum-scale=1 + user-scalable=no lock out pinch,
+ * double-tap and accessibility text scaling so no browser zoom can ever
+ * distort the mobile layout (owner decision 2026-09-16). iOS 10+ ignores
+ * both tokens for user pinch, so the iOS side is untouched: the >=16px
+ * field floor (data-mobile-nav-ios) is the focus-zoom fix and the root
+ * touch-action keeps pinch-zoom as the recovery path (#45).
  */
-const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cover'
+const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
 
 const findViewportMeta = (): HTMLMetaElement | null =>
   document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
@@ -244,14 +247,15 @@ const findViewportMeta = (): HTMLMetaElement | null =>
  * Phone chrome: KEEP the system status bar (no fullscreen) and make it
  * blend into the page. On narrow screens:
  * - The viewport meta is OWNED by the plugin while armed:
- *   width=device-width, initial-scale=1, viewport-fit=cover, re-asserted on
- *   every host rewrite, node replacement, or late injection, so
- *   env(safe-area-inset-top) stays the real status-bar / notch height
- *   instead of silently going stale when the host touches the meta. No zoom
- *   tokens here: iOS 10+ ignores them for user pinch but other engines
- *   honor them, and the focus-zoom fix is the >=16px field floor (#45), not
- *   a zoom ban. Dispose restores the host's own content as observed at arm
- *   time.
+ *   width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no,
+ *   viewport-fit=cover, re-asserted on every host rewrite, node
+ *   replacement, or late injection, so env(safe-area-inset-top) stays the
+ *   real status-bar / notch height instead of silently going stale when the
+ *   host touches the meta. The zoom tokens pin Android (pinch, double-tap
+ *   and accessibility text scaling all locked to 1x so no zoom can distort
+ *   the layout); iOS ignores them for user pinch and keeps the >=16px field
+ *   floor + pinch-zoom touch-action recovery path (#45). Dispose restores
+ *   the host's own content as observed at arm time.
  * - A theme-color meta tracks the shell background (the official theme is
  *   toggled by body[data-ds-dark-theme], which flips --dsw-alias-bg-base):
  *   Android then paints the status bar / URL bar with the page's own base
@@ -259,9 +263,7 @@ const findViewportMeta = (): HTMLMetaElement | null =>
  *   strip. The drawer paints the same strip on iOS / notch displays.
  * - documentElement carries data-mobile-nav-ios on iOS WebKit so the
  *   stylesheet can hold every text field at >=16px and Safari never
- *   focus-zooms the viewport (#45). Double-tap zoom is off through
- *   touch-action; pinch zoom stays available on purpose — it is the only way
- *   back out of a zoom the browser applied on its own.
+ *   focus-zooms the viewport (#45).
  */
 export function installPhoneChrome(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: status bar theme + viewport + zoom guard', () => {

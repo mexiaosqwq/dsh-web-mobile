@@ -80,14 +80,15 @@ export declare function detectIosWebKit(nav: {
  * Phone chrome: KEEP the system status bar (no fullscreen) and make it
  * blend into the page. On narrow screens:
  * - The viewport meta is OWNED by the plugin while armed:
- *   width=device-width, initial-scale=1, viewport-fit=cover, re-asserted on
- *   every host rewrite, node replacement, or late injection, so
- *   env(safe-area-inset-top) stays the real status-bar / notch height
- *   instead of silently going stale when the host touches the meta. No zoom
- *   tokens here: iOS 10+ ignores them for user pinch but other engines
- *   honor them, and the focus-zoom fix is the >=16px field floor (#45), not
- *   a zoom ban. Dispose restores the host's own content as observed at arm
- *   time.
+ *   width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no,
+ *   viewport-fit=cover, re-asserted on every host rewrite, node
+ *   replacement, or late injection, so env(safe-area-inset-top) stays the
+ *   real status-bar / notch height instead of silently going stale when the
+ *   host touches the meta. The zoom tokens pin Android (pinch, double-tap
+ *   and accessibility text scaling all locked to 1x so no zoom can distort
+ *   the layout); iOS ignores them for user pinch and keeps the >=16px field
+ *   floor + pinch-zoom touch-action recovery path (#45). Dispose restores
+ *   the host's own content as observed at arm time.
  * - A theme-color meta tracks the shell background (the official theme is
  *   toggled by body[data-ds-dark-theme], which flips --dsw-alias-bg-base):
  *   Android then paints the status bar / URL bar with the page's own base
@@ -95,9 +96,7 @@ export declare function detectIosWebKit(nav: {
  *   strip. The drawer paints the same strip on iOS / notch displays.
  * - documentElement carries data-mobile-nav-ios on iOS WebKit so the
  *   stylesheet can hold every text field at >=16px and Safari never
- *   focus-zooms the viewport (#45). Double-tap zoom is off through
- *   touch-action; pinch zoom stays available on purpose — it is the only way
- *   back out of a zoom the browser applied on its own.
+ *   focus-zooms the viewport (#45).
  */
 export declare function installPhoneChrome(ctx: ClientContext): void;
 /**

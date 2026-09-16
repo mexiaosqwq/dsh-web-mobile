@@ -32,15 +32,26 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        no CSS opt-out (WebKit bug 240183) — there the widened gesture start
        zone (96px, beyond every browser's edge-claim strip) is the
        mitigation.
-     - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
-       status bar / notch height; the rules below push the app content below
-       it so the status bar never covers anything. Off notched phones (or in
-       a normal browser tab where the layout viewport already sits below the
-       status bar) the inset is 0 and nothing shifts. */
+      - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
+        status bar / notch height; the rules below push the app content below
+        it so the status bar never covers anything. Off notched phones (or in
+        a normal browser tab where the layout viewport already sits below the
+        status bar) the inset is 0 and nothing shifts.
+      - Zoom pin hardening (Android, e.g. Oppo Find X8): the viewport meta
+        (phone-chrome.ts) locks pinch/double-tap/text scaling at 1x;
+        text-size-adjust: 100% additionally forbids engine font inflation on
+        any engine that ignores the meta, and overscroll-behavior-y: none
+        kills Chrome's pull-to-refresh / rubber-band chaining on the root so
+        the app frame never gets yanked. The iOS zoom-recovery contract
+        (pinch-zoom in touch-action, >=16px field floor) stays untouched:
+        touch-action is not restricted further here. */
   html,
   body {
     touch-action: pan-y pinch-zoom !important;
     overscroll-behavior-x: none !important;
+    overscroll-behavior-y: none !important;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   /* AppFrame: the drawer takes the sidebar column out of grid flow, so the
