@@ -7,6 +7,8 @@ export declare const zh: {
     readonly backdrop: "点击关闭目录";
     readonly sessionLog: "导出会话日志";
     readonly files: "文件浏览";
+    readonly tokensTotal: "总消耗";
+    readonly uploadImage: "上传图片";
     readonly previewFullscreen: "全屏预览";
     readonly previewExitFullscreen: "退出全屏";
     readonly deleteSession: "删除会话";

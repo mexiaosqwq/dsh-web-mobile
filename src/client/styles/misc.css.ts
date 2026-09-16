@@ -58,6 +58,31 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     gap: 0 !important;
   }
 
+  /* ---------- image upload entry (conversation.input.left) ----------
+     Injected paperclip button in the composer's left tool lane. The lane's
+     shrink rule (layout.css.ts) targets every direct child except the host
+     _add button, so this pin mirrors the _add exemption: fixed 28px, never
+     squeezed at 320px. Styled as bare lane chrome (transparent ground,
+     inherited icon color) so it reads as native; pressed state reuses the
+     host interactive-bg token with a neutral fallback. */
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) [data-mobile-nav="image-picker"] {
+    flex: none !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: inherit !important;
+    background: transparent !important;
+  }
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) [data-mobile-nav="image-picker"]:active {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)) !important;
+  }
+
   /* ---------- composer dock: swap git branch chip with the todo card ----------
      The git-graph branch chip (conversation.input.dock, order 100) floats
      alone at the bottom-left above the input card, with a dead zone to its
@@ -86,7 +111,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     touch-action: manipulation !important;
     min-height: 34px !important;
     padding: 0 12px !important;
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   [data-slot="conversation.input.dock"] [data-gitgraph-chip-anchor] [data-gitgraph-chip]:active {
     transform: scale(.96) !important;
@@ -138,10 +163,11 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
       blur — a chat shell keeps the composer focused, so the zoom has no
       moment to revert; before this fix the root touch-action also withheld
       pinch-zoom, so the user could not pull it back out either (see
-      layout.css.ts). maximum-scale=1 in the viewport meta is NOT the fix:
-      iOS 10+ ignores it for user pinch zoom while other engines honor it, so
-      writing it would only take zoom away from Android. Raising the fields is
-      the fix that stays inside the standard.
+      layout.css.ts). maximum-scale=1 in the viewport meta is NOT the fix
+      for iOS: iOS 10+ ignores it for user pinch zoom, so the field floor is
+      the only thing that stays inside the standard. (Android's zoom is
+      deliberately pinned via the viewport meta since 2026-09-16 — owner
+      decision for the Find X8 — see phone-chrome.ts VIEWPORT_CONTENT.)
       Gated on html[data-mobile-nav-ios] (phone-chrome.ts detectIosWebKit)
       because only WebKit on iOS zooms on focus: Android and desktop keep the
       compact 13px search boxes they were designed with. The floor covers
@@ -254,10 +280,12 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="files"],
   [data-mobile-nav="fab"],
   [data-mobile-nav="backdrop"],
+  [data-mobile-nav="tokens-total"],
   [data-mobile-nav="session-log"],
   [data-mobile-nav="explorer"],
   [data-mobile-nav="preview-full-toggle"],
-  [data-mobile-nav="drawer-actions"] {
+  [data-mobile-nav="drawer-actions"],
+  [data-mobile-nav="image-picker"] {
     display: none !important;
   }
 }

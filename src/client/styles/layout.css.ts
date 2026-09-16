@@ -30,17 +30,28 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        html/body count for this (Chromium issue 41483088: inner containers
        are ignored by the navigation path). iOS Safari's edge back-swipe has
        no CSS opt-out (WebKit bug 240183) — there the widened gesture start
-       zone (96px, beyond every browser's edge-claim strip) is the
+       zone (0.45 × viewport, beyond every browser's edge-claim strip) is the
        mitigation.
-     - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
-       status bar / notch height; the rules below push the app content below
-       it so the status bar never covers anything. Off notched phones (or in
-       a normal browser tab where the layout viewport already sits below the
-       status bar) the inset is 0 and nothing shifts. */
+      - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
+        status bar / notch height; the rules below push the app content below
+        it so the status bar never covers anything. Off notched phones (or in
+        a normal browser tab where the layout viewport already sits below the
+        status bar) the inset is 0 and nothing shifts.
+      - Zoom pin hardening (Android, e.g. Oppo Find X8): the viewport meta
+        (phone-chrome.ts) locks pinch/double-tap/text scaling at 1x;
+        text-size-adjust: 100% additionally forbids engine font inflation on
+        any engine that ignores the meta, and overscroll-behavior-y: none
+        kills Chrome's pull-to-refresh / rubber-band chaining on the root so
+        the app frame never gets yanked. The iOS zoom-recovery contract
+        (pinch-zoom in touch-action, >=16px field floor) stays untouched:
+        touch-action is not restricted further here. */
   html,
   body {
     touch-action: pan-y pinch-zoom !important;
     overscroll-behavior-x: none !important;
+    overscroll-behavior-y: none !important;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   /* AppFrame: the drawer takes the sidebar column out of grid flow, so the
@@ -206,12 +217,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) {
     padding-left: 20px;
     padding-right: 20px;
-    font-size: 15px !important;
+    font-size: calc(15px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   /* The official markdown styles set an explicit 16px on paragraphs and
      list items, so the container's inherited 15px is not enough. User
      messages render their text in a div whose class carries _text_
-     (16px too) — cover it as well. */
+     (16px too) — cover it as well. Both pins ride the host font-size axis
+     (base.css.ts --dsh-web-mobile-font-delta) so the setting keeps working
+     on message text instead of only on unstyled chrome. */
   [data-phase]
     [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) p,
   [data-phase]
@@ -220,7 +233,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) [
       class*="_text_"
     ] {
-    font-size: 15px !important;
+    font-size: calc(15px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
 
   /* Markdown tables: the official table uses width:max-content, so on a phone

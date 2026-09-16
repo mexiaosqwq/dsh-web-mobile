@@ -12,6 +12,8 @@
 
 > 📦 **已内置于 [DSHA](https://github.com/qiannianhuanxiang/DSHA)** —— DeepSeek Harness 安卓启动器把本插件作为内置移动端适配，装 APK 开箱即用。感谢作者 [@qiannianhuanxiang](https://github.com/qiannianhuanxiang) 的集成与推广 🙏
 
+> **Fork 声明**：本仓库是 [mexiaosqwq/dsh-web-mobile](https://github.com/mexiaosqwq/dsh-web-mobile) 的 fork，由 [multielement](https://github.com/multielement) 维护。上游的代码、提交历史与 [MIT License](LICENSE) 均完整保留；本 Fork 相对上游新增的改动集中说明在「本 Fork 的改动」一节，随分支 `260916-feat-fontsize-token-total` 提供，欢迎上游合并。
+
 ---
 
 **dsh-web-mobile** 是 DeepSeek Harness Web UI 的移动端适配插件——让 DSH 在手机竖屏下也能好好用：
@@ -21,6 +23,10 @@
 - **状态栏避让**：刘海安全区、深/浅主题、双击缩放都处理
 - **输入区不打架**：权限胶囊、模型名、切换菜单在窄屏下不重叠
 - **长会话不卡流量**：宿主返回的大 JSON（会话历史等）自动 gzip/brotli 压缩，手机端加载明显提速
+- **字号全局联动**：宿主的字号设置同步缩放整套移动端 UI（消息正文、抽屉、底部按钮、设置浮层等），不只是会话内容
+- **缩放钉死（安卓）**：viewport 锁定 1x，捏合、双击、无障碍文本缩放都不能扭曲移动端布局（Oppo Find X8 等机型实测适配）
+- **总消耗 Token**：目录抽屉底部新增全局 Token 消耗计数（所有会话累计），点按刷新
+- **上传图片（视图功能）**：输入框左侧工具栏新增图片选择入口，选中的图片以缩略图进入输入区、发送后消息内联显示，多模态模型可直接识别图片里的界面
 - **平板也管**：768–1023px 触屏设备限宽居中，≥1024px 触屏大平板的会话行 ⋯ 菜单仍带「删除会话」；桌面端（鼠标指针）任何宽度都是完全 no-op，窄窗口/系统缩放也不会误启移动 UI
 - **诊断方便**：`?mobile-nav-debug=1` 显示悬浮诊断条（视口 / 浮层状态 / JS 错误）
 
@@ -32,7 +38,36 @@
 | --- | --- | --- |
 | ![移动端会话主页](assets/hero.png) | ![目录抽屉](assets/drawer.png) | ![移动端设置界面](assets/settings.png) |
 
+## 本 Fork 的改动
+
+相对上游（截至 `main` 的 `7ae9bcb`），本 Fork 在分支 `260916-feat-fontsize-token-total` 上新增四项改动（即 v2.5.0 更新内容）：
+
+### 字号全局联动
+
+宿主的字号设置（CSS 变量 `--dsh-content-font-size`，12–17px，默认 14px）此前只影响会话消息正文；本改动让**整套移动端 UI**（消息正文、目录抽屉、底部按钮、设置浮层、状态条、芯片等）跟随该设置同步缩放。实现方式：样式表先推导统一增量 `--dsh-web-mobile-font-delta = 宿主字号 − 14px`，全部移动端字号按该增量插值；旧宿主未发布该变量时增量为 0，字号保持原样。特例：iOS 防聚焦放大的 16px 输入框下限保持固定，不参与缩放。
+
+### 总消耗 Token
+
+目录抽屉底部最左新增**全局 Token 消耗计数**（输入 / 输出 / 缓存读 / 缓存写 / 推理五项合计，所有会话累计，非当前会话），点按刷新。数据由宿主半区新增的 `GET /api/mobile-nav.tokens.total` 端点折叠全部会话的 usage 记录得出，与当前会话的 token 计不同源；该 pill 仅在移动端抽屉渲染，桌面完全隐藏。
+
+### 缩放钉死（安卓，Oppo Find X8 适配）
+
+武装期 viewport meta 写入 `maximum-scale=1, user-scalable=no`，把捏合、双击、无障碍文本缩放全部锁死在 1x，浏览器缩放不再能扭曲移动端布局；配套 CSS 加固：`text-size-adjust: 100%` 禁用引擎字体膨胀，`overscroll-behavior-y: none` 禁用下拉刷新 / 橡皮筋回弹。iOS 10+ 忽略这两个缩放 token，其聚焦放大修复（16px 输入下限 + 捏合回路）不受影响。
+
+### 上传图片（视图功能）
+
+输入框左侧工具栏（`conversation.input.left` 槽）新增**图片选择按钮**（回形针图标，仅移动端显示）：点按打开系统图片选择器（多选、仅图片），选中图片经**合成 document drop 事件**送入宿主原生附件收件通道——缩略图预览、上传、消息内嵌图、模型视觉内容块全部复用宿主原生链路，插件只补移动端入口（宿主 WebUI 无可见上传按钮，触屏无法拖拽）。多模态模型即可直接识别图片中的界面（无需 ADB/无障碍）；文本模型下宿主按原生规则降级（图片省略）。桌面端按钮完全隐藏。
+
 ## 更新内容
+
+### v2.5.0
+
+**新功能**
+
+- 字号全局联动：插件全部移动端字号跟随宿主字号设置同步缩放
+- 总消耗 Token：目录抽屉底部最左新增全部会话累计 Token 消耗计数，点按刷新
+- 缩放钉死（安卓）：viewport 锁定 1x，捏合/双击/无障碍文本缩放全部失效；配套 text-size-adjust 与 overscroll-behavior 加固，杜绝浏览器缩放与下拉刷新扭曲布局（Oppo Find X8 适配）
+- 上传图片（视图功能）：输入框左侧工具栏新增图片选择按钮，选中图片走宿主原生附件链路（缩略图 → 消息内嵌图 → 模型视觉识别）
 
 ### v2.4.1
 
@@ -186,6 +221,12 @@ pnpm build
 - 本地门：`pnpm verify`（typecheck）→ `pnpm test:core`（单测）→ `pnpm build`；`lib/` 随源码入库，漏构建会被 CI 的 `git diff --exit-code lib` 新鲜度门拦下。
 - 回归探针：`scripts/probes/` 九个锚点可单跑（会话删除探针兼作宿主升级绊线）；主探针 `pnpm smoke:cdp`、手势门 `scripts/cdp-swipe-failures.mjs`、iOS 放大守卫 `scripts/cdp-zoom-probe.mjs`（CDP 环境参数见 AGENTS.md）。
 - 设计文档在 `docs/specs/`；宿主升级对账走 `docs/upstream/`——`node scripts/cdp-compat-contracts.mjs` 一键核对 CSS module 哈希是否漂移。
+
+## 免责声明
+
+- 本仓库是 [mexiaosqwq/dsh-web-mobile](https://github.com/mexiaosqwq/dsh-web-mobile) 的 fork，仅用于学习与个人使用；项目及本 Fork 的全部改动均遵循上游的 [MIT License](LICENSE)。
+- 本插件安装、使用过程中产生的一切后果由使用者自行承担，本仓库所有者不对任何直接或间接损失负责。
+- 如果本仓库的任何内容侵犯了您的合法权益，或存在违规、违法内容，请通过 [GitHub Issues](https://github.com/multielement/dsh-web-mobile/issues) 联系仓库所有者 [multielement](https://github.com/multielement)，我将在核实后第一时间删除相关内容。
 
 ## License
 

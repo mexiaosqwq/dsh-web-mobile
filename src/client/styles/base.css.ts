@@ -4,6 +4,16 @@
 export const BASE_CSS = `
 /* ---------- base control styles (rendered at any width, hidden where unused) ---------- */
 
+/* Host font-size axis: the theme presenter publishes --dsh-content-font-size
+   (integer px, 12-17, default 14) on body, and the host UI derives its
+   typography from it. Derive ONE delta here so every plugin typography pin
+   below follows the same setting — the whole mobile UI scales with the
+   font-size control, not just the conversation content. Old hosts without
+   the variable resolve the 14px fallback and keep the pre-existing sizes. */
+body {
+  --dsh-web-mobile-font-delta: calc(var(--dsh-content-font-size, 14px) - 14px);
+}
+
 [data-mobile-nav="toggle"],
 [data-mobile-nav="files"] {
   display: inline-flex;
@@ -30,13 +40,15 @@ export const BASE_CSS = `
   outline-offset: 1px;
 }
 
-/* Drawer footer actions: the relocated Session log download plus the Files
-   action that opens the dsh-web-ui explorer sheet. */
+/* Drawer footer actions: the relocated total-token counter plus the Session
+   log download and the Files action that opens the dsh-web-ui explorer
+   sheet. Tokens-total sits leftmost (rendered first in the component). */
 [data-mobile-nav="drawer-actions"] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
+[data-mobile-nav="tokens-total"],
 [data-mobile-nav="session-log"],
 [data-mobile-nav="explorer"] {
   display: inline-flex;
@@ -50,11 +62,12 @@ export const BASE_CSS = `
   background: transparent;
   color: var(--dsw-alias-label-primary, inherit);
   font-family: inherit;
-  font-size: 13px;
+  font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px));
   line-height: 20px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+[data-mobile-nav="tokens-total"]:hover,
 [data-mobile-nav="session-log"]:hover:not(:disabled),
 [data-mobile-nav="explorer"]:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
@@ -79,13 +92,13 @@ export const BASE_CSS = `
   background: var(--dsw-alias-interactive-bg-hover-danger, rgba(220, 38, 38, .06));
 }
 [data-mobile-nav="delete-confirm-title"] {
-  font-size: 13px;
+  font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px));
   font-weight: 600;
   line-height: 18px;
   color: var(--dsw-alias-state-error-primary, #b91c1c);
 }
 [data-mobile-nav="delete-confirm-desc"] {
-  font-size: 12px;
+  font-size: calc(12px + var(--dsh-web-mobile-font-delta, 0px));
   line-height: 17px;
   color: var(--dsw-alias-label-secondary, inherit);
 }
@@ -103,7 +116,7 @@ export const BASE_CSS = `
   background: transparent;
   color: var(--dsw-alias-label-primary, inherit);
   font-family: inherit;
-  font-size: 13px;
+  font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px));
   line-height: 20px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -119,7 +132,7 @@ export const BASE_CSS = `
 }
 [data-mobile-nav="delete-error"] {
   width: 100%;
-  font-size: 12px;
+  font-size: calc(12px + var(--dsh-web-mobile-font-delta, 0px));
   line-height: 17px;
   color: var(--dsw-alias-state-error-primary, #b91c1c);
 }

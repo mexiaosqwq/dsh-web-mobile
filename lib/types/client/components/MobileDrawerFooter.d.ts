@@ -10,6 +10,10 @@ export interface MobileDrawerFooterProps extends PropsRuntime<'sidebar.footer.ac
 /**
  * Mobile-only drawer footer actions, relocated from the session header to the
  * drawer footer (beside Settings):
+ * - Total tokens (leftmost): lifetime consumption across ALL sessions of the
+ *   corpus, folded by the host half's `/api/mobile-nav.tokens.total` endpoint.
+ *   Refreshes on tap. Loads only while the mobile query matches, so desktop
+ *   never pays the corpus scan.
  * - Files: opens the dsh-web-ui aionui explorer as a floating bottom sheet
  *   (the explorer column is hidden on mobile until this marker is set, so
  *   the suite's own persisted-expanded state can never cover the UI on load).

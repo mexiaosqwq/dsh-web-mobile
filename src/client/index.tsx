@@ -1,6 +1,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { MobileNavToggle } from './components/MobileNavToggle.tsx'
 import { MobileDrawerFooter } from './components/MobileDrawerFooter.tsx'
+import { MobileImagePicker } from './components/MobileImagePicker.tsx'
 import { MOBILE_CSS } from './styles/index.ts'
 
 import { installFrameController, installOverlayInteractions, installPhoneChrome, installReconciler, registerReconcileTasks, MOBILE_QUERY } from './effects/phone-chrome.ts'
@@ -210,6 +211,18 @@ export function apply(ctx: ClientContext): void {
       toggleSidebar: () => ctx.layout.toggleSidebar(),
     }),
   }, MobileNavToggle))
+
+  // Image upload entry in the composer's left tool lane: a picker-only
+  // button that stages picked images as a synthetic document drop into the
+  // host's native attachment intake (the host web UI has no visible upload
+  // button and touch devices cannot drag). Hidden on wide screens by CSS.
+  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+    name: 'conversation.input.left',
+    id: 'mobile-nav-image-picker',
+    order: 10,
+    locale: NS,
+    inject: () => ({}),
+  }, MobileImagePicker))
 
 
   // Session log download, relocated from the session header to the drawer

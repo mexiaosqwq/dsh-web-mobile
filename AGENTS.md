@@ -8,18 +8,19 @@
 - No monorepo, no application server, no workspace layer.
 - Real entrypoints:
   - `cordis.patch.yml` inserts the single host plugin row.
-  - `src/index.ts` is the host half: `apply()` makes the row visible to the host Loader, installs transparent gzip/brotli compression for large JSON responses (`src/compress.ts`), and registers the session-delete endpoint `/api/mobile-nav.session.delete` (work in `src/delete-session.ts`).
+  - `src/index.ts` is the host half: `apply()` makes the row visible to the host Loader, installs transparent gzip/brotli compression for large JSON responses (`src/compress.ts`), and registers two endpoints: `/api/mobile-nav.session.delete` (work in `src/delete-session.ts`) and `/api/mobile-nav.tokens.total` (work in `src/token-usage.ts`, lifetime token fold across the session corpus).
   - `package.json` exposes `./client` and declares `dsh.client.platform: "web"`; DSH discovers the browser half from `src/client/index.tsx`.
 - Key layout（注释版仓库树；`(不入库)` = gitignore，外部 clone 不可见）:
 
   ```text
   dsh-web-mobile/
   ├─ src/                    ← 真源码，唯一该手改的地方
-  │  ├─ index.ts             ← 宿主半区入口（apply 装响应压缩 + 会话删除端点）
+  │  ├─ index.ts             ← 宿主半区入口（apply 装响应压缩 + 会话删除/总消耗端点）
   │  ├─ compress.ts          ← 进程级 prototype patch
   │  ├─ delete-session.ts    ← 会话删除纯核（DI、分代适配、可单测）
+  │  ├─ token-usage.ts       ← 全局 token 折叠纯核（DI、sessionQuery 结构切片、可单测）
   │  └─ client/
-  │     ├─ index.tsx         ← 浏览器半区入口（2 slots）
+  │     ├─ index.tsx         ← 浏览器半区入口（3 slots）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts
@@ -37,7 +38,7 @@
   │  ├─ cdp-probe.mjs        ← 主探针 32 断言（EXPECTED_FAILURES 基线）
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  └─ probes/              ← 9 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 12 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 14 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 6 篇权威设计文档（入库）
   │  ├─ audits/ · maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json）· fork-wzxmt-zhc/
@@ -73,7 +74,7 @@ DSH_PROBE_SESSION_ID=<id> pnpm smoke:cdp
 
 - Focused unit test: `node --test tests/sidebar-swipe.test.ts` (any single file in `tests/`).
 - Direct swipe regression probes (not the general `smoke:cdp`): `node scripts/cdp-swipe-probe.mjs` and `node scripts/cdp-swipe-failures.mjs`; same `DSH_PROBE_URL`/`DSH_PROBE_CHROME` env vars, and on Termux add writable `TMPDIR`/`XDG_RUNTIME_DIR`.
-- iOS 聚焦放大守卫探针（#45 / #46，21 断言）：`node scripts/cdp-zoom-probe.mjs`（同组 env）。三场景：手机+Chromium UA（无 iOS 标记、第三方 13px 输入框不变、注入的 14px 可编辑域不被抬高）、手机+iPhone UA（标记就位、所有可见文本输入域 >=16px、composer 三件套同尺寸、控件类 input/select 未被改、注入的 14px contenteditable 抬到 16px 而其 `contenteditable="false"` 装饰节点保持 12px）、桌面（标记缺席、字号零影响）；兼验根/抽屉 `touch-action` 含 `pinch-zoom` 且不含 `pan-x`、`gesturestart` 不再被 preventDefault。A7/B6 注入的形状就是 dsh 0.1.2-rc.1 的 Lexical composer，用来在旧宿主上前瞻验证下一版。A8-A10 守 viewport meta 的所有权（#46 合并部分）：武装期内容必须恰好 `width=device-width, initial-scale=1, viewport-fit=cover`（**出现 maximum-scale/user-scalable 即回归**），宿主改写与整节点替换都要被重申回来。
+- iOS 聚焦放大守卫探针（#45 / #46，21 断言）：`node scripts/cdp-zoom-probe.mjs`（同组 env）。三场景：手机+Chromium UA（无 iOS 标记、第三方 13px 输入框不变、注入的 14px 可编辑域不被抬高）、手机+iPhone UA（标记就位、所有可见文本输入域 >=16px、composer 三件套同尺寸、控件类 input/select 未被改、注入的 14px contenteditable 抬到 16px 而其 `contenteditable="false"` 装饰节点保持 12px）、桌面（标记缺席、字号零影响）；兼验根/抽屉 `touch-action` 含 `pinch-zoom` 且不含 `pan-x`、`gesturestart` 不再被 preventDefault。A7/B6 注入的形状就是 dsh 0.1.2-rc.1 的 Lexical composer，用来在旧宿主上前瞻验证下一版。A8-A10 守 viewport meta 的所有权（#46 合并部分）：武装期内容必须恰好 `width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover`（2026-09-16 所有者决定：安卓钉死缩放；iOS 忽略缩放锁，其 #45 恢复路径不受影响），宿主改写与整节点替换都要被重申回来。
 
 - Local DSH profile workflow:
 
@@ -85,10 +86,11 @@ dsh web
 
 ## Architecture
 
-- Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus the session-delete endpoint (deletion work in the DI pure core `src/delete-session.ts`, generation-adapted per host).
-- `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers exactly two slots:
+- Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus two endpoints: the session-delete route (work in the DI pure core `src/delete-session.ts`, generation-adapted per host) and the lifetime-token route (work in the DI pure core `src/token-usage.ts`, structural `sessionQuery` slice folded per request).
+- `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers exactly three slots:
   - `conversation.session.header.actions` → `MobileNavToggle` (`order: 10`): drawer toggle + Files button.
-  - `sidebar.footer.action` → `MobileDrawerFooter` (`order: 5`): Files + session-log actions. Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
+  - `conversation.input.left` → `MobileImagePicker` (`order: 10`): image-upload entry in the composer's left tool lane. Opens the system image picker (`accept="image/*"` multi-select) and stages the picked files as ONE synthetic document `drop` event into the host's native attachment intake — the host web UI has no visible upload button and touch devices cannot drag, and the 0.1.1-rc.2 intake is document drop listeners only (no file picker in the bundle). Thumbnail drafts, upload, inline message images, and model vision content all reuse host-native paths; the component holds no state and a rejected intake is a silent no-op. Desktop hidden via the misc.css.ts complement block. Pure core `core/image-intake.ts` (zero imports, injected DataTransfer/DragEvent factories incl. initDragEvent fallback); browser constructor bindings live in the component.
+  - `sidebar.footer.action` → `MobileDrawerFooter` (`order: 5`): total-tokens counter (leftmost) + Files + session-log actions. Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
   - There is **no settings slot** anymore; the haptic feedback feature was removed.
 - Shared full-tree reconciler:
   - `src/client/core/reconciler-core.ts` is a DOM-free engine with **zero imports**. It owns task registry, dirty-key routing (`scopes`), coalesced rAF flush scheduling, and per-task error isolation.
@@ -106,12 +108,13 @@ dsh web
   - `session-menu.ts` — touch-gated injection of a 「删除会话」 item into the workspace session-row ⋯ menu (clone-and-inject from the fork wzxmt-zhc v2.7.0): guard = TOUCH_QUERY (`(pointer: coarse)` at EVERY width — large tablets in landscape included, v2.4.1) + row/menu/label selectors present; inert on hosts whose drawer renders the rail variant (rc.2), activates on hosts rendering session rows in the drawer (0.1.3) or on the ≥1024px desktop panel; after deleting the current session `ctx.layout.toggleSidebar()` only runs on the mobile query (desktop panels must not collapse); confirmation dialog markup/styles live in base.css.ts (wide-touch card capped 420px centered) with corrected animation names.
   - Reconciler task modules: `git-chip-reparent.ts`, `settings-toolbar-reparent.ts`, `preview-fullscreen.ts`, `overlay-backdrop-fab.ts`.
 - Styles: `src/client/styles/index.ts` concatenates `base → layout → compat → misc` in that load-bearing order and injects one `<style data-plugin>` tag. Mobile rules target `(max-width: 1023px) and (pointer: coarse)` (keep every top-level media block in sync with `MOBILE_QUERY`); the desktop hide block in misc.css.ts is its exact complement and must preserve the uninstalled layout.
+- Font-size axis: the host publishes `--dsh-content-font-size` (integer px, 12–17, default 14) on body. base.css.ts derives ONE delta `--dsh-web-mobile-font-delta: calc(var(--dsh-content-font-size, 14px) - 14px)` and every plugin typography pin is written as `calc(<base>px + var(--dsh-web-mobile-font-delta, 0px))`, so the host font-size setting scales the WHOLE mobile UI (pills, dialogs, sheets, chips, message text pins in layout.css.ts) with one uniform increment — old hosts resolve the 14px fallback and keep the pre-existing sizes. Deliberate exception: the iOS 16px input floors in misc.css.ts (zoom guard #45) stay fixed, as do the desktop-only rules.
 - Third-party compatibility is implemented through scoped DOM markers, stable `data-*` attributes, `MutationObserver`, and carefully scoped class/text anchors. Never modify third-party source packages.
 - Authoritative design docs: `docs/specs/2026-08-27-sidebar-swipe-gestures.md` (gesture parameters/state machine) and `docs/audits/2026-08-27-sidebar-swipe-latent-defects.md` (gesture defect baseline).
 
 ## Conventions
 
-- Keep the host/client split intact; the host half stays minimal (`apply()` installs response compression + the session-delete endpoint, nothing else).
+- Keep the host/client split intact; the host half stays minimal (`apply()` installs response compression + the session-delete and token-total endpoints, nothing else).
 - Use stable `data-*` markers and structural selectors before hashed classes. For unavoidable hashed classes use substring matching (`[class*=_frag]`), never attribute-suffix (`[class$=…]`) — the class attribute often carries extra tokens or trailing spaces, and a suffix test runs against the whole attribute value, so it silently misses (verified in the full-codebase migration). Scope the selector to its owning region and guard prefix-overlapping fragments with `:not`; for tree rows use `[class*="_treeRow"]` and exclude `[class*="_treeArrowEmpty"]` when distinguishing directories from files.
 - Put every long-lived style tag, listener, timer, or `MutationObserver` inside `ctx.effect(() => { ...; return disposer }, label)`. Re-arm width-sensitive effects on `matchMedia(MOBILE_QUERY)` changes via `installMobileEffect` so wide→narrow transitions work; import the constant from phone-chrome.ts instead of hardcoding query strings.
 - Treat DOM markers as the cross-module state contract: `data-mobile-nav="frame"`, `data-sidebar-collapsed`, `data-aionui-explorer-open`, `data-aionui-preview-open`, `data-mobile-preview-full`, `data-mobile-nav="stats"`, `data-file-viewer-open` (frame-level gate for the dsh-file-viewer compat layout, keyed on `.dsfv-panel`), `data-mobile-nav="session-delete"` (menu-item probe key), `delete-dialog-backdrop` + `delete-dialog` (confirmation dialog), and `data-mobile-nav-ios` (on `<html>`, iOS-only CSS gate).
@@ -136,7 +139,7 @@ dsh web
 - **composer 键盘 guard（PR #48）marker 契约按宿主分代**：`[data-composer-input]` 是 0.1.2-rc.1 Lexical 编辑面 marker，0.1.1-rc.2 只有 card/seat（guard 安全空转）；升级宿主按 composer-keyboard-guard.ts 文件头注释对账两 marker；headless 的 `detectIosWebKit` 恒 false，本地 CDP 无法验活跃路径（贡献者 iPhone 实机 + tests/composer-keyboard-guard.test.ts 源码不变量已过）→ `docs/maintenance/pitfalls.md` §键盘 guard。
 - **宽度断点 ≠ 设备判定（2026-08-30 PC 泄漏）**：`MOBILE_QUERY = '(max-width: 1023px) and (pointer: coarse)'`（JS 常量 + compat/layout/misc 全部顶层 media 块同步）；misc 桌面隐藏块=精确补集 `@media (min-width: 1024px), (pointer: fine), (pointer: none)`。**维护约定：新增任何 `data-mobile-nav` 注入控件（slot 按钮、task 注入元素）必须同步加进隐藏块清单**（dispose 竞态最后防线）。**唯一豁免（v2.4.1）：session-delete 三件套**（`session-delete` 菜单项 + `delete-dialog-backdrop` + `delete-dialog`）不进宽度臂——它们按 `TOUCH_QUERY = '(pointer: coarse)'` 全宽度武装（大平板横屏契约），只受 misc 尾部独立的 pointer-only 块 `(pointer: fine), (pointer: none)` 隐藏；`installMobileEffect` 支持第 4 参 query 覆盖默认 MOBILE_QUERY。探针必须 `Emulation.setTouchEmulationEnabled`（`setEmulatedMedia` 对 pointer 特征无效），桌面场景必须关掉；断言 slot 按钮前等 active phase（hero 的 `qDHVXG_headerActions` 不是同一容器）。完整案例 → `docs/maintenance/pitfalls.md` §断点与设备。
 - **CDP 探针环境参数（Termux 本机实测）**：`cdp-swipe-failures.mjs` 的 `DSH_PROBE_URL` 缺省曾误指调试端口 3457，已改为与主探针一致的 `http://127.0.0.1:3080/`（旧版不带 env 直接跑会连到没人监听的端口，报「插件 frame 未就绪」——现象像回归/环境坏了，其实是 URL 错）。主探针需要 `DSH_PROBE_SESSION_ID`（取 `~/.dsh/sessions/<项目目录>/` 最新 `session-*`；本机 3080 的 cwd 是 `~`，对应 `--data-data-com.termux-files-home--/`），Termux 上 `DSH_PROBE_CHROME=chromium-browser` 必须显式传（缺省 `chromium` 会 spawn ENOENT）。另外连续跑探针会在设备上泄漏 headless chromium 进程（实测 31 个残留、load 7.0，拖垮后续所有探针 boot 甚至误报超时）——排查前先 `pgrep -c chrom` 清点；`pkill -f` 的 pattern 会匹配自身命令行把当前 shell 杀掉，用不含自匹配的 pattern 或从另一个会话清理。
-- **iOS 一输入就放大（#45）已按机制修**（完整取证/已否决路线/未验证后续项 → `docs/maintenance/pitfalls.md` §iOS zoom）：根/抽屉 `touch-action` 必须含 `pinch-zoom`（沿祖先链交集，漏一层授权就被抵消）；`gesturestart` 一律不 preventDefault；16px 下限走 `html[data-mobile-nav-ios]`（misc.css，盖 textarea / `[contenteditable]:not([contenteditable="false"])` / 文本类 input + composer 三件套同字号；`select` 故意不改）；**不要改回 `maximum-scale=1`**（iOS 10+ 忽略、安卓/桌面认真执行）；宿主 viewport meta 各版都不带 maximum-scale；引擎判定=纯函数 `detectIosWebKit`（先 CSS.supports 特征探针再 UA，iPadOS 13+ 发桌面 UA 靠 maxTouchPoints）。viewport meta 所有权（重申 `width=device-width, initial-scale=1, viewport-fit=cover`，写入永不带缩放锁）已合并 cb16329。探针 `scripts/cdp-zoom-probe.mjs`（21 断言）。
+- **iOS 一输入就放大（#45）已按机制修**（完整取证/已否决路线/未验证后续项 → `docs/maintenance/pitfalls.md` §iOS zoom）：根/抽屉 `touch-action` 必须含 `pinch-zoom`（沿祖先链交集，漏一层授权就被抵消）；`gesturestart` 一律不 preventDefault；16px 下限走 `html[data-mobile-nav-ios]`（misc.css，盖 textarea / `[contenteditable]:not([contenteditable="false"])` / 文本类 input + composer 三件套同字号；`select` 故意不改）；引擎判定=纯函数 `detectIosWebKit`（先 CSS.supports 特征探针再 UA，iPadOS 13+ 发桌面 UA 靠 maxTouchPoints）。viewport meta 所有权（重申 `width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover`）已合并 cb16329——**2026-09-16 起写入内容带安卓缩放锁**（所有者决定，Oppo Find X8 钉死缩放：捏合/双击/无障碍文本缩放全部锁 1x，iOS 忽略这两项故 iOS 的 #45 恢复路径不变）；root touch-action 的 `pinch-zoom` 保留（iOS 回路），安卓缩放由 meta 锁死、无需动 touch-action。探针 `scripts/cdp-zoom-probe.mjs`（21 断言）。
 - **主探针（`scripts/cdp-probe.mjs`）的 3 项预存失败已写成机读基线**：探针源码内 `EXPECTED_FAILURES`（name 精确匹配；`page.errors` 另要求 detail 含 `404`，防掩盖新的页面错误）＝`page.errors`（一个 404 资源）、`integration.gitgraph.reparented`（`hasCard=true reparented=false`）、`integration.gitgraph.pressed`（`transform=none`，是上一项的下游：芯片未进 dock 则 `:active` 规则不命中）。命中基线的 FAIL 记 BASE 不计入退出码，SUMMARY 显示 `base=N new=M` 且 base>0 时打印 `BASELINE <names>`，只有 `new>0` 才 exit 1（gitgraph 芯片缺席时走 SKIP，属正常环境差异；某条目修好后必须从 EXPECTED_FAILURES 移除）。已用 bundle A/B 实验判定（`git show HEAD:lib/client.js > lib/client.js` 后重跑，旧 bundle 83924c1c6281 与新 bundle 完全同款失败）——判定探针结果时看 SUMMARY 的 new 字段，别把基线归给当前改动；修 gitgraph reparent 属独立课题。
 - **dsh-meme 表情卡片（meme-picker）**：手机端贴 anchor 双侧对齐（`left/right:0`+`width:auto`+`max-width:386px`）；网格 grid `minmax(64px,1fr)` 手机 4 列/平板 5 列（覆盖 dsh-meme 行内尺寸）；滚动条细条。dsh-meme 改卡宽/缩略图尺寸后回来对账 → `docs/maintenance/pitfalls.md` §meme 卡。
 - **agent preset 模式选择菜单底部弹层**：`[role="menu"]:has([class*="cubgiG_item"])`（`:has` 圈定，不误伤其他 role=menu）；水平居中+顶部手柄+内部 viewport 滚动+细滚动条；桌面保持官方大下拉。参数 → `docs/maintenance/pitfalls.md` §preset 菜单。
@@ -177,7 +180,7 @@ dsh web
 ## Testing & QA
 
 - **设置/插件市场调试地图**：`docs/debug/settings-market-debug-map.md` —— 设置区与市场 UI 的 DOM 层级图、入口链路、CSS module 哈希对照表（VOzbGW_/eGUBIq_/hHd-Xa_…）、compat 干预点索引与 CDP 取证 SOP。排查该区域布局/弹层问题先读它，不要重新摸索层级。（此文档仅本地保留，已加入 .gitignore 不随仓库上传。）
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（12 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
+- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（14 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
 - There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the lib freshness gate `git diff --exit-code lib`.
 - After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
   - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.
