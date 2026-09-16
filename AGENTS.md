@@ -8,16 +8,17 @@
 - No monorepo, no application server, no workspace layer.
 - Real entrypoints:
   - `cordis.patch.yml` inserts the single host plugin row.
-  - `src/index.ts` is the host half: `apply()` makes the row visible to the host Loader, installs transparent gzip/brotli compression for large JSON responses (`src/compress.ts`), and registers the session-delete endpoint `/api/mobile-nav.session.delete` (work in `src/delete-session.ts`).
+  - `src/index.ts` is the host half: `apply()` makes the row visible to the host Loader, installs transparent gzip/brotli compression for large JSON responses (`src/compress.ts`), and registers two endpoints: `/api/mobile-nav.session.delete` (work in `src/delete-session.ts`) and `/api/mobile-nav.tokens.total` (work in `src/token-usage.ts`, lifetime token fold across the session corpus).
   - `package.json` exposes `./client` and declares `dsh.client.platform: "web"`; DSH discovers the browser half from `src/client/index.tsx`.
 - Key layout（注释版仓库树；`(不入库)` = gitignore，外部 clone 不可见）:
 
   ```text
   dsh-web-mobile/
   ├─ src/                    ← 真源码，唯一该手改的地方
-  │  ├─ index.ts             ← 宿主半区入口（apply 装响应压缩 + 会话删除端点）
+  │  ├─ index.ts             ← 宿主半区入口（apply 装响应压缩 + 会话删除/总消耗端点）
   │  ├─ compress.ts          ← 进程级 prototype patch
   │  ├─ delete-session.ts    ← 会话删除纯核（DI、分代适配、可单测）
+  │  ├─ token-usage.ts       ← 全局 token 折叠纯核（DI、sessionQuery 结构切片、可单测）
   │  └─ client/
   │     ├─ index.tsx         ← 浏览器半区入口（2 slots）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
@@ -85,10 +86,10 @@ dsh web
 
 ## Architecture
 
-- Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus the session-delete endpoint (deletion work in the DI pure core `src/delete-session.ts`, generation-adapted per host).
+- Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus two endpoints: the session-delete route (work in the DI pure core `src/delete-session.ts`, generation-adapted per host) and the lifetime-token route (work in the DI pure core `src/token-usage.ts`, structural `sessionQuery` slice folded per request).
 - `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers exactly two slots:
   - `conversation.session.header.actions` → `MobileNavToggle` (`order: 10`): drawer toggle + Files button.
-  - `sidebar.footer.action` → `MobileDrawerFooter` (`order: 5`): Files + session-log actions. Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
+  - `sidebar.footer.action` → `MobileDrawerFooter` (`order: 5`): total-tokens counter (leftmost) + Files + session-log actions. Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
   - There is **no settings slot** anymore; the haptic feedback feature was removed.
 - Shared full-tree reconciler:
   - `src/client/core/reconciler-core.ts` is a DOM-free engine with **zero imports**. It owns task registry, dirty-key routing (`scopes`), coalesced rAF flush scheduling, and per-task error isolation.
@@ -106,12 +107,13 @@ dsh web
   - `session-menu.ts` — touch-gated injection of a 「删除会话」 item into the workspace session-row ⋯ menu (clone-and-inject from the fork wzxmt-zhc v2.7.0): guard = TOUCH_QUERY (`(pointer: coarse)` at EVERY width — large tablets in landscape included, v2.4.1) + row/menu/label selectors present; inert on hosts whose drawer renders the rail variant (rc.2), activates on hosts rendering session rows in the drawer (0.1.3) or on the ≥1024px desktop panel; after deleting the current session `ctx.layout.toggleSidebar()` only runs on the mobile query (desktop panels must not collapse); confirmation dialog markup/styles live in base.css.ts (wide-touch card capped 420px centered) with corrected animation names.
   - Reconciler task modules: `git-chip-reparent.ts`, `settings-toolbar-reparent.ts`, `preview-fullscreen.ts`, `overlay-backdrop-fab.ts`.
 - Styles: `src/client/styles/index.ts` concatenates `base → layout → compat → misc` in that load-bearing order and injects one `<style data-plugin>` tag. Mobile rules target `(max-width: 1023px) and (pointer: coarse)` (keep every top-level media block in sync with `MOBILE_QUERY`); the desktop hide block in misc.css.ts is its exact complement and must preserve the uninstalled layout.
+- Font-size axis: the host publishes `--dsh-content-font-size` (integer px, 12–17, default 14) on body. base.css.ts derives ONE delta `--dsh-web-mobile-font-delta: calc(var(--dsh-content-font-size, 14px) - 14px)` and every plugin typography pin is written as `calc(<base>px + var(--dsh-web-mobile-font-delta, 0px))`, so the host font-size setting scales the WHOLE mobile UI (pills, dialogs, sheets, chips, message text pins in layout.css.ts) with one uniform increment — old hosts resolve the 14px fallback and keep the pre-existing sizes. Deliberate exception: the iOS 16px input floors in misc.css.ts (zoom guard #45) stay fixed, as do the desktop-only rules.
 - Third-party compatibility is implemented through scoped DOM markers, stable `data-*` attributes, `MutationObserver`, and carefully scoped class/text anchors. Never modify third-party source packages.
 - Authoritative design docs: `docs/specs/2026-08-27-sidebar-swipe-gestures.md` (gesture parameters/state machine) and `docs/audits/2026-08-27-sidebar-swipe-latent-defects.md` (gesture defect baseline).
 
 ## Conventions
 
-- Keep the host/client split intact; the host half stays minimal (`apply()` installs response compression + the session-delete endpoint, nothing else).
+- Keep the host/client split intact; the host half stays minimal (`apply()` installs response compression + the session-delete and token-total endpoints, nothing else).
 - Use stable `data-*` markers and structural selectors before hashed classes. For unavoidable hashed classes use substring matching (`[class*=_frag]`), never attribute-suffix (`[class$=…]`) — the class attribute often carries extra tokens or trailing spaces, and a suffix test runs against the whole attribute value, so it silently misses (verified in the full-codebase migration). Scope the selector to its owning region and guard prefix-overlapping fragments with `:not`; for tree rows use `[class*="_treeRow"]` and exclude `[class*="_treeArrowEmpty"]` when distinguishing directories from files.
 - Put every long-lived style tag, listener, timer, or `MutationObserver` inside `ctx.effect(() => { ...; return disposer }, label)`. Re-arm width-sensitive effects on `matchMedia(MOBILE_QUERY)` changes via `installMobileEffect` so wide→narrow transitions work; import the constant from phone-chrome.ts instead of hardcoding query strings.
 - Treat DOM markers as the cross-module state contract: `data-mobile-nav="frame"`, `data-sidebar-collapsed`, `data-aionui-explorer-open`, `data-aionui-preview-open`, `data-mobile-preview-full`, `data-mobile-nav="stats"`, `data-file-viewer-open` (frame-level gate for the dsh-file-viewer compat layout, keyed on `.dsfv-panel`), `data-mobile-nav="session-delete"` (menu-item probe key), `delete-dialog-backdrop` + `delete-dialog` (confirmation dialog), and `data-mobile-nav-ios` (on `<html>`, iOS-only CSS gate).
