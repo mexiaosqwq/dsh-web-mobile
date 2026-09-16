@@ -30,7 +30,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        html/body count for this (Chromium issue 41483088: inner containers
        are ignored by the navigation path). iOS Safari's edge back-swipe has
        no CSS opt-out (WebKit bug 240183) — there the widened gesture start
-       zone (96px, beyond every browser's edge-claim strip) is the
+       zone (0.45 × viewport, beyond every browser's edge-claim strip) is the
        mitigation.
       - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
         status bar / notch height; the rules below push the app content below
