@@ -6,12 +6,16 @@
  * — ported from community-fork wzxmt-zhc v2.7.0 — the ONE host capability the
  * mobile drawer needs that the harness does not provide: deleting a session
  * (the host session menu only knows rename / fork / archive; archive only
- * hides a row).
+ * hides a row). A second read-only endpoint feeds the drawer footer's
+ * lifetime-token pill (folded by `src/token-usage.ts`).
  *
  * `POST /api/mobile-nav.session.delete` receives `{ sessionId }` and hands
  * the work to `deleteSession()` (see `delete-session.ts`). Services are read
  * at request time through `ctx.get()` so the row fails with a clear error
  * (never crashes) in host shapes that omit them.
+ *
+ * `GET /api/mobile-nav.tokens.total` folds every billed token across the
+ * whole session corpus via `aggregateTokenUsage()` (see `token-usage.ts`).
  *
  * The browser half ships via exports["./client"], discovered through the
  * package.json dsh.client declaration. Host packages are intentionally NOT

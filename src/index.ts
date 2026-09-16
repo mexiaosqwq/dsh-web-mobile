@@ -6,12 +6,16 @@
  * — ported from community-fork wzxmt-zhc v2.7.0 — the ONE host capability the
  * mobile drawer needs that the harness does not provide: deleting a session
  * (the host session menu only knows rename / fork / archive; archive only
- * hides a row).
+ * hides a row). A second read-only endpoint feeds the drawer footer's
+ * lifetime-token pill (folded by `src/token-usage.ts`).
  *
  * `POST /api/mobile-nav.session.delete` receives `{ sessionId }` and hands
  * the work to `deleteSession()` (see `delete-session.ts`). Services are read
  * at request time through `ctx.get()` so the row fails with a clear error
  * (never crashes) in host shapes that omit them.
+ *
+ * `GET /api/mobile-nav.tokens.total` folds every billed token across the
+ * whole session corpus via `aggregateTokenUsage()` (see `token-usage.ts`).
  *
  * The browser half ships via exports["./client"], discovered through the
  * package.json dsh.client declaration. Host packages are intentionally NOT
@@ -21,6 +25,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { installResponseCompression } from './compress.js'
 import { deleteSession, type DeleteSessionDeps } from './delete-session.js'
+import { aggregateTokenUsage, type TokenUsageQuery } from './token-usage.js'
 
 /** Minimal structural slice of the host cordis Context that apply() needs. */
 export interface HostContext {
@@ -130,5 +135,34 @@ export function apply(ctx: HostContext): void {
         respond(res, result.status, { error: result.error })
       },
     }), 'dsh-web-mobile: session-delete route')
+
+    // Lifetime-token total for the drawer footer pill. The session corpus is
+    // read per request so hosts without the sessionQuery service degrade to
+    // a structured 503 instead of a crash; the fold itself never throws.
+    webCtx.effect(() => webCtx.webServer.register({
+      kind: 'exact',
+      path: '/api/mobile-nav.tokens.total',
+      handler: async (req, res) => {
+        if (req.method !== 'GET') {
+          respond(res, 405, { error: { code: 'method-not-allowed', message: 'GET required' } })
+          return
+        }
+        const result = await aggregateTokenUsage({
+          sessionQuery: ctx.get('sessionQuery') as TokenUsageQuery | undefined,
+        })
+        if (result.ok) {
+          respond(res, 200, {
+            ok: true,
+            totalTokens: result.totalTokens,
+            sessions: result.sessions,
+            failed: result.failed,
+          })
+          return
+        }
+        respond(res, 503, {
+          error: { code: 'session-query-unavailable', message: 'session corpus is not available' },
+        })
+      },
+    }), 'dsh-web-mobile: token-total route')
   })
 }
