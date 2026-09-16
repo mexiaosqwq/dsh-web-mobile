@@ -206,12 +206,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) {
     padding-left: 20px;
     padding-right: 20px;
-    font-size: 15px !important;
+    font-size: calc(15px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   /* The official markdown styles set an explicit 16px on paragraphs and
      list items, so the container's inherited 15px is not enough. User
      messages render their text in a div whose class carries _text_
-     (16px too) — cover it as well. */
+     (16px too) — cover it as well. Both pins ride the host font-size axis
+     (base.css.ts --dsh-web-mobile-font-delta) so the setting keeps working
+     on message text instead of only on unstyled chrome. */
   [data-phase]
     [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) p,
   [data-phase]
@@ -220,7 +222,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     [class*="_scroll"]:not([class*="_scrollBody"]):not(:has([data-composer-input])):has(p) [
       class*="_text_"
     ] {
-    font-size: 15px !important;
+    font-size: calc(15px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
 
   /* Markdown tables: the official table uses width:max-content, so on a phone

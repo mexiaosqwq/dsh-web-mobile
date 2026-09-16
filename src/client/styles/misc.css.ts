@@ -86,7 +86,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     touch-action: manipulation !important;
     min-height: 34px !important;
     padding: 0 12px !important;
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   [data-slot="conversation.input.dock"] [data-gitgraph-chip-anchor] [data-gitgraph-chip]:active {
     transform: scale(.96) !important;
@@ -254,6 +254,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="files"],
   [data-mobile-nav="fab"],
   [data-mobile-nav="backdrop"],
+  [data-mobile-nav="tokens-total"],
   [data-mobile-nav="session-log"],
   [data-mobile-nav="explorer"],
   [data-mobile-nav="preview-full-toggle"],

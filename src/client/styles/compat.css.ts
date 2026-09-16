@@ -387,7 +387,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     white-space: nowrap !important;
     padding: 6px 8px !important;
     gap: 6px !important;
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
     justify-content: flex-start !important;
   }
   [data-mobile-nav="frame"] [aria-modal="true"] [class*="_navCell"] svg {
@@ -403,7 +403,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     display: none !important;
   }
   [data-mobile-nav="frame"] [aria-modal="true"] [class*="_header"]:not([class*="_headerActions"]) [class*="_actions"] [class*="_action"]:not([class*="_actions"]) {
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
     padding: 6px 12px !important;
     min-height: 0 !important;
   }
@@ -443,15 +443,15 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-aionui-explorer-col] [class*="_tabBtn"],
   [data-aionui-explorer-col] [class*="_tabBtnActive"] {
     padding: 0 12px !important;
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   [data-aionui-explorer-col] [class*="_searchBox"] {
     height: 32px !important;
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   [data-aionui-explorer-col] [class*="_treeRow"] {
     height: 30px !important;
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   [data-aionui-explorer-col] [class*="_treeRow"] svg {
     width: 14px !important;
@@ -462,8 +462,8 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   }
 
   /* ---------- dsh-web-ui polish: drawer footer ----------
-     The injected footer actions (Files + Session log) become two equal pill
-     buttons instead of text-width capsules. */
+     The injected footer actions (total tokens + Files + Session log) become
+     three equal pill buttons instead of text-width capsules. */
 
   /* The official footerActions row also hosts the remote-web-ui entry
      row (two icon buttons); without wrapping the two groups squeeze each
@@ -528,7 +528,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     scrollbar-color: var(--dsw-alias-border-l1, rgba(0, 0, 0, .28)) transparent !important;
     padding: 0 0 4px !important;
     line-height: 20px !important;
-    font-size: 12px !important;
+    font-size: calc(12px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   [data-mobile-nav="stats"]::-webkit-scrollbar {
     height: 2px !important;
@@ -581,13 +581,13 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="frame"] [data-genui-panel] [class*="_panelBadge"] {
     padding: 0 7px !important;
     border-radius: 5px !important;
-    font-size: 10.5px !important;
+    font-size: calc(10.5px + var(--dsh-web-mobile-font-delta, 0px)) !important;
     line-height: 1.7 !important;
   }
   [data-mobile-nav="frame"] [data-genui-panel] [class*="_panelTitle"] {
     flex: 1 1 auto !important;
     min-width: 0 !important;
-    font-size: 12.5px !important;
+    font-size: calc(12.5px + var(--dsh-web-mobile-font-delta, 0px)) !important;
     line-height: 1.45 !important;
   }
   [data-mobile-nav="frame"] [data-genui-panel] [class*="_panelChevron"] {
@@ -751,7 +751,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   max-width: 100% !important;
-  font-size: 12px !important;
+  font-size: calc(12px + var(--dsh-web-mobile-font-delta, 0px)) !important;
 }
 [class*="irow"]:not([class*="irowActions"]):not([class*="irowTrailing"]) > div > [class*="nm"] {
   white-space: nowrap !important;
@@ -851,7 +851,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     padding-right: 4px !important;
   }
   [data-mobile-nav="frame"][data-file-viewer-open] .dsfv-path {
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
     min-width: 0 !important;
     max-width: 220px !important;
   }
@@ -864,7 +864,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="frame"][data-file-viewer-open] .dsfv-toolbar-btn {
     min-height: 34px !important;
     padding: 0 10px !important;
-    font-size: 13px !important;
+    font-size: calc(13px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   [data-mobile-nav="frame"][data-file-viewer-open] .dsfv-icon-btn,
   [data-mobile-nav="frame"][data-file-viewer-open] .dsfv-back-btn {
@@ -881,7 +881,7 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     flex-wrap: wrap !important;
     gap: 4px 10px !important;
     padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)) !important;
-    font-size: 12px !important;
+    font-size: calc(12px + var(--dsh-web-mobile-font-delta, 0px)) !important;
   }
   /* Content scrollers must own horizontal scrolling; the flex columns and the
      renderer stack must not let content push the panel wide. */
