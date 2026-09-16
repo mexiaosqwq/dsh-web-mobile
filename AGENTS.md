@@ -20,7 +20,7 @@
   │  ├─ delete-session.ts    ← 会话删除纯核（DI、分代适配、可单测）
   │  ├─ token-usage.ts       ← 全局 token 折叠纯核（DI、sessionQuery 结构切片、可单测）
   │  └─ client/
-  │     ├─ index.tsx         ← 浏览器半区入口（2 slots）
+  │     ├─ index.tsx         ← 浏览器半区入口（3 slots）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts
@@ -38,7 +38,7 @@
   │  ├─ cdp-probe.mjs        ← 主探针 32 断言（EXPECTED_FAILURES 基线）
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  └─ probes/              ← 9 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 12 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 14 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 6 篇权威设计文档（入库）
   │  ├─ audits/ · maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json）· fork-wzxmt-zhc/
@@ -87,8 +87,9 @@ dsh web
 ## Architecture
 
 - Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus two endpoints: the session-delete route (work in the DI pure core `src/delete-session.ts`, generation-adapted per host) and the lifetime-token route (work in the DI pure core `src/token-usage.ts`, structural `sessionQuery` slice folded per request).
-- `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers exactly two slots:
+- `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers exactly three slots:
   - `conversation.session.header.actions` → `MobileNavToggle` (`order: 10`): drawer toggle + Files button.
+  - `conversation.input.left` → `MobileImagePicker` (`order: 10`): image-upload entry in the composer's left tool lane. Opens the system image picker (`accept="image/*"` multi-select) and stages the picked files as ONE synthetic document `drop` event into the host's native attachment intake — the host web UI has no visible upload button and touch devices cannot drag, and the 0.1.1-rc.2 intake is document drop listeners only (no file picker in the bundle). Thumbnail drafts, upload, inline message images, and model vision content all reuse host-native paths; the component holds no state and a rejected intake is a silent no-op. Desktop hidden via the misc.css.ts complement block. Pure core `core/image-intake.ts` (zero imports, injected DataTransfer/DragEvent factories incl. initDragEvent fallback); browser constructor bindings live in the component.
   - `sidebar.footer.action` → `MobileDrawerFooter` (`order: 5`): total-tokens counter (leftmost) + Files + session-log actions. Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
   - There is **no settings slot** anymore; the haptic feedback feature was removed.
 - Shared full-tree reconciler:
@@ -179,7 +180,7 @@ dsh web
 ## Testing & QA
 
 - **设置/插件市场调试地图**：`docs/debug/settings-market-debug-map.md` —— 设置区与市场 UI 的 DOM 层级图、入口链路、CSS module 哈希对照表（VOzbGW_/eGUBIq_/hHd-Xa_…）、compat 干预点索引与 CDP 取证 SOP。排查该区域布局/弹层问题先读它，不要重新摸索层级。（此文档仅本地保留，已加入 .gitignore 不随仓库上传。）
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（12 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
+- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（14 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
 - There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the lib freshness gate `git diff --exit-code lib`.
 - After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
   - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.

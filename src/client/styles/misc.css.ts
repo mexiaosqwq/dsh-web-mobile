@@ -58,6 +58,31 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     gap: 0 !important;
   }
 
+  /* ---------- image upload entry (conversation.input.left) ----------
+     Injected paperclip button in the composer's left tool lane. The lane's
+     shrink rule (layout.css.ts) targets every direct child except the host
+     _add button, so this pin mirrors the _add exemption: fixed 28px, never
+     squeezed at 320px. Styled as bare lane chrome (transparent ground,
+     inherited icon color) so it reads as native; pressed state reuses the
+     host interactive-bg token with a neutral fallback. */
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) [data-mobile-nav="image-picker"] {
+    flex: none !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: inherit !important;
+    background: transparent !important;
+  }
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) [data-mobile-nav="image-picker"]:active {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)) !important;
+  }
+
   /* ---------- composer dock: swap git branch chip with the todo card ----------
      The git-graph branch chip (conversation.input.dock, order 100) floats
      alone at the bottom-left above the input card, with a dead zone to its
@@ -259,7 +284,8 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="session-log"],
   [data-mobile-nav="explorer"],
   [data-mobile-nav="preview-full-toggle"],
-  [data-mobile-nav="drawer-actions"] {
+  [data-mobile-nav="drawer-actions"],
+  [data-mobile-nav="image-picker"] {
     display: none !important;
   }
 }
