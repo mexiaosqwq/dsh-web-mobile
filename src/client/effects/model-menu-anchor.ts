@@ -2,7 +2,10 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installMobileEffect } from './phone-chrome.ts'
 
 /**
- * 模型 / 推理等级菜单的锚点修正（2026-09-23 店主："这个模型打开，是不是有点偏左边？"）。
+ * 模型 / 推理等级菜单的锚点修正（2026-09-23 店主两轮反馈）。
+ *
+ * 第一轮「是不是有点偏左边？」→ 菜单中心对齐触发器中心（见下）；
+ * 第二轮「再往左边移一点，和输入框右边的边界对齐」→ 改成**右缘贴输入框（composer 卡片）右边界**。
  *
  * 真机取证（360×754）：
  *   MENU  box=12,605,246,74   class=_7KE1Ra_menu  role=menu  aria-label="模型与推理等级"
@@ -17,8 +20,11 @@ import { installMobileEffect } from './phone-chrome.ts'
  * `[class*="_root"]:has(> [class*="_trigger"]) > [class*="_menu"]` —— 菜单 portal 到 body 之后
  * 这条子代链断掉，规则成了**死规则**（2026-09-23 才发现，之前一直以为它在生效）。
  *
- * 修法：菜单出现时按「菜单中心对齐触发器中心、并夹在视口内 GUTTER」重写它的 inline `left`
- * （只改 left，`top` 保持宿主机算好的值）。只认模型菜单的哈希锚点，其它菜单一律不碰。
+ * 修法（2026-09-23 第二轮定稿）：菜单出现时把它**右缘对齐输入框右边界**，重写 inline `left`
+ * （只改 left，`top` 保持宿主机算好的值）。真机几何：输入框 `[data-composer-card]` = 16..342、
+ * 菜单宽 246 ⇒ left 96（旧版居中 + 视口 8px 边距会落在 106..352，右缘越出卡片 10px）。
+ * 没有卡片时退回「居中于触发器 + 视口 GUTTER」；两者都缺就什么都不做。
+ * 只认模型菜单的哈希锚点，其它菜单一律不碰。
  *
  * 为什么不用 MutationObserver：会话在流式输出，`subtree` 观察等于每帧扫全场。这里改成
  * 「点击 / 滚动 / 改变尺寸」时补几次 rAF 后的落位 —— 成本 O(1)，且足够盖住宿主的多次写入。
@@ -29,6 +35,9 @@ const MODEL_TRIGGER = '[class*="_7KE1Ra_trigger"]'
 
 /** 模型 / 推理等级菜单（portal 在 body 下）。 */
 const MODEL_MENU = '[class*="_7KE1Ra_menu"]'
+
+/** 输入框（composer 卡片）—— 菜单右缘贴的就是它的右边界。 */
+const COMPOSER_CARD = '[data-composer-card]'
 
 /** 贴边留白。 */
 const GUTTER = 8
@@ -46,6 +55,14 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       return box.width > 0 && box.height > 0
     }
 
+    /** 已布局的元素盒子；不存在或零尺寸返回 null。 */
+    const laidOut = (selector: string): DOMRect | null => {
+      const el = document.querySelector<HTMLElement>(selector)
+      if (el === null) return null
+      const box = el.getBoundingClientRect()
+      return box.width > 0 ? box : null
+    }
+
     const place = (): void => {
       let menu: HTMLElement | null = null
       for (const el of document.querySelectorAll<HTMLElement>(MODEL_MENU)) {
@@ -55,13 +72,23 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
         }
       }
       if (menu === null) return
-      const trigger = document.querySelector<HTMLElement>(MODEL_TRIGGER)
-      if (trigger === null) return
-      const anchor = trigger.getBoundingClientRect()
       const width = menu.getBoundingClientRect().width
       const viewport = document.documentElement.clientWidth
-      const max = Math.max(GUTTER, viewport - width - GUTTER)
-      const left = Math.min(Math.max(anchor.left + anchor.width / 2 - width / 2, GUTTER), max)
+      const card = laidOut(COMPOSER_CARD)
+      let left: number
+      if (card !== null) {
+        // 右缘贴输入框右边界（店主 2026-09-23 指定），但两侧都不越出安全区。
+        const anchorRight = Math.min(card.right, viewport - GUTTER)
+        const minLeft = Math.max(card.left, GUTTER)
+        left = Math.max(Math.min(anchorRight - width, viewport - width - GUTTER), minLeft)
+      } else {
+        // 没有卡片（宿主换锚点）：退回居中于触发器 + 视口夹取。
+        const trigger = document.querySelector<HTMLElement>(MODEL_TRIGGER)
+        if (trigger === null) return
+        const anchor = trigger.getBoundingClientRect()
+        const max = Math.max(GUTTER, viewport - width - GUTTER)
+        left = Math.min(Math.max(anchor.left + anchor.width / 2 - width / 2, GUTTER), max)
+      }
       const next = `${Math.round(left)}px`
       // 只在真的不同时才写：避免和宿主来回抢同一帧。
       if (menu.style.left !== next) menu.style.left = next
