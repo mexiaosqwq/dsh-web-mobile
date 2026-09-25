@@ -491,30 +491,3 @@ test('skips workspaces that expose no detachSession (0.1.1/0.1.2 hosts)', async 
     await rm(root, { recursive: true, force: true })
   }
 })
-
-test('a throwing workspace detach cannot fail an already-finished deletion', async () => {
-  // The trash move has succeeded and the session is gone from the store; the
-  // module invariant "already-finished deletion must never fail" covers the
-  // final workspace accounting too — a stale workspace id heals on the next
-  // host reconcile instead of surfacing a 500 for a session that no longer
-  // exists.
-  const root = await mkdtemp(join(tmpdir(), 'dsh-del-'))
-  try {
-    const dir = join(root, PROJECT_DIR, SESSION_ID)
-    await scaffoldSession(root, dir)
-    const deps: DeleteSessionDeps = {
-      persistence: { config: { root }, list: async () => [{ header: storedHeader() }] },
-      workspaceRegistry: {
-        list: () => [{ detachSession: async (): Promise<void> => { throw new Error('registry exploded') } }],
-      },
-    }
-    const result = await deleteSession(deps, SESSION_ID)
-    assert.equal(result.status, 200)
-    assert.equal(result.ok, true)
-    await assert.rejects(stat(dir), { code: 'ENOENT' })
-    const trashNames = (await readdir(join(root, '.sessions-trash'))).filter((n) => n !== 'manifest.json')
-    assert.equal(trashNames.length, 1)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})

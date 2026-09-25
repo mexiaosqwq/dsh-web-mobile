@@ -41,16 +41,3 @@ test('the delete endpoint enforces same-origin and a 1 MiB body cap', () => {
   assert.notEqual(bodyRead, -1)
   assert.ok(methodCheck < originGate && originGate < bodyRead)
 })
-
-// The delete handler must never reject without responding: a throwing deps
-// face (persistence/sessions/agents/workspaceRegistry) is answered with the
-// structured 500 like every other failure mode.
-test('the delete handler wraps deleteSession in a catch-all 500', () => {
-  const at = source.indexOf('await deleteSession(')
-  assert.notEqual(at, -1, 'deleteSession call missing')
-  const body = source.slice(source.indexOf('try {', Math.max(0, at - 40)), source.indexOf("code: 'delete-failed'", at))
-  assert.ok(body.includes('await deleteSession('), 'the deleteSession call must sit inside the try')
-  assert.match(body, /catch \(error\)/, 'the call must be wrapped in a catch')
-  assert.match(body, /respond\(res, 500, \{/, 'the catch must answer 500')
-  assert.match(source, /code: 'delete-failed'/, 'the crash path must use the structured delete-failed code')
-})

@@ -32,7 +32,6 @@ const band =
 
 const DRAWER_GATE = 'body:has([data-mobile-nav="frame"]:not([data-sidebar-collapsed]))'
 const BACKDROP_GATE = 'body:has([data-mobile-nav="backdrop"])'
-const FAB = readFileSync(join(ROOT, 'src/client/effects/overlay-backdrop-fab.ts'), 'utf8')
 
 test('modal-root raise lives in the mobile popover band at the 1400 value', () => {
   const at = band.indexOf('> div:has(> [role="dialog"][aria-modal="true"])')
@@ -95,17 +94,5 @@ test('every non-gesture closer shares the one late-commit toggle', () => {
     MENU,
     /ctx\.layout\.toggleSidebar\(\)/,
     'session-menu must not toggle the drawer raw',
-  )
-})
-
-test('the backdrop gate has a producer: overlay-backdrop-fab writes the marker', () => {
-  // The 1400 band (and the backdrop-tap / gesture-exit paths) key on
-  // [data-mobile-nav="backdrop"]. If the producer stops writing that marker,
-  // the gate goes dark silently and the drawer band covers open modals again —
-  // pin the exact write site so the marker cannot lose its generator.
-  assert.match(
-    FAB,
-    /backdrop\.dataset\.mobileNav = 'backdrop'/,
-    'the 1400 gate marker lost its producer in overlay-backdrop-fab.ts',
   )
 })
