@@ -1,16 +1,14 @@
-// 快捷键弹层「抽搐/闪」第二锚：卡片不许随软键盘改大小（2026-09-25，真机取证）。
+// 快捷键弹层「抽搐/闪」的三个真机结论（2026-09-25，Android 16 WebView）。
 //
-// 真机实测（Android 16 WebView / adjustResize）：软键盘一唤起，布局视口 754 → 471，
-// 而且 vh / svh / lvh / dvh 四个单位**一起吃这个变化**（四个都量到 471）——这台引擎上
-// 没有任何 CSS 单位能躲开键盘。于是设置面板与快捷键弹层各随键盘缩一截：报障人在
-// 「编辑快捷键」里点搜索框时看到的就是那一步（「又闪一下」）；上一版给 max-height 加
-// .2s 过渡，只是把这一步变成 150ms 的慢动作抽搐（实测 600px → 447px 连续 6 档）。
-//
-// 破法：键盘只改高度不改宽度 ⇒ 维护一个「不含软键盘的视口高度」变量
-// （--dsh-web-mobile-vh，只在高度变大或宽度变化时更新），两层卡片用它定高 →
-// 键盘出现时卡片一动不动；够不着的内容用列表的键盘内边距补齐（改滚动内容、不改外框）。
-//
-// 本文件钉住这三半，任一半回退都红。
+// ① 卡片不许随软键盘改大小：实测 vh / svh / lvh / dvh 四个单位**一起**随键盘变
+//    （754↔471），所以拿视口单位定高的卡片必然跟着缩；改成用 --dsh-web-mobile-vh
+//    （只在高度变大或宽度变化时更新 = 不含键盘的视口高度）定高。
+// ② 打开弹层不得改变全屏亮度：设置面板自己已压一层 0.24 遮罩，弹层再叠一层就是
+//    0.24 → 0.42 的一步跳深（报障人「全屏闪」）；那一层的 ::after 还挂着宿主的
+//    _modalEnter 淡入。两者都去掉。
+// ③ 手机档收掉搜索行：报障人两次实机复现钉死因果 —— **行在打开就闪、行藏就不闪**
+//    （宿主把焦点抢到该输入框 → 键盘在打开瞬间抬起 → 布局视口 754→471 → 整页重排）。
+//    只收手机档，平板（768–1023）与桌面照旧。只做 CSS 隐藏，绝不删宿主节点。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -20,55 +18,49 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const LAYOUT = readFileSync(join(ROOT, 'src/client/styles/layout.css.ts'), 'utf8')
 const PHONE = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
-
 const VAR = 'var(--dsh-web-mobile-vh, 100dvh)'
 
-
 test('phone-chrome maintains the keyboard-less viewport height', () => {
-  // The exported name is the cross-file contract with layout.css.ts.
-  assert.match(
-    PHONE,
-    /export const STABLE_VIEWPORT_VAR = '--dsh-web-mobile-vh'/,
-    'STABLE_VIEWPORT_VAR must stay the single source of the property name',
-  )
-  assert.match(PHONE, /setProperty\(STABLE_VIEWPORT_VAR/, 'the variable must be written on the root')
-  assert.match(PHONE, /removeProperty\(STABLE_VIEWPORT_VAR\)/, 'dispose must clear the variable')
-  // Monotonic height + width-change rule: the keyboard only changes height, so a
-  // plain "on resize, write innerHeight" would follow the keyboard and undo the fix.
+  assert.match(PHONE, /export const STABLE_VIEWPORT_VAR = '--dsh-web-mobile-vh'/)
+  assert.match(PHONE, /setProperty\(STABLE_VIEWPORT_VAR/)
+  assert.match(PHONE, /removeProperty\(STABLE_VIEWPORT_VAR\)/)
   const at = PHONE.indexOf('const syncStableViewport')
   assert.notEqual(at, -1, 'syncStableViewport missing')
-  const body = PHONE.slice(at, PHONE.indexOf('\n    }', at))
+  // Monotonic height + width-change rule: the keyboard only changes height.
   assert.match(
-    body,
+    PHONE.slice(at, PHONE.indexOf('\n    }', at)),
     /stableVh === 0 \|\| height > stableVh \|\| width !== stableWidth/,
-    'the update must be gated on growth or a width change',
   )
-  assert.match(PHONE, /addEventListener\('resize', syncStableViewport\)/, 'must re-measure on resize')
-  assert.match(PHONE, /removeEventListener\('resize', syncStableViewport\)/, 'dispose must unbind')
+  assert.match(PHONE, /addEventListener\('resize', syncStableViewport\)/)
+  assert.match(PHONE, /removeEventListener\('resize', syncStableViewport\)/)
 })
 
 test('the two keyboard-facing cards size themselves off that variable', () => {
-  // Settings sheet: its dvh line was the second of the two collapsing layers.
-  const sheet = LAYOUT.indexOf('max-height: min(800px, calc(' + VAR + ' - 24px - env(safe-area-inset-top, 0px)));')
-  assert.notEqual(sheet, -1, 'settings sheet must cap on the stable viewport height')
-  // Shortcut modal card.
-  const card = LAYOUT.indexOf('max-height: min(760px, calc(' + VAR + ' - 24px - env(safe-area-inset-top, 0px))) !important;')
-  assert.notEqual(card, -1, 'shortcut card must cap on the stable viewport height')
-  // No card may go back to a bare dvh cap: that reintroduces the collapse.
-  assert.doesNotMatch(
-    LAYOUT,
-    /max-height: min\((?:800|760)px, calc\(100dvh/,
-    'a bare 100dvh cap would collapse with the keyboard again',
-  )
+  assert.notEqual(
+    LAYOUT.indexOf('max-height: min(800px, calc(' + VAR + ' - 24px - env(safe-area-inset-top, 0px)));'),
+    -1, 'settings sheet must cap on the stable viewport height')
+  assert.notEqual(
+    LAYOUT.indexOf('max-height: min(760px, calc(' + VAR + ' - 24px - env(safe-area-inset-top, 0px))) !important;'),
+    -1, 'shortcut card must cap on the stable viewport height')
+  assert.doesNotMatch(LAYOUT, /max-height: min\((?:800|760)px, calc\(100dvh/,
+    'a bare 100dvh cap would collapse with the keyboard again')
 })
 
 test('opening the shortcut modal never changes full-screen luminance', () => {
-  // It opens only from the settings sheet, whose own mask already dims the page; a
-  // second 0.24 scrim made the whole screen step 0.24 -> 0.42 on open — the reporter's
-  // 「全屏闪」. Both the fade and the extra dim are gone.
   const at = LAYOUT.indexOf(':has(> [aria-modal="true"][data-shortcut-modal="shortcuts"]) > [class*="_mask"]::after')
   assert.notEqual(at, -1, 'the shortcut mask override is missing')
   const body = LAYOUT.slice(at, LAYOUT.indexOf('}', at))
   assert.match(body, /animation: none !important/, 'no opacity fade on the scrim')
   assert.match(body, /background: transparent !important/, 'no second dim layer')
+})
+
+test('only the PHONE branch drops the search row; tablet keeps it', () => {
+  const at = LAYOUT.indexOf('[aria-modal="true"][data-shortcut-modal="shortcuts"] [class*="_searchRow"]')
+  assert.notEqual(at, -1, 'the search row must be hidden on phones')
+  assert.match(LAYOUT.slice(at, LAYOUT.indexOf('}', at)), /display: none !important/, 'hide, do not remove')
+  // Phone-only: it must sit inside a narrow-screen query, not the whole mobile branch.
+  const phoneQuery = LAYOUT.lastIndexOf('@media (max-width: 767px)', at)
+  assert.notEqual(phoneQuery, -1, 'the hide must be scoped to phones')
+  assert.doesNotMatch(LAYOUT.slice(phoneQuery, at), /\}\s*\}\s*$/, 'the query must still enclose the rule')
+  assert.ok(at - phoneQuery < 200, 'the narrow query must be the rule\'s nearest block')
 })
