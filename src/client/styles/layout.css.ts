@@ -1972,8 +1972,25 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      (with the path input) is hidden by the > :first-child > :first-child
      display:none rule below, and the user can no longer type a path
      (issue #12, 2026-08-16). The picker family keeps the official layout
-     on mobile in every mode. */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) {
+     on mobile in every mode.
+
+     The keyboard-shortcut modal (dsh-client-ui-shortcuts, the same
+     primitives Modal → data-shortcut-modal="shortcuts") needs the same
+     exclusion for the same class of reason: its first child is the
+     CONTENT column (nhfO0a_contents = header + search row + list +
+     footer), not a nav row, and its footer holds <button> children, so
+     the family predicate matched it and the sheet rules transposed the
+     whole dialog — measured 2026-09-25 at 390px: the
+     > :first-child { flex-direction: row } rule laid search row / list /
+     footer SIDE BY SIDE (x=20 / 118 / 278, list 1296px tall, spilling
+     far outside the sheet), and > :first-child > :first-child
+     { display: none } swallowed the 「快捷键」 title together with its
+     close button (owner report). The host tags every modal of this
+     family: data-shortcut-modal="settings" on the settings sheet,
+     "shortcuts" on this one — gating on that attribute (not on a hashed
+     class) keeps the official centered card, the same treatment the
+     export dialog gets. */
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) {
     position: absolute !important;
     left: 8px !important;
     /* Fixed top (no translateY): a transform on the panel combined with the
@@ -1989,18 +2006,22 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     height: auto;
     max-height: min(800px, calc(100vh - 24px - env(safe-area-inset-top, 0px)));
     max-height: min(800px, calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
+    /* 软键盘一唤起就改变视口，两个 max-height 会各跳一帧；用户在「编辑快捷键」
+       里点搜索框时看到的就是「又闪一下」（报障 2026-09-25）。给 max-height 一个
+       与键盘滑出同量级的短过渡，让这一步是滑过去而不是跳过去；键盘收起同理。 */
+    transition: max-height .2s var(--ds-ease-out, ease-in-out);
     flex-direction: column !important;
     border-radius: 14px !important;
     animation: dsh-web-mobile-sheet-in .22s var(--ds-ease-out, ease-in-out);
   }
   /* The settings sheet's dimmed mask fades in with the panel (the mask is
      the first child of the overlay that directly contains the sheet). */
-  :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"]))) > :first-child {
+  :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
     animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out);
   }
   @media (prefers-reduced-motion: reduce) {
-    [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])),
-    :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"]))) > :first-child {
+    [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]),
+    :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
       animation: none !important;
     }
   }
@@ -2012,14 +2033,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   /* Nav bar: hide the "Settings" caption (redundant on a full-width sheet)
      and wrap the tab list so every tab is visible — a horizontal scroll cut
      the last tab ("Plugins") off with no affordance to scroll. */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child {
     width: 100%;
     flex-direction: row !important;
     align-items: center;
     gap: 6px;
     padding: 10px 12px 8px;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child > :first-child {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child > :first-child {
     display: none !important;
   }
   /* The tab strip stays clear of the toolbar: the toolbar (the close ✕ on
@@ -2046,7 +2067,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      2026-09-24) reproduces the reparent-era scroller geometry (its box
      ended 6px short of the toolbar). The strip must be anchored by its
      class. */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child [class*="_navList"] {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child [class*="_navList"] {
     flex: 1 1 auto;
     min-width: 0;
     flex-direction: row !important;
@@ -2062,20 +2083,20 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      reads fat on a phone; 2px keeps the scroll affordance without the
      bulk. (Portal-aware copies of the frame-scoped rules in compat.css,
      which died with the rc.2 portal move.) */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child [class*="_navList"]::-webkit-scrollbar {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child [class*="_navList"]::-webkit-scrollbar {
     height: 2px !important;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child [class*="_navList"]::-webkit-scrollbar-thumb {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child [class*="_navList"]::-webkit-scrollbar-thumb {
     background: var(--dsw-alias-border-l2, rgba(0, 0, 0, .22)) !important;
     border-radius: 1px !important;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child [class*="_navList"]::-webkit-scrollbar-track {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child [class*="_navList"]::-webkit-scrollbar-track {
     background: transparent !important;
   }
   /* Cells stay whole inside the scroller: no shrink, no wrap, compact
      metrics. (Portal-aware copies of the frame-scoped rules in compat.css,
      which died with the rc.2 portal move.) */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child [class*="_navCell"] {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child [class*="_navCell"] {
     flex: 0 0 auto !important;
     white-space: nowrap !important;
     padding: 6px 8px !important;
@@ -2083,7 +2104,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     font-size: 13px !important;
     justify-content: flex-start !important;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :first-child [class*="_navCell"] svg {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child [class*="_navCell"] svg {
     width: 14px !important;
     height: 14px !important;
     flex: none !important;
@@ -2117,7 +2138,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      settings-toolbar-reparent task. Card headers live deeper — inside
      the options scroll area — and match neither, so no per-plugin hash
      guards are needed. */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) {
     position: absolute;
     top: 10px;
     right: 12px;
@@ -2148,11 +2169,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     height: 32px;
     min-height: 32px;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > * {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > * {
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > :last-child {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > :last-child {
     position: relative;
     width: 32px;
     height: 32px;
@@ -2170,7 +2191,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      button starts ~13px under the ✕'s bottom edge and must keep its own
      top-right corner. Anchored to the button (position:relative above),
      so the extension travels with the pinned toolbar. */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > :last-child::after {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > :last-child::after {
     content: "";
     position: absolute;
     inset: -6px -6px 0 -6px;
@@ -2187,7 +2208,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      Desktop keeps the button: this whole block sits inside the mobile
      media wrapper. (Portal-aware replacement for the frame-scoped rule in
      compat.css, which died with the rc.2 portal move.) */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > [class*="_header"]:not([class*="_headerActions"]) [class*="_actions"] {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) [class*="_actions"] {
     display: none !important;
   }
   /* Appearance mode cards: the official cube row renders three tall
@@ -2208,11 +2229,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
   /* Content: the options scroll area gets bottom breathing room so the last
      row never sits flush against the sheet's rounded corner. */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child {
     flex: 1 1 auto;
     min-height: 0;
   }
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])) > :last-child > :last-child {
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > :last-child {
     padding: 0 12px 24px;
   }
   /* 0.1.6-alpha.2 宿主的插件管理页（dsh-client-ui-plugin-manager 渲染的
@@ -2265,6 +2286,38 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
     margin-left: var(--dsh-web-mobile-panel-clearance) !important;
+  }
+  /* 快捷键弹层在手机上的落地形态。上面那条 :not([data-shortcut-modal="shortcuts"])
+     只是把它从设置面板家族里摘出来、还它官方的内部排版（2026-09-25 实测：纵向列
+     回来了、标题「快捷键」回来了、列表 441px 可滚、无横向溢出、docScrollWidth
+     恒 390）。但官方的外框在手机上仍会「抽搐」：宿主 Modal 的 _root 是
+     position:fixed; inset:0; align-items:center（视口居中），而弹层打开时会自动
+     聚焦搜索框（实测 activeElement = INPUT「搜索快捷键」），手机随即弹软键盘 ——
+     视口一缩，居中卡片就整体重排/回弹，肉眼即抖动。所以这里给它插件自己的「纸片」
+     几何：顶部锚定（键盘怎么变，上缘都钉在 12px）+ 与设置面板同款左缘/宽度/圆角/
+     入场动画。高度沿用宿主的 600px：nhfO0a_contents 是 flex:1 1 0%，要有一个确定的
+     高度才撑得开列表，故不改成 auto；max-height 再按视口收口，超出的部分进列表自己
+     的 scroll（_list 已是 flex:1 + min-height:0 + overflow-y:auto），与设置面板同款。
+     宿主那 30px 的 translateY 是桌面居中卡的微调，顶部锚定后必须归零。 */
+  [aria-modal="true"][data-shortcut-modal="shortcuts"] {
+    position: absolute !important;
+    left: 8px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: min(760px, calc(100dvh - 24px - env(safe-area-inset-top, 0px))) !important;
+    /* 同上：键盘唤起/收起时 dvh 跳变，这一层与背后的设置面板一起平滑收放。 */
+    transition: max-height .2s var(--ds-ease-out, ease-in-out);
+    transform: none !important;
+    border-radius: 14px !important;
+    /* 不做透明度淡入。设置面板能直接用 dsh-web-mobile-sheet-in，是因为它背后是
+       被遮罩压暗的会话；这一层不一样 —— 它叠在**同样全宽全白**的设置面板之上，
+       淡入的 .22s 里两层文字互相透出：CDP screencast 逐帧实拍（390×844）第
+       10-15 帧能看到「权限/语言/外观」与「快捷键速查/新会话」重影，肉眼就是
+       「闪」。这里改成瞬时出现（不写 animation 会落回宿主的 _modalEnter，
+       同样是透明度淡入、同样重影）；遮罩自己的淡入保留，整体仍是一次正常的
+       弹层出现。 */
+    animation: none !important;
   }
   /* ---------- sidebar panel enter / exit (see effects/panel-exit.ts) ----------
      A sidebar panel REPLACES the main area. Two motions, both short and

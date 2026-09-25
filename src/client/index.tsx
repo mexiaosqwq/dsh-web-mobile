@@ -14,6 +14,7 @@ import { installComposerPlusToggle } from './effects/composer-plus-toggle.ts'
 import { installWorkspaceChipToggle } from './effects/workspace-chip-toggle.ts'
 import { installTeamChipToggle } from './effects/team-chip-toggle.ts'
 import { installModelMenuAnchor } from './effects/model-menu-anchor.ts'
+import { installShortcutModalKeyboardGuard } from './effects/shortcut-modal-keyboard-guard.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { createPanelExit, installPanelRowExit } from './effects/panel-exit.ts'
 import { createRafScheduler } from './core/raf-scheduler.ts'
@@ -234,6 +235,11 @@ export function apply(ctx: ClientContext): void {
   // Model/reasoning menu portals to <body>; the CSS centering rule died with the
   // portal move, so re-anchor it on the trigger here (owner report: opens far left).
   installModelMenuAnchor(ctx)
+  // Shortcut modal (settings → 通用设置 → 快捷键): the host focuses its search
+  // field on open, which raises the soft keyboard over a page the user came to
+  // EDIT, and the keyboard shrinking the viewport resizes the sheet (owner
+  // report: 「打开的时候还是会闪，而且还会唤起键盘」).
+  installShortcutModalKeyboardGuard(ctx)
 
   installPhoneChrome(ctx)
 
