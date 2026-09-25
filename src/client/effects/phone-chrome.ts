@@ -313,6 +313,14 @@ const IOS_MARKER = 'data-mobile-nav-ios'
  */
 const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cover'
 
+/**
+ * CSS custom property carrying the viewport height WITHOUT the soft keyboard
+ * (px), maintained by the viewport effect below. Mobile cards that must not
+ * move when the keyboard appears size themselves with it instead of a viewport
+ * unit — see the settings sheet / shortcut card rules in layout.css.ts.
+ */
+export const STABLE_VIEWPORT_VAR = '--dsh-web-mobile-vh'
+
 const findViewportMeta = (): HTMLMetaElement | null =>
   document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
 
@@ -396,7 +404,42 @@ export function installPhoneChrome(ctx: ClientContext): void {
     if (detectIosWebKit(navigator, cssSupports)) root.setAttribute(IOS_MARKER, '')
     themeMeta.content = bodyBg()
     if (themeMeta.parentElement === null) document.head.appendChild(themeMeta)
+
+    // The keyboard-less viewport height (STABLE_VIEWPORT_VAR).
+    //
+    // Measured 2026-09-25 on the reporter's phone (Android 16 WebView,
+    // adjustResize): raising the soft keyboard takes the layout viewport from
+    // 754 to 471, and vh / svh / lvh / dvh ALL follow it (all four measured at
+    // 471) — no CSS unit on this engine can ignore the keyboard. So every card
+    // sized by a viewport unit shrank with it: the settings sheet and the
+    // shortcut modal each collapsed a step, which is the reporter's 「又闪一下」
+    // when they tapped the search field; the previous release's .2s max-height
+    // transition only turned that step into a 150ms slow-motion lurch.
+    //
+    // The keyboard changes height but NOT width, so the height is tracked on a
+    // monotonic rule: update only when it grows, or when the width changes
+    // (rotation / real window resize). The value therefore stays at the
+    // keyboard-less height, the two cards keep their size when the keyboard
+    // appears, and the keyboard simply covers their lower half. Content that
+    // would fall behind the keyboard gets a keyboard-sized bottom padding on
+    // the scroller (layout.css.ts), which shifts nothing visible.
+    let stableVh = 0
+    let stableWidth = 0
+    const syncStableViewport = (): void => {
+      const height = window.innerHeight
+      const width = window.innerWidth
+      if (stableVh === 0 || height > stableVh || width !== stableWidth) {
+        stableVh = height
+        stableWidth = width
+        root.style.setProperty(STABLE_VIEWPORT_VAR, `${height}px`)
+      }
+    }
+    syncStableViewport()
+    window.addEventListener('resize', syncStableViewport)
+
     return () => {
+      window.removeEventListener('resize', syncStableViewport)
+      root.style.removeProperty(STABLE_VIEWPORT_VAR)
       metaObserver.disconnect()
       headObserver.disconnect()
       observer.disconnect()

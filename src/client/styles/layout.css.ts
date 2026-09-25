@@ -2001,14 +2001,19 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     width: calc(100vw - 16px);
     max-width: calc(100vw - 16px);
     /* Height follows the content (no dead space under a short page); it
-       caps at 100dvh-24 (less the safe-area top) and the options area
-       scrolls only then. */
+       caps at the KEYBOARD-LESS viewport height minus 24 (less the safe-area
+       top) and the options area scrolls only then. STABLE_VIEWPORT_VAR, not
+       100dvh: measured 2026-09-25 on Android 16 WebView (adjustResize), the
+       soft keyboard takes the layout viewport 754 -> 471 and vh / svh / lvh /
+       dvh all follow it, so a dvh-sized sheet collapses a step the moment the
+       shortcut modal's search field raises the keyboard — the reporter's
+       「又闪一下」. The variable never moves for the keyboard, so the sheet
+       keeps its size and the keyboard covers its lower half instead. */
     height: auto;
     max-height: min(800px, calc(100vh - 24px - env(safe-area-inset-top, 0px)));
-    max-height: min(800px, calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
-    /* 软键盘一唤起就改变视口，两个 max-height 会各跳一帧；用户在「编辑快捷键」
-       里点搜索框时看到的就是「又闪一下」（报障 2026-09-25）。给 max-height 一个
-       与键盘滑出同量级的短过渡，让这一步是滑过去而不是跳过去；键盘收起同理。 */
+    max-height: min(800px, calc(var(--dsh-web-mobile-vh, 100dvh) - 24px - env(safe-area-inset-top, 0px)));
+    /* Only a real viewport change (rotation / window resize) reaches this now,
+       so the short transition reads as a slide instead of a jump. */
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     flex-direction: column !important;
     border-radius: 14px !important;
@@ -2305,8 +2310,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
     width: calc(100vw - 16px) !important;
     max-width: calc(100vw - 16px) !important;
-    max-height: min(760px, calc(100dvh - 24px - env(safe-area-inset-top, 0px))) !important;
-    /* 同上：键盘唤起/收起时 dvh 跳变，这一层与背后的设置面板一起平滑收放。 */
+    /* 同上：键盘不进这层的高度。这一层下面就是键盘，卡片缩一次就一定被看见，
+       所以用「不含键盘的视口高度」定高 → 点搜索框时卡片纹丝不动，键盘盖住下半截。 */
+    max-height: min(760px, calc(var(--dsh-web-mobile-vh, 100dvh) - 24px - env(safe-area-inset-top, 0px))) !important;
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     transform: none !important;
     border-radius: 14px !important;
@@ -2318,6 +2324,13 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        机制；本层维持瞬时出现（不写 animation 会落回宿主的 _modalEnter，
        同样是透明度淡入）；遮罩自己的淡入保留，整体仍是一次正常的弹层出现。 */
     animation: none !important;
+  }
+  /* 卡片外框不随键盘动了，但列表内容不能因此被键盘压住够不着：给列表补一段等于
+     「被键盘盖掉的高度」的下内边距 —— 滚到底时最后几行也能滚到键盘之上。键盘不在
+     时 max() 取 0，与宿主原本的 padding-bottom 18px 一致。这里改的是滚动内容而不是
+     可见外框，所以键盘进出时屏幕上不会跟着动。 */
+  [aria-modal="true"][data-shortcut-modal="shortcuts"] [class*="_list"] {
+    padding-bottom: calc(18px + max(0px, var(--dsh-web-mobile-vh, 100dvh) - 100dvh)) !important;
   }
   /* ---------- sidebar panel enter / exit (see effects/panel-exit.ts) ----------
      A sidebar panel REPLACES the main area. Two motions, both short and
