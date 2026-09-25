@@ -332,14 +332,15 @@ export const BASE_CSS = `
   }
 }
 /* Settings sheet entrance: the official dialog mounts with no animation at
-   all, so it snaps in. Fade + slight rise/scale reads as a proper sheet. */
+   all, so it snaps in. A slight rise/scale reads as a proper sheet.
+   No opacity arm (issue #124, 2026-09-25): checker scene 4 screencast caught
+   the fade double-exposing the still-open drawer underneath the panel
+   (frame a005) — sliding in fully opaque keeps the motion, drops the bleed. */
 @keyframes dsh-web-mobile-sheet-in {
   from {
-    opacity: 0;
     transform: translateY(14px) scale(.98);
   }
   to {
-    opacity: 1;
     transform: none;
   }
 }
