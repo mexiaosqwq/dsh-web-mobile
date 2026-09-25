@@ -26,7 +26,7 @@
  * `dsh-mobile-nav-*` names, which silently no-op).
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { MOBILE_QUERY, TOUCH_QUERY, installMobileEffect } from './phone-chrome.ts'
+import { MOBILE_QUERY, TOUCH_QUERY, installMobileEffect, toggleDrawer } from './phone-chrome.ts'
 import { currentSessionIdOf, sessionsCanClear } from '../core/sessions-compat.ts'
 
 // Mirrored from src/client/locales.ts: the custom client bundler cannot
@@ -279,7 +279,11 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
         // the right follow-up after deleting the current session; on the
         // desktop layout (wide touch) the same call would collapse the
         // always-visible sidebar panel, so gate it on the mobile query.
-        if (wasCurrent && window.matchMedia(MOBILE_QUERY).matches) ctx.layout.toggleSidebar()
+        // toggleDrawer keeps that semantics (it falls back to the plain toggle
+        // when the drawer is not open) while making the close a late commit,
+        // so the marker cannot flip while the column is still painted — the
+        // window in which the drawer band covers an open modal (2026-09-25).
+        if (wasCurrent && window.matchMedia(MOBILE_QUERY).matches) toggleDrawer(ctx)
       })
 
       host.appendChild(backdrop)
