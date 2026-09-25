@@ -23,6 +23,7 @@ const PHONE = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'ut
 
 const VAR = 'var(--dsh-web-mobile-vh, 100dvh)'
 
+
 test('phone-chrome maintains the keyboard-less viewport height', () => {
   // The exported name is the cross-file contract with layout.css.ts.
   assert.match(
@@ -61,13 +62,13 @@ test('the two keyboard-facing cards size themselves off that variable', () => {
   )
 })
 
-test('the shortcut list keeps its rows reachable behind the keyboard', () => {
-  const at = LAYOUT.indexOf('[aria-modal="true"][data-shortcut-modal="shortcuts"] [class*="_list"]')
-  assert.notEqual(at, -1, 'the list keyboard inset is missing')
+test('opening the shortcut modal never changes full-screen luminance', () => {
+  // It opens only from the settings sheet, whose own mask already dims the page; a
+  // second 0.24 scrim made the whole screen step 0.24 -> 0.42 on open — the reporter's
+  // 「全屏闪」. Both the fade and the extra dim are gone.
+  const at = LAYOUT.indexOf(':has(> [aria-modal="true"][data-shortcut-modal="shortcuts"]) > [class*="_mask"]::after')
+  assert.notEqual(at, -1, 'the shortcut mask override is missing')
   const body = LAYOUT.slice(at, LAYOUT.indexOf('}', at))
-  assert.match(
-    body,
-    /padding-bottom: calc\(18px \+ max\(0px, var\(--dsh-web-mobile-vh, 100dvh\) - 100dvh\)\) !important/,
-    'the inset must equal the keyboard-covered height, and be 18px with no keyboard',
-  )
+  assert.match(body, /animation: none !important/, 'no opacity fade on the scrim')
+  assert.match(body, /background: transparent !important/, 'no second dim layer')
 })
