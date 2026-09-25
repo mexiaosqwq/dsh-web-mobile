@@ -167,12 +167,25 @@ export function apply(ctx: HostContext): void {
           })
           return
         }
-        const result = await deleteSession({
-          persistence: persistence as DeleteSessionDeps['persistence'],
-          sessions: ctx.get('sessions') as DeleteSessionDeps['sessions'] | undefined,
-          agents: ctx.get('agents') as DeleteSessionDeps['agents'] | undefined,
-          workspaceRegistry: ctx.get('workspaceRegistry') as DeleteSessionDeps['workspaceRegistry'] | undefined,
-        }, sessionId)
+        let result: Awaited<ReturnType<typeof deleteSession>>
+        try {
+          result = await deleteSession({
+            persistence: persistence as DeleteSessionDeps['persistence'],
+            sessions: ctx.get('sessions') as DeleteSessionDeps['sessions'] | undefined,
+            agents: ctx.get('agents') as DeleteSessionDeps['agents'] | undefined,
+            workspaceRegistry: ctx.get('workspaceRegistry') as DeleteSessionDeps['workspaceRegistry'] | undefined,
+          }, sessionId)
+        } catch (error) {
+          // A throwing deps face must not leave the handler rejecting with no
+          // response: answer the structured 500 like the other failure modes.
+          ctx.logger.warn(
+            `dsh-web-mobile: session-delete crashed for '${sessionId}': ${error instanceof Error ? error.message : String(error)}`,
+          )
+          respond(res, 500, {
+            error: { code: 'delete-failed', message: 'session delete crashed; see the host log' },
+          })
+          return
+        }
         if (result.ok) {
           respond(res, 200, { ok: true, deleted: result.deleted })
           return

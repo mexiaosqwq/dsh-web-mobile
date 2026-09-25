@@ -2037,9 +2037,13 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out);
   }
   @media (prefers-reduced-motion: reduce) {
+    /* The two max-height keyboard transitions join the kill list: reduced-
+       motion users get instant height changes too（无障碍一致性，#124 批审 A P2-2）. */
     [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]),
-    :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
+    :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child,
+    [aria-modal="true"][data-shortcut-modal="shortcuts"] {
       animation: none !important;
+      transition: none !important;
     }
   }
   /* The export dialog (not the settings sheet) must never overflow the
@@ -2324,6 +2328,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     max-width: calc(100vw - 16px) !important;
     /* 同上：键盘不进这层的高度。这一层下面就是键盘，卡片缩一次就一定被看见，
        所以用「不含键盘的视口高度」定高 → 点搜索框时卡片纹丝不动，键盘盖住下半截。 */
+    /* Chromium 105-107 认 ：has 不认 dvh：var 缺席时回退串里的 100dvh 会让整条声明
+       失效溢出，先给一行 100vh 兜底（#124 批审 A P2-1，同设置面板双行先例）。 */
+    max-height: min(760px, calc(100vh - 24px - env(safe-area-inset-top, 0px))) !important;
     max-height: min(760px, calc(var(--dsh-web-mobile-vh, 100dvh) - 24px - env(safe-area-inset-top, 0px))) !important;
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     transform: none !important;
