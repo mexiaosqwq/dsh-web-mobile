@@ -83,6 +83,13 @@ export declare function detectIosWebKit(nav: {
     maxTouchPoints: number;
 }, supports: ((condition: string) => boolean) | null): boolean;
 /**
+ * CSS custom property carrying the viewport height WITHOUT the soft keyboard
+ * (px), maintained by the viewport effect below. Mobile cards that must not
+ * move when the keyboard appears size themselves with it instead of a viewport
+ * unit — see the settings sheet / shortcut card rules in layout.css.ts.
+ */
+export declare const STABLE_VIEWPORT_VAR = "--dsh-web-mobile-vh";
+/**
  * Phone chrome: KEEP the system status bar (no fullscreen) and make it
  * blend into the page. On narrow screens:
  * - The viewport meta is OWNED by the plugin while armed:
