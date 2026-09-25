@@ -1653,6 +1653,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     flex: 0 1 auto !important;
     min-width: 28px !important;
   }
+  /* 团队 chip 图标在「标准模式」与文件按钮之间居中（2026-09-26 用户拍板）。
+     真机 360px / dpr 4 实测（无障碍盒 = 绘制盒）：标准模式 205..274、团队 chip
+     278..306、文件按钮 316..352 —— 左缝 4、右缝 10，盒心 292 落在区间心 295 左侧。
+     只做绘制层位移（宿主 .VoX2oq_root 本来就是 position:relative，不新增包含块、
+     也不动它自己的弹层锚定），布局一个像素不变：46px 承重预留保持原样（见
+     pitfalls「header 拥挤」），文件按钮不会被压。位移后两缝 7/7，图标正好居中。
+     只在真·手机档生效：768–1023 平板档排布不同，不套这台手机的魔数。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-team-action][class*="_root"] {
+      left: 3px !important;
+    }
+  }
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerActions"] [class*="QsffPG_root"] {
     position: absolute !important;
     right: 8px !important;
