@@ -434,6 +434,26 @@ export function installPhoneChrome(ctx: ClientContext): void {
  */
 export const TAP_CLOSE_NAV_SELECTOR =
   'button[data-dsh-taskboard-entry], button[data-dsh-ssh-entry], [class*="newSession"], [class*="sessionRow"], [class*="searchResultRow"], [class*="searchResultWorkspace"], [class*="panelRow"]'
+
+/**
+ * The one drawer toggle every non-gesture entry point shares: a CLOSE animates
+ * into the closed slot and flips the host marker only once it has landed
+ * (closeDrawerAnimated's late commit — spec 2026-08-27), an OPEN stays a plain
+ * toggle so the host's own .28s transform transition plays.
+ *
+ * Load-bearing for layering, not just for looks (2026-09-25): the popover
+ * band's modal-root raise is gated on our backdrop being on screen, and the
+ * backdrop outlives the marker flip by design (fade .2s + removal 260ms). A
+ * closer that flips the marker while the column is still painted therefore
+ * leaves an open modal under the drawer band for the length of the
+ * transition — that is the 快捷键弹层「抽搐/闪」 root cause. Routing every
+ * closer through here removes the window at the source instead of relying on
+ * the band to cover it.
+ */
+export function toggleDrawer(ctx: ClientContext): void {
+  if (!closeDrawerAnimated(ctx)) ctx.layout.toggleSidebar()
+}
+
 export function installOverlayInteractions(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: drawer close (Escape + navigate)', () => {
     // Every non-gesture close funnels through here (backdrop tap, Escape, the
@@ -442,7 +462,7 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     // land before it (closeDrawerAnimated) - while opening stays a plain toggle
     // so the host's own .28s transform transition plays.
     const toggleSidebar = (): void => {
-      if (!closeDrawerAnimated(ctx)) ctx.layout.toggleSidebar()
+      toggleDrawer(ctx)
     }
     const drawerOpen = (): boolean => {
       const frame = getFrame()
@@ -861,7 +881,7 @@ export function registerReconcileTasks(ctx: ClientContext, panelExit: PanelExit)
     addReconcilerTask(createPreviewCloseTask()),
     addReconcilerTask(createSheetRiseTask()),
     addReconcilerTask(createStatsLineTask()),
-    addReconcilerTask(createOverlayTask(t, () => ctx.layout.toggleSidebar(), panelExit)),
+    addReconcilerTask(createOverlayTask(t, () => toggleDrawer(ctx), panelExit)),
     addReconcilerTask(panelExit.task),
     addReconcilerTask(createFileViewerMarkerTask()),
   ]

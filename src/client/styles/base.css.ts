@@ -186,12 +186,27 @@ export const BASE_CSS = `
      matches. Do not reintroduce a hash here without re-measuring.
      Measured 2026-09-19: with the drawer open (column z 1300) the workspace
      Rename dialog sat entirely under it and needed the drawer closed first.
-     Raise the portal root, not the dialog, and only while the drawer is open —
-     the closed-drawer and desktop stacks keep the host's own ordering. Our
-     own delete backdrop matches this rule too since the 2026-09-24 centered
-     rework (its direct child card carries role=dialog) — harmlessly: it sets
-     the same 1400 the dedicated rule below sets. */
-  body:has([data-mobile-nav="frame"]:not([data-sidebar-collapsed]))
+     Raise the portal root, not the dialog.
+     GATE (2026-09-25, real device): the gate is OUR BACKDROP'S PRESENCE, not
+     the drawer-open marker. Marker and paint disagree for the whole close
+     transition — the backdrop fades over .2s and is removed 260ms after the
+     marker flips (overlay-backdrop-fab.ts), the column transitions .28s
+     (layout.css.ts) and React swaps the pane subtree ~200ms late — so a
+     marker-gated raise went dark inside that window and the drawer band
+     covered any open modal. Measured on the reporter's phone (Android 16
+     WebView) with the shortcut modal open: forcing data-sidebar-collapsed
+     dropped this root 1400 -> 1000 and made elementsFromPoint(0.85w, .30h)
+     return [data-mobile-nav="backdrop"] — rgba(0,0,0,.45) over the modal's
+     white = luminance 141, matching the reporter's recording (140 behind a
+     280px drawer edge). That is the "快捷键弹层抽搐/闪" report: a ~200-280ms
+     dark frame with the drawer over the shortcut modal, not a compositing
+     tear. The backdrop's presence IS the drawing condition, so gating on it
+     has no such window; with no backdrop the host's own ordering stands (a
+     menu opened inside a modal still sorts above it). Our own delete backdrop
+     matches this rule too since the 2026-09-24 centered rework (its direct
+     child card carries role=dialog) — harmlessly: it sets the same 1400 the
+     dedicated rule below sets. */
+  body:has([data-mobile-nav="backdrop"])
     > div:has(> [role="dialog"][aria-modal="true"]) {
     z-index: 1400 !important;
   }
