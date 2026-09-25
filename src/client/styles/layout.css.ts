@@ -1653,6 +1653,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     flex: 0 1 auto !important;
     min-width: 28px !important;
   }
+  /* 团队 chip 图标在「标准模式」与文件按钮之间居中（2026-09-26 用户拍板）。
+     真机 360px / dpr 4 实测（无障碍盒 = 绘制盒）：标准模式 205..274、团队 chip
+     278..306、文件按钮 316..352 —— 左缝 4、右缝 10，盒心 292 落在区间心 295 左侧。
+     只做绘制层位移（宿主 .VoX2oq_root 本来就是 position:relative，不新增包含块、
+     也不动它自己的弹层锚定），布局一个像素不变：46px 承重预留保持原样（见
+     pitfalls「header 拥挤」），文件按钮不会被压。位移后两缝 7/7，图标正好居中。
+     只在真·手机档生效：768–1023 平板档排布不同，不套这台手机的魔数。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-team-action][class*="_root"] {
+      left: 3px !important;
+    }
+  }
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerActions"] [class*="QsffPG_root"] {
     position: absolute !important;
     right: 8px !important;
@@ -2001,14 +2013,19 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     width: calc(100vw - 16px);
     max-width: calc(100vw - 16px);
     /* Height follows the content (no dead space under a short page); it
-       caps at 100dvh-24 (less the safe-area top) and the options area
-       scrolls only then. */
+       caps at the KEYBOARD-LESS viewport height minus 24 (less the safe-area
+       top) and the options area scrolls only then. STABLE_VIEWPORT_VAR, not
+       100dvh: measured 2026-09-25 on Android 16 WebView (adjustResize), the
+       soft keyboard takes the layout viewport 754 -> 471 and vh / svh / lvh /
+       dvh all follow it, so a dvh-sized sheet collapses a step the moment the
+       shortcut modal's search field raises the keyboard — the reporter's
+       「又闪一下」. The variable never moves for the keyboard, so the sheet
+       keeps its size and the keyboard covers its lower half instead. */
     height: auto;
     max-height: min(800px, calc(100vh - 24px - env(safe-area-inset-top, 0px)));
-    max-height: min(800px, calc(100dvh - 24px - env(safe-area-inset-top, 0px)));
-    /* 软键盘一唤起就改变视口，两个 max-height 会各跳一帧；用户在「编辑快捷键」
-       里点搜索框时看到的就是「又闪一下」（报障 2026-09-25）。给 max-height 一个
-       与键盘滑出同量级的短过渡，让这一步是滑过去而不是跳过去；键盘收起同理。 */
+    max-height: min(800px, calc(var(--dsh-web-mobile-vh, 100dvh) - 24px - env(safe-area-inset-top, 0px)));
+    /* Only a real viewport change (rotation / window resize) reaches this now,
+       so the short transition reads as a slide instead of a jump. */
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     flex-direction: column !important;
     border-radius: 14px !important;
@@ -2305,8 +2322,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
     width: calc(100vw - 16px) !important;
     max-width: calc(100vw - 16px) !important;
-    max-height: min(760px, calc(100dvh - 24px - env(safe-area-inset-top, 0px))) !important;
-    /* 同上：键盘唤起/收起时 dvh 跳变，这一层与背后的设置面板一起平滑收放。 */
+    /* 同上：键盘不进这层的高度。这一层下面就是键盘，卡片缩一次就一定被看见，
+       所以用「不含键盘的视口高度」定高 → 点搜索框时卡片纹丝不动，键盘盖住下半截。 */
+    max-height: min(760px, calc(var(--dsh-web-mobile-vh, 100dvh) - 24px - env(safe-area-inset-top, 0px))) !important;
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     transform: none !important;
     border-radius: 14px !important;
@@ -2318,6 +2336,32 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        机制；本层维持瞬时出现（不写 animation 会落回宿主的 _modalEnter，
        同样是透明度淡入）；遮罩自己的淡入保留，整体仍是一次正常的弹层出现。 */
     animation: none !important;
+  }
+  /* 手机档收掉搜索行（报障人拍板 2026-09-25：「加回来又闪了，不要这个了，手机上也不怎么用」）。
+     因果已由报障人两次实机复现钉死：**行在 → 打开就闪；行藏 → 不闪**。机理：宿主 Modal 会把
+     焦点抢到 [data-modal-autofocus]（就是这个搜索框），键盘在弹层打开那一瞬就抬起来，布局
+     视口随之 754→471，整页重排 —— 就是「全屏闪」。收掉这个唯一的文本输入，弹层里就再也
+     弹不出键盘，那一步不存在；而不是靠 focus 影子去拦（那条守卫在这台引擎上并不总是拦得住）。
+     只做 CSS 隐藏，**绝不删宿主节点**：宿主是 React 渲染的，删掉它卸载时 parent.removeChild
+     会抛 NotFoundError，被 SlotErrorBoundary 吞掉后整个 slot 变空白（见 pitfalls「搬宿主
+     React 节点」）。想恢复搜索只需删掉这两行，但要接受打开瞬间那一下全屏闪。 */
+  /* 手机档（窄屏）才收；768–1023 的平板档与桌面档照旧保留搜索
+     （报障人 2026-09-25 拍板：「手机端不要了，平板电脑端照旧」）。 */
+  @media (max-width: 767px) {
+    [aria-modal="true"][data-shortcut-modal="shortcuts"] [class*="_searchRow"] {
+      display: none !important;
+    }
+  }
+  /* 这一层的遮罩也在每次挂载时跑宿主的 _modalEnter（0.2s 透明度淡入）：全屏亮度在
+     0.24 档上渐变一次，肉眼看就是「全屏闪」。上一版只掐了卡片自己的动画、**故意保留**
+     了遮罩的淡入；报障人 2026-09-25 的反馈（「全屏闪」）说明那一步同样看得见。
+     这里连同卡片一起瞬时化：弹层与遮罩同帧出现、同帧消失，中间没有渐变。 */
+  :has(> [aria-modal="true"][data-shortcut-modal="shortcuts"]) > [class*="_mask"]::after {
+    animation: none !important;
+    /* 手机档这个弹层只能从设置面板里打开，而设置面板自己已经压了一层 0.24 的遮罩；
+       再叠一层就是全屏暗度 0.24 → 0.42 的一步 —— 报障人说的「全屏闪」。这一层不再
+       重复变暗：屏幕的整体明暗在弹层开合前后完全一致，剩下的变化只有卡片本身。 */
+    background: transparent !important;
   }
   /* ---------- sidebar panel enter / exit (see effects/panel-exit.ts) ----------
      A sidebar panel REPLACES the main area. Two motions, both short and
