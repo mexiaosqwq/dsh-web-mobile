@@ -2244,10 +2244,26 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     margin-left: var(--dsh-web-mobile-panel-clearance) !important;
     width: calc(100% - var(--dsh-web-mobile-panel-clearance)) !important;
   }
-  /* 详情 crumb 是被拉伸的 flex item（没有 width:100%），margin 就是对的工具。 */
+  /* 详情 crumb 是被拉伸的 flex item（没有 width:100%），margin 就是对的工具。
+     **0.1.7-rc.2 起「直子」形态落空**：宿主把 crumb 套进了 DetailTop 的根盒
+     （实测链 [data-plugin-detail] > div.X_2TxG_detailTop > button.X_2TxG_crumb），
+     于是上面三条「> button:first-child」在详情页全部 matches()=false ——
+     crumb 的 margin-left 计算值 0px，停在宿主 padding 上：盒 [24,28,342,14]、
+     自带箭头图标 [24,28,14,14]、文字 span x=44，整条压在 FAB 盒
+     [10,12,38,38]（右缘 48）里 —— 图标 14px 全遮、文字首字压 4px；
+     elementFromPoint 在图标中心与文字首字处都命中 FAB，点「返回插件列表」
+     实际触发的是 FAB 的 exit-panel（2026-09-25 报障截图同形）。
+     所以保留直子三条（旧代宿主仍走它们），再按 crumb 自己的哈希片段补三条
+     后代选择器。片段取「_crumb」：同前缀的 svg.crumbIcon 不是 button 天然排除，
+     本子树里也没有别的 crumb 家族（文件面板 ZuhsRW_crumb* 在另一棵树）。
+     实测让位后 crumb 变 [56,28,310,14] —— flex 拉伸项自己收窄 32px，无横向
+     溢出（面板 scrollWidth 恒 390），点文字可正常返回列表。 */
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] > button:first-child,
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] > button:first-child,
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] > button:first-child {
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] > button:first-child,
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] button[class*="_crumb"],
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
     margin-left: var(--dsh-web-mobile-panel-clearance) !important;
   }
   /* ---------- sidebar panel enter / exit (see effects/panel-exit.ts) ----------
