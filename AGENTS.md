@@ -23,8 +23,9 @@
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）
-  │     ├─ effects/          ← 17 个效果模块：phone-chrome · sidebar-swipe ·
+  │     ├─ effects/          ← 18 个效果模块：phone-chrome · sidebar-swipe ·
   │     │                       gesture-guard · subagent-chip-touch · composer-keyboard-guard ·
+  │     │                       shortcut-modal-keyboard-guard ·
   │     │                       composer-plus-toggle · workspace-chip-toggle · team-chip-toggle ·
   │     │                       model-menu-anchor ·
   │     │                       file-viewer-compat · aionui-compat · stats-line ·
@@ -133,6 +134,14 @@ dsh web
     pointerdown（走宿主自己的 dismiss），再吞掉那颗 click（顺序不可换）。见 Pitfalls「header 拥挤」。
   - `session-menu.ts` — touch-gated injection of a 「删除会话」 item into the workspace session-row ⋯ menu (clone-and-inject from the fork wzxmt-zhc v2.7.0): guard = TOUCH_QUERY (`(pointer: coarse)` at EVERY width — large tablets in landscape included, v2.4.1) + row/menu/label selectors present; inert on hosts whose drawer renders the rail variant (rc.2), activates on hosts rendering session rows in the drawer (0.1.3) or on the ≥1024px desktop panel; after deleting the current session `ctx.layout.toggleSidebar()` only runs on the mobile query (desktop panels must not collapse); confirmation dialog markup/styles live in base.css.ts (wide-touch card capped 420px centered) with corrected animation names.
   - `panel-exit.ts` — 侧边栏面板的退出：系统返回键/手势（popstate 记账）、再点已选中的面板行、以及面板视图下左上角按钮的语义切换；三条路共用一个 `exit`。`core/layout-compat.ts` 探测 `ctx.layout.selectPanel` 是否存在于本代宿主（rc.6 没有），缺失则整条特性惰性化。
+  - `shortcut-modal-keyboard-guard.ts` — 手机档：快捷键弹层（宿主 `dsh-client-ui-shortcuts` 的
+    `data-shortcut-modal="shortcuts"`）打开时会把焦点抢到搜索框，手机随即弹软键盘 —— 用户是来编辑
+    快捷键的，键盘却盖掉半屏，而且弹层按 `100dvh` 定高、键盘一压就整体缩一截（实测 844→520 时
+    600px→496px，就是「打开就闪」）。这里给搜索框挂一个 own 的 no-op `focus` 影子方法（同
+    `composer-keyboard-guard.ts` 的手法）：宿主的 `focusWithoutRing` 落到影子上、输入框不获得焦点、
+    键盘不起；点击不受影响（浏览器原生聚焦不经过 JS 方法），搜一次仍是一次点按。影子在
+    MutationObserver（只盯 `document.body` 的 childList）里安装 —— 微任务早于 React 的被动 effect，
+    所以第一帧抢焦也拦得住；弹层移除时 `delete` 还原。
   - Reconciler task modules: `preview-fullscreen.ts`, `overlay-backdrop-fab.ts`, `panel-exit.ts`.
 - Styles: `src/client/styles/index.ts` concatenates `base → layout → compat → misc` in that load-bearing order and injects one `<style data-plugin>` tag. Mobile rules target `(max-width: 1023px) and (pointer: coarse)` (keep every top-level media block in sync with `MOBILE_QUERY`); the desktop hide block in misc.css.ts is its exact complement and must preserve the uninstalled layout.
 - Third-party compatibility is implemented through scoped DOM markers, stable `data-*` attributes, `MutationObserver`, and carefully scoped class/text anchors. Never modify third-party source packages.
