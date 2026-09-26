@@ -2029,23 +2029,16 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     flex-direction: column !important;
     border-radius: 14px !important;
-    /* No entrance animation. The 2026-09-27 device report attributed the
-       bleed frame (panel text present, white background missing, full-open
-       drawer showing through) to this .22s transform slide — the compositor
-       first-frame race is the audit's inference, pending device re-test:
-       on the Android WebView
-       compositor the promoted layer + the keyboard's viewport resize race the
-       first-frame rasterization, while desktop CDP is clean. Forensics and
-       the rule audit: docs/handover/2026-09-27-entrance-animation-audit-scout.md
-       (scout). — 2026-09-27 晚重定需求（报障人「过渡动画没了/一闪一闪」）：
-       要顺滑、不要闪。曾用的 .22s transform 滑动是真机「白底缺失」伪影的
-       载体：滑动中面板逐瓦片光栅，文字瓦片先落、背景瓦片后落 = 裸文字帧。
-       纯 opacity 几何不动——首帧光栅再慢，未画出的区域在视觉上就是淡入的
-       早期帧，竞速伪影被淡入本身吞掉，结构上无法再闪。 */
-    animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out) backwards;
+    animation: dsh-web-mobile-sheet-in .22s var(--ds-ease-out, ease-in-out);
+  }
+  /* The settings sheet's dimmed mask fades in with the panel (the mask is
+     the first child of the overlay that directly contains the sheet). */
+  :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
+    animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out);
   }
   @media (prefers-reduced-motion: reduce) {
-    [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) {
+    [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]),
+    :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
       animation: none !important;
     }
   }
@@ -2335,25 +2328,30 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     transform: none !important;
     border-radius: 14px !important;
-    /* 不做透明度淡入。改动前（#124 修法二刀，2026-09-25）设置面板的入场
-       动画还带 opacity 段，而本层叠在**同样全宽全白**的设置面板上，淡入的
-       .22s 里两层文字互相透出：CDP screencast 逐帧实拍（390×844）第 10-15
-       帧能看到「权限/语言/外观」与「快捷键速查/新会话」重影，肉眼就是
-       「闪」。2026-09-27 入场体检（真机合成器首帧竞速归因）后该入场动画
-       keyframes 已整块删除；同晚设置面板改回纯 opacity 淡入（几何不动，竞速
-       伪影被淡入本身吞掉），**本层仍保持瞬时出现**——它叠在同色白的设置面板
-       上，任何透明度渐变都会让两层文字互相透出（双印教训不随需求反复而变）；
-       遮罩淡入从未生效——旧规则踩了 :has 嵌套禁令整条被静默丢弃，已一并
-       删除——开合前后整屏明暗不变。 */
+    /* 不做透明度淡入。改动前（#124 修法二刀，2026-09-25）设置面板的
+       dsh-web-mobile-sheet-in 还带 opacity 段，而本层叠在**同样全宽全白**的
+       设置面板上，淡入的 .22s 里两层文字互相透出：CDP screencast 逐帧实拍
+       （390×844）第 10-15 帧能看到「权限/语言/外观」与「快捷键速查/新会话」
+       重影，肉眼就是「闪」。该刀后 sheet-in 已是纯滑入，不再有透明度重影的
+       机制；本层维持瞬时出现（不写 animation 会落回宿主的 _modalEnter，
+       同样是透明度淡入）；遮罩自己的淡入保留，整体仍是一次正常的弹层出现。 */
     animation: none !important;
   }
-  /* 手机档搜索行（2026-09-27 用户拍板：恢复）。2026-09-25 的「行在打开就闪」
-     复测的是 npm v3.0.3 旧包——"git show v3.0.3" 实证稳定变量与搜索行收行双双
-     缺席，点搜索框键盘一抬 754→471 整页塌档重排。main 上三道防线齐备：①焦点
-     影子守卫（shortcut-modal-keyboard-guard.ts 拦开弹层抢焦）②弹层 paper 稳定
-     变量 ③设置面板稳定变量（动态实测视口压到 471 后两卡纹丝不动）——裁决依据
-     docs/handover/2026-09-27-keyboard-reflow-scout.md。恢复手机端搜索入口；
-     行显隐是用户决策域，不设不变量锚。 */
+  /* 手机档收掉搜索行（报障人拍板 2026-09-25：「加回来又闪了，不要这个了，手机上也不怎么用」）。
+     因果已由报障人两次实机复现钉死：**行在 → 打开就闪；行藏 → 不闪**。机理：宿主 Modal 会把
+     焦点抢到 [data-modal-autofocus]（就是这个搜索框），键盘在弹层打开那一瞬就抬起来，布局
+     视口随之 754→471，整页重排 —— 就是「全屏闪」。收掉这个唯一的文本输入，弹层里就再也
+     弹不出键盘，那一步不存在；而不是靠 focus 影子去拦（那条守卫在这台引擎上并不总是拦得住）。
+     只做 CSS 隐藏，**绝不删宿主节点**：宿主是 React 渲染的，删掉它卸载时 parent.removeChild
+     会抛 NotFoundError，被 SlotErrorBoundary 吞掉后整个 slot 变空白（见 pitfalls「搬宿主
+     React 节点」）。想恢复搜索只需删掉这两行，但要接受打开瞬间那一下全屏闪。 */
+  /* 手机档（窄屏）才收；768–1023 的平板档与桌面档照旧保留搜索
+     （报障人 2026-09-25 拍板：「手机端不要了，平板电脑端照旧」）。 */
+  @media (max-width: 767px) {
+    [aria-modal="true"][data-shortcut-modal="shortcuts"] [class*="_searchRow"] {
+      display: none !important;
+    }
+  }
   /* 这一层的遮罩也在每次挂载时跑宿主的 _modalEnter（0.2s 透明度淡入）：全屏亮度在
      0.24 档上渐变一次，肉眼看就是「全屏闪」。上一版只掐了卡片自己的动画、**故意保留**
      了遮罩的淡入；报障人 2026-09-25 的反馈（「全屏闪」）说明那一步同样看得见。

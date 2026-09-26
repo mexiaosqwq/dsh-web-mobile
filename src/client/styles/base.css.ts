@@ -331,6 +331,19 @@ export const BASE_CSS = `
     transition: none !important;
   }
 }
+/* Settings sheet entrance: the official dialog mounts with no animation at
+   all, so it snaps in. A slight rise/scale reads as a proper sheet.
+   No opacity arm (issue #124, 2026-09-25): checker scene 4 screencast caught
+   the fade double-exposing the still-open drawer underneath the panel
+   (frame a005) — sliding in fully opaque keeps the motion, drops the bleed. */
+@keyframes dsh-web-mobile-sheet-in {
+  from {
+    transform: translateY(14px) scale(.98);
+  }
+  to {
+    transform: none;
+  }
+}
 /* Preview sheet rise: the aionui preview column opens as a bottom sheet. */
 @keyframes dsh-web-mobile-sheet-up {
   from {
