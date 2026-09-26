@@ -1,12 +1,15 @@
-// Entrance-flash fix (2026-09-27): the settings sheet entrance is animation-
-// free. The device report pinned the bleed frame (panel text present, white
-// background missing, full-open drawer showing through) on the .22s transform
-// slide racing the WebView compositor's first-frame rasterization (desktop
-// CDP clean). dsh-web-mobile-sheet-in is deleted outright — keyframes and
-// its only consumer — and the mask fade that silently never ran (:has-inside-
-// :has is an invalid selector, the whole rule was dropped on parse) is gone
-// with it. This file now guards the deletions against resurrection: the
-// history lives in docs/handover/2026-09-27-entrance-animation-audit-scout.md.
+// Entrance ruling history (2026-09-27, two rounds):
+// — morning: the .22s transform slide produced the device bleed frame (panel
+//   text present, white background missing); the entrance was cut to none.
+// — evening: the reporter re-ruled — they want a transition back (「过渡动画
+//   没了/一闪一闪」: the hard pop-cut itself reads as flashing). The restored
+//   entrance is OPACITY-ONLY (dsh-web-mobile-fade): geometry never moves, so a
+//   late first raster is visually indistinguishable from the fade's early
+//   frames — the race artifact is swallowed by the fade by construction. The
+//   transform slide stays banned, and the shortcut paper stays animation:none
+//   (two identical-white layers fading over each other = the double-print).
+// sheet-in remains deleted; the dead mask-fade rule is not resurrected.
+// History: docs/handover/2026-09-27-entrance-animation-audit-scout.md.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -28,10 +31,24 @@ const SETTINGS_RULE_HEAD =
 const SETTINGS_RULE = LAYOUT.slice(LAYOUT.indexOf(SETTINGS_RULE_HEAD))
 const settingsBody = SETTINGS_RULE.slice(0, SETTINGS_RULE.indexOf('\n  }'))
 
-test('the settings sheet entrance is animation: none', () => {
+test('the settings sheet entrance is opacity-only, never a transform slide', () => {
   assert.notEqual(SETTINGS_RULE.indexOf(SETTINGS_RULE_HEAD), -1, 'settings sheet rule missing')
-  assert.match(settingsBody, /animation: none !important/, 'the sheet must mount without any entrance animation')
+  assert.match(
+    settingsBody,
+    /animation: dsh-web-mobile-fade \.18s var\(--ds-ease-out, ease-in-out\) backwards;/,
+    'the sheet entrance must be the opacity-only fade (a late raster is indistinguishable from the fade itself)',
+  )
   assert.doesNotMatch(settingsBody, /dsh-web-mobile-sheet-in/, 'the deleted keyframes must not be re-referenced')
+  // The offender is banned by name anywhere in the styles: no transform-bearing
+  // entrance may come back on this sheet.
+  assert.doesNotMatch(STYLES, /animation:[^;]*sheet-in/, 'no transform-slide entrance on the sheet')
+})
+
+test('the shortcut paper stays animation: none (double-print guard)', () => {
+  const at = LAYOUT.indexOf('[aria-modal="true"][data-shortcut-modal="shortcuts"] {')
+  assert.notEqual(at, -1, 'the paper rule is missing')
+  const rule = LAYOUT.slice(at, LAYOUT.indexOf('}', at))
+  assert.match(rule, /animation: none !important/, 'identical-white layers must not fade over each other')
 })
 
 test('dsh-web-mobile-sheet-in stays deleted across all four style modules', () => {
