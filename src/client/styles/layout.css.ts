@@ -2029,18 +2029,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     flex-direction: column !important;
     border-radius: 14px !important;
-    animation: dsh-web-mobile-sheet-in .22s var(--ds-ease-out, ease-in-out);
-  }
-  /* The settings sheet's dimmed mask fades in with the panel (the mask is
-     the first child of the overlay that directly contains the sheet). */
-  :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
-    animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]),
-    :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
-      animation: none !important;
-    }
+    /* No entrance animation. The 2026-09-27 device report pinned the bleed
+       frame (panel text present, white background missing, full-open drawer
+       showing through) on this .22s transform slide: on the Android WebView
+       compositor the promoted layer + the keyboard's viewport resize race the
+       first-frame rasterization, while desktop CDP is clean. Forensics and
+       the rule audit: docs/handover/2026-09-27-entrance-animation-audit-scout.md
+       (scout) — the sheet slides in instantly now; keep the animation off. */
+    animation: none !important;
   }
   /* The export dialog (not the settings sheet) must never overflow the
      viewport: the official centered card can be wider than 390px. */
@@ -2328,13 +2324,15 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     transition: max-height .2s var(--ds-ease-out, ease-in-out);
     transform: none !important;
     border-radius: 14px !important;
-    /* 不做透明度淡入。改动前（#124 修法二刀，2026-09-25）设置面板的
-       dsh-web-mobile-sheet-in 还带 opacity 段，而本层叠在**同样全宽全白**的
-       设置面板上，淡入的 .22s 里两层文字互相透出：CDP screencast 逐帧实拍
-       （390×844）第 10-15 帧能看到「权限/语言/外观」与「快捷键速查/新会话」
-       重影，肉眼就是「闪」。该刀后 sheet-in 已是纯滑入，不再有透明度重影的
-       机制；本层维持瞬时出现（不写 animation 会落回宿主的 _modalEnter，
-       同样是透明度淡入）；遮罩自己的淡入保留，整体仍是一次正常的弹层出现。 */
+    /* 不做透明度淡入。改动前（#124 修法二刀，2026-09-25）设置面板的入场
+       动画还带 opacity 段，而本层叠在**同样全宽全白**的设置面板上，淡入的
+       .22s 里两层文字互相透出：CDP screencast 逐帧实拍（390×844）第 10-15
+       帧能看到「权限/语言/外观」与「快捷键速查/新会话」重影，肉眼就是
+       「闪」。2026-09-27 入场体检（真机合成器首帧竞速归因）后该入场动画
+       keyframes 已整块删除，本层与设置面板同为瞬时出现（不写 animation 会
+       落回宿主的 _modalEnter，同样是透明度淡入）；遮罩淡入从未生效——旧
+       规则踩了 :has 嵌套禁令整条被静默丢弃，已一并删除——开合前后整屏
+       明暗不变。 */
     animation: none !important;
   }
   /* 手机档收掉搜索行（报障人拍板 2026-09-25：「加回来又闪了，不要这个了，手机上也不怎么用」）。

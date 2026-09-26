@@ -54,6 +54,11 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     box-shadow: 0 -4px 28px rgba(0, 0, 0, .18) !important;
     animation: dsh-web-mobile-sheet-up .24s var(--ds-ease-out, ease-in-out) !important;
   }
+  @media (prefers-reduced-motion: reduce) {
+    [data-aionui-explorer-col] {
+      animation: none !important;
+    }
+  }
   /* Preview (file content) bottom sheet. Gated shut by default: the suite
      persists open preview tabs in localStorage and restores them on load,
      which would pop the sheet over the fresh UI. The client only sets the
