@@ -54,14 +54,6 @@ test('opening the shortcut modal never changes full-screen luminance', () => {
   assert.match(body, /background: transparent !important/, 'no second dim layer')
 })
 
-// ④ 光栅隔离（2026-09-27 真机「弹层瞬间消失又回来」）：几何锁救不了光栅——键盘
-//    resize 的整页重光栅会甩下未提升的卡片 tile（低端 WebView 赶不上帧截止）。
-//    卡片必须带 will-change 提升为独立合成层；它的几何在键盘瞬间不变（①的锁），
-//    层缓存因此可跨 resize 复用。宿主侧无 resize→setState 订阅（remount 已排除），
-//    这条提升是该现象我们能握住的唯一前端杠杆。
-test('the shortcut paper is raster-isolated from the keyboard resize storm', () => {
-  const at = LAYOUT.indexOf('[aria-modal="true"][data-shortcut-modal="shortcuts"] {')
-  assert.notEqual(at, -1, 'the paper rule is missing')
-  const rule = LAYOUT.slice(at, LAYOUT.indexOf('}', at))
-  assert.match(rule, /will-change: transform/, 'the paper must ride its own compositor layer')
-})
+// ④ 光栅隔离实验（2026-09-27，PR #133）：will-change 提升对真机阴性——键盘过渡
+//    闪是 WebView 表面行为，前端杠杆（几何锁/动画掐除/合成提升）三层全部到顶后
+//    仍闪 1-2 帧。负结果保留在 pitfalls「弹层闪」，不留无效声明与假锚。
