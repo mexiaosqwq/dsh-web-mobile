@@ -107,6 +107,11 @@ export function createSheetRiseTask(): ReconcilerTask {
   const cols = ['[data-aionui-explorer-col]', '[data-aionui-preview-col]']
   const seen = new Map<string, boolean>()
   const play = (el: Element): void => {
+    // WAAPI animations bypass every CSS reduced-motion exemption (an
+    // `animation: none !important` rule cannot cancel element.animate());
+    // re-evaluated on every play, not cached — the user can flip the system
+    // setting mid-session.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     el.animate(
       [
         { opacity: 0, transform: 'translateY(28px)' },

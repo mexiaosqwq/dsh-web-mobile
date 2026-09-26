@@ -621,7 +621,7 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 
 ### 包改名边界
 
-- **npm 包改名边界（2026-08-30：dsh-mobile-nav → dsh-web-mobile）**：包名、patch 行 id/name、client loader id、served 路径 `/plugins/dsh-web-mobile/`、style dataset `data-plugin` 与 CSS 动画名（`dsh-web-mobile-fade/sheet-in/sheet-up`）全部随新名；**刻意不改**：DOM 标记 `data-mobile-nav="frame"` 族与 `?mobile-nav-debug=1` 参数（用户可见契约，保持短且已文档化）。旧 npm 名 dsh-mobile-nav（2.2.0/2.3.0）已整包 unpublish、不可恢复；DSHA 的 vendored 副本仍是 `@dsh-external/dsh-mobile-nav`（2.1.x 代），不影响其 APK 运行，等它 re-vendor 才对齐。仓库目录名保持 `~/dsh-mobile-nav` 不改（AGENTS/Shiki patch 备份路径引用它，改目录名会断链）。本机换名需重跑 `dsh plugin --profile web add link:~/dsh-mobile-nav`。旧名用户的迁移契约：**必须 rm 旧名 → add 新名，不能并存**——patch 行 id 随包名一起换了，两行 bundle 会让宿主把同一插件加载两份（style/slot/locale 双重注册，locale 重复注册直接抛错）；旧名 unpublish 后死依赖会毒化 profile 的所有后续 install（与 /root 机 dsh-api-dashboard 404 同机制），所以这是强制迁移而非可选更新；README 包名说明里已附迁移命令。
+- **npm 包改名边界（2026-08-30：dsh-mobile-nav → dsh-web-mobile）**：包名、patch 行 id/name、client loader id、served 路径 `/plugins/dsh-web-mobile/`、style dataset `data-plugin` 与 CSS 动画名（`dsh-web-mobile-fade/sheet-up`）全部随新名；**刻意不改**：DOM 标记 `data-mobile-nav="frame"` 族与 `?mobile-nav-debug=1` 参数（用户可见契约，保持短且已文档化）。旧 npm 名 dsh-mobile-nav（2.2.0/2.3.0）已整包 unpublish、不可恢复；DSHA 的 vendored 副本仍是 `@dsh-external/dsh-mobile-nav`（2.1.x 代），不影响其 APK 运行，等它 re-vendor 才对齐。仓库目录名保持 `~/dsh-mobile-nav` 不改（AGENTS/Shiki patch 备份路径引用它，改目录名会断链）。本机换名需重跑 `dsh plugin --profile web add link:~/dsh-mobile-nav`。旧名用户的迁移契约：**必须 rm 旧名 → add 新名，不能并存**——patch 行 id 随包名一起换了，两行 bundle 会让宿主把同一插件加载两份（style/slot/locale 双重注册，locale 重复注册直接抛错）；旧名 unpublish 后死依赖会毒化 profile 的所有后续 install（与 /root 机 dsh-api-dashboard 404 同机制），所以这是强制迁移而非可选更新；README 包名说明里已附迁移命令。
 
 ### 字号轴
 

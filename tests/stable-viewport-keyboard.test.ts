@@ -6,9 +6,9 @@
 // ② 打开弹层不得改变全屏亮度：设置面板自己已压一层 0.24 遮罩，弹层再叠一层就是
 //    0.24 → 0.42 的一步跳深（报障人「全屏闪」）；那一层的 ::after 还挂着宿主的
 //    _modalEnter 淡入。两者都去掉。
-// ③ 手机档收掉搜索行：报障人两次实机复现钉死因果 —— **行在打开就闪、行藏就不闪**
-//    （宿主把焦点抢到该输入框 → 键盘在打开瞬间抬起 → 布局视口 754→471 → 整页重排）。
-//    只收手机档，平板（768–1023）与桌面照旧。只做 CSS 隐藏，绝不删宿主节点。
+// ③ 手机档搜索行已于 2026-09-27 应用户拍板恢复（当时的闪 = v3.0.3 旧包零防线，
+//    main 三道防线齐备，见 docs/handover/2026-09-27-keyboard-reflow-scout.md）——
+//    行显隐是用户决策域，不是不变量，不设锚。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -52,15 +52,4 @@ test('opening the shortcut modal never changes full-screen luminance', () => {
   const body = LAYOUT.slice(at, LAYOUT.indexOf('}', at))
   assert.match(body, /animation: none !important/, 'no opacity fade on the scrim')
   assert.match(body, /background: transparent !important/, 'no second dim layer')
-})
-
-test('only the PHONE branch drops the search row; tablet keeps it', () => {
-  const at = LAYOUT.indexOf('[aria-modal="true"][data-shortcut-modal="shortcuts"] [class*="_searchRow"]')
-  assert.notEqual(at, -1, 'the search row must be hidden on phones')
-  assert.match(LAYOUT.slice(at, LAYOUT.indexOf('}', at)), /display: none !important/, 'hide, do not remove')
-  // Phone-only: it must sit inside a narrow-screen query, not the whole mobile branch.
-  const phoneQuery = LAYOUT.lastIndexOf('@media (max-width: 767px)', at)
-  assert.notEqual(phoneQuery, -1, 'the hide must be scoped to phones')
-  assert.doesNotMatch(LAYOUT.slice(phoneQuery, at), /\}\s*\}\s*$/, 'the query must still enclose the rule')
-  assert.ok(at - phoneQuery < 200, 'the narrow query must be the rule\'s nearest block')
 })
