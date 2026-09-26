@@ -2040,9 +2040,13 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        (scout). — 2026-09-27 晚重定需求（报障人「过渡动画没了/一闪一闪」）：
        要顺滑、不要闪。曾用的 .22s transform 滑动是真机「白底缺失」伪影的
        载体：滑动中面板逐瓦片光栅，文字瓦片先落、背景瓦片后落 = 裸文字帧。
-       纯 opacity 几何不动——首帧光栅再慢，未画出的区域在视觉上就是淡入的
-       早期帧，竞速伪影被淡入本身吞掉，结构上无法再闪。 */
-    animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out) backwards;
+       纯 opacity 几何不动——但晚间二轮真机仍闪：透明度在合成器上跑、瓦片
+       光栅在后面追，淡入到中段瓦片才落 = 可见的「跳」，「被淡入吞掉」论被
+       证伪。终版：100ms 起跑延迟 + backwards 填充——延迟期面板保持透明，
+       延迟窗正好覆盖首帧光栅，瓦片 resident 后才是纯合成淡入；且 100ms
+       撞上抽屉关闭的 280ms，观感=「抽屉滑走+面板淡入」的衔接而非空窗。
+       【调校区】 */
+    animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out) 100ms backwards;
   }
   @media (prefers-reduced-motion: reduce) {
     [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) {

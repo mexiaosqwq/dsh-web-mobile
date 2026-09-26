@@ -35,8 +35,8 @@ test('the settings sheet entrance is opacity-only, never a transform slide', () 
   assert.notEqual(SETTINGS_RULE.indexOf(SETTINGS_RULE_HEAD), -1, 'settings sheet rule missing')
   assert.match(
     settingsBody,
-    /animation: dsh-web-mobile-fade \.18s var\(--ds-ease-out, ease-in-out\) backwards;/,
-    'the sheet entrance must be the opacity-only fade (a late raster is indistinguishable from the fade itself)',
+    /animation: dsh-web-mobile-fade \.18s var\(--ds-ease-out, ease-in-out\) 100ms backwards;/,
+    'the entrance must be the opacity-only fade with the first-raster cover delay',
   )
   assert.doesNotMatch(settingsBody, /dsh-web-mobile-sheet-in/, 'the deleted keyframes must not be re-referenced')
   // The offender is banned by name anywhere in the styles: no transform-bearing
