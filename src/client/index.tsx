@@ -11,6 +11,7 @@ import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installSessionMenuDelete } from './effects/session-menu.ts'
 import { installComposerKeyboardGuard } from './effects/composer-keyboard-guard.ts'
 import { installComposerKeyboardLift } from './effects/composer-keyboard-lift.ts'
+import { installComposerMultilinePaste } from './effects/composer-multiline-paste.ts'
 import { installComposerPlusToggle } from './effects/composer-plus-toggle.ts'
 import { installWorkspaceChipToggle } from './effects/workspace-chip-toggle.ts'
 import { installTeamChipToggle } from './effects/team-chip-toggle.ts'
@@ -228,6 +229,10 @@ export function apply(ctx: ClientContext): void {
   // iOS: the host Lexical scroll helper mis-scrolls the window on every
   // keystroke (issue #149); pin the composer seat above the keyboard.
   installComposerKeyboardLift(ctx)
+  // Multi-line text delivered as `insertText` (Android IME commitText / paste
+  // menu) takes the host's lossy controlled-insert path and keeps only the
+  // first paragraph; reroute it to the paste channel (`insertRawText`).
+  installComposerMultilinePaste(ctx)
   installComposerPlusToggle(ctx)
   // Hero workspace chip: the host's picker portaled its Menu with
   // `anchor={null}`, so its own outside-pointerdown close eats the trigger's
