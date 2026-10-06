@@ -583,9 +583,17 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
      4px 下内边距；overflow 改 hidden（不可滑）、滚动条显式干掉；第一组
      flex:0 0 auto 保持完整，最后一组 flex:0 1 auto + min-width:0 自己吃掉
      差额并在末尾出省略号（实测截到"…缓存命…"，tok 数字仍完整可读）。
-     高度仍是 28px：composer 的底部占位（8px + 28px）不变，其它几何不跟着动。 */
+     高度仍是 28px：composer 的底部占位（8px + 28px）不变，其它几何不跟着动。
+
+      2026-10-06 加档（店主："输入框下面的轮次这一条和输入框底部的距离缩减一下，
+      但不能挨得太近，还是要留出一点空间"）。**实测（真机同源 headless，工厂版）**：
+      卡片 rect.bottom=808、轮次条 rect.top=812 → flex 间隙只有 4px，视觉间距
+      ≈ 4px + 28px 行高里文字上方的约 5px ≈ 9px。所以只上提 2px（margin-top:-2px）
+      → 视觉间距约 7px，仍留余量；早前的 -4px 会把间隙压到 0（就是"挨得太近"），
+      已按实测改回。不改 28px 行高、不动 composer 底部占位（8px + 28px 几何契约）。 */
 
   [data-mobile-nav="stats"] {
+    margin-top: -2px !important;
     display: flex !important;
     flex-flow: row nowrap !important;
     align-items: center !important;
@@ -1142,6 +1150,109 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     [data-mobile-nav="frame"][data-file-viewer-open] [class*="dsfv-"] {
       transition: none !important;
       animation: none !important;
+    }
+  }
+
+  /* ---------- File share (effects/file-share.ts) ----------
+     Files tree rows: the plugin appends one share button after the host's
+     own row button inside li[data-files-entry="file"] (host nodes are never
+     moved). The li becomes a flex row only while it carries that button, the
+     host button keeps the remaining width. Preview header: one icon button in
+     the official document.actions slot, sized like the host tool buttons. */
+  [data-files-body] li[data-files-entry="file"]:has(> [data-mobile-nav="file-share-row"]) {
+    display: flex;
+    align-items: center;
+  }
+  [data-files-body] li[data-files-entry="file"]:has(> [data-mobile-nav="file-share-row"]) > button:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  [data-mobile-nav="file-share-row"],
+  [data-mobile-nav="file-share-preview"] {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--dsw-radius-sm, 6px);
+    background: transparent;
+    color: var(--dsw-alias-label-tertiary, currentColor);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [data-mobile-nav="file-share-row"] {
+    width: 36px;
+    height: 32px;
+  }
+  [data-mobile-nav="file-share-preview"] {
+    width: 32px;
+    height: 32px;
+    color: var(--dsw-alias-label-secondary, currentColor);
+  }
+  [data-mobile-nav="file-share-row"] svg,
+  [data-mobile-nav="file-share-preview"] svg {
+    width: 16px;
+    height: 16px;
+  }
+  [data-mobile-nav="file-share-row"]:active,
+  [data-mobile-nav="file-share-preview"]:active {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.16));
+  }
+  [data-mobile-nav="file-share-row"]:focus-visible,
+  [data-mobile-nav="file-share-preview"]:focus-visible {
+    outline: 2px solid var(--dsw-alias-border-focus, #4d6bfe);
+    outline-offset: -2px;
+  }
+  [data-mobile-nav="file-share-row"][aria-busy="true"],
+  [data-mobile-nav="file-share-preview"][aria-busy="true"] {
+    opacity: 0.45;
+    cursor: progress;
+  }
+  /* Fallback notice, only on hosts without the primitives Toast. */
+  [data-mobile-nav="file-share-toast"] {
+    position: fixed;
+    left: 50%;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    z-index: 1500;
+    max-width: min(90vw, 420px);
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(28, 28, 30, 0.92);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.45;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  /* ---------- Markdown 表格：手机档（≤767px）不再被压成「一字一行」 ----------
+     2026-10-06 真机报障：6 列宽表在 390px 上被 table-layout:auto 压到每列
+     1~2 字宽，表头竖排成一列单字，完全不可读。宿主 chat 包（ui-chat）只给
+     表格外面套了 .md-table-wide —— 用容器查询单位做「出血加宽」
+     （--dsh-table-lead / --dsh-table-spare），**整包没有任何 th/td/table
+     规则**（已 grep 确认，唯一命中在 settings-subagent 的 depthTable，与本页
+     无关），所以列宽完全由内容最小宽度决定，没有下限也没有滚动容器。
+     这里补齐手机档的两件事：给单元格一个最小宽度下限 + 让包裹层横向滚动。
+     th 允许 nowrap（表头本来就短、竖排最难看），td 只设下限、长句仍可换行，
+     不会把表格撑到无法阅读的宽度。
+     平板（768–1023）与桌面不动 —— 店主明确「平板不用」（对齐上游 768px
+     分档边界，与 layout.css.ts 的手机档写法一致）。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] .md-table-wide {
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    [data-mobile-nav="frame"] .md-table-wide > table {
+      width: auto !important;
+      min-width: 100% !important;
+    }
+    [data-mobile-nav="frame"] .md-table-wide > table th {
+      white-space: nowrap !important;
+    }
+    [data-mobile-nav="frame"] .md-table-wide > table th,
+    [data-mobile-nav="frame"] .md-table-wide > table td {
+      min-width: 4.5em !important;
     }
   }
 }

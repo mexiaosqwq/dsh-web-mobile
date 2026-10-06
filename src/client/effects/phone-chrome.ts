@@ -39,14 +39,33 @@ export const DESKTOP_QUERY = '(min-width: 1024px)'
  *  windows never arm it, at any width. */
 export const TOUCH_QUERY = '(pointer: coarse)'
 
-/** Long press on a session row opens its ⋯ menu — the phone equivalent of the
- *  desktop hover that reveals the row actions (the host renders them with
- *  `display: none` until `:hover` or `menuOpen`, neither of which touch ever
- *  reaches). Long enough to be deliberate, short enough to read as a context
- *  menu. */
-const LONG_PRESS_MS = 500
-/** Pointer travel that cancels a long press (the swipe layer locks at 8px). */
-const LONG_PRESS_MOVE_PX = 10
+/** Long press on a session row renames it (2026-09-22 contract; the ⋯ menu is
+ *  only the fallback when the title cannot be found). 2000ms since 2026-10:
+ *  500ms read as a context menu and fired on ordinary slow taps and on
+ *  touch-and-think pauses — rename must be deliberate. The progress fill
+ *  (`data-mobile-nav-press="fill"`, base.css.ts) shows the hold is counting. */
+export const LONG_PRESS_MS = 2000
+/** Pointer travel that cancels a long press. 14px: a 2s hold drifts more than
+ *  a 0.5s one did. Still above the swipe layer's 8px LOCK_PX, so a horizontal
+ *  stroke is cancelled through `isStrokeLocked()` (the lock lands on the 8px
+ *  move — our pointermove runs first in capture order, so it sees the flag on
+ *  the NEXT move, still well before 14px) and a vertical stroke through the
+ *  browser's pan-y `pointercancel` (see onDrawerPointerCancel). */
+export const LONG_PRESS_MOVE_PX = 14
+/** Hold time before the progress fill appears: a normal tap (≈100-250ms)
+ *  must not flash it. */
+export const LONG_PRESS_FILL_DELAY_MS = 300
+/** Duration the fill animation should take so it completes exactly when the
+ *  long press fires: the hold remaining after the fill delay (never negative). */
+export function longPressFillMs(holdMs: number, delayMs: number): number {
+  return Math.max(0, holdMs - delayMs)
+}
+/** Row marker while a long press is armed: any value = no callout / no text
+ *  selection; `fill` = the progress fill is running. Plugin-owned attribute on
+ *  a host row (React never renders it), always removed by clearPress. */
+const PRESS_ATTR = 'data-mobile-nav-press'
+/** Inline custom property carrying the fill duration; removed by clearPress. */
+const PRESS_MS_VAR = '--mobile-nav-press-ms'
 /** How long the lift may not close the menu the press opened: the host menu
  *  closes on pointerleave, and the finger lift itself fires one. */
 const LONG_PRESS_MENU_GUARD_MS = 1200
@@ -145,6 +164,105 @@ export function ensureDismissShadow(): void {
 }
 
 /**
+ * Height of the phone conversation header, published as a CSS variable so the
+ * scroll body can extend up under it (layout.css.ts "selection-drag autoscroll
+ * ramp": the distance from the list's top edge decides how fast Blink
+ * autoscrolls a selection drag). Measured from the frame's top to the header's
+ * bottom - exactly how far the scrollport's box has to grow upward - which also
+ * stays correct when the header's own top is pushed down by safe-area padding.
+ */
+const HEADER_HEIGHT_VAR = '--mobile-nav-header-h'
+const HEADER_SELECTOR = '[data-mobile-nav="frame"] [data-phase] header'
+
+let observedHeader: Element | null = null
+let headerObserver: ResizeObserver | null = null
+
+/** Publish the header height, idempotently: the variable write is itself an
+ *  attribute mutation on <html>, so an unconditional write would keep dirtying
+ *  the reconciler. */
+function publishHeaderHeight(): void {
+  if (typeof document === 'undefined') return
+  const frame = getFrame()
+  const header = observedHeader
+  const unmeasurable = header === null || frame === null
+    || !(header instanceof HTMLElement)
+    || header.offsetHeight === 0
+  const next = unmeasurable
+    ? '0px'
+    : `${Math.round(Math.max(0, header.getBoundingClientRect().bottom - frame.getBoundingClientRect().top))}px`
+  const root = document.documentElement
+  if (root.style.getPropertyValue(HEADER_HEIGHT_VAR) !== next) {
+    root.style.setProperty(HEADER_HEIGHT_VAR, next)
+  }
+}
+
+/** Reattach the ResizeObserver when React swaps the header element, then
+ *  publish. Cheap while nothing changes: one querySelector + an identity
+ *  compare, no layout work until the header is actually replaced. */
+function syncHeaderHeight(): void {
+  if (typeof document === 'undefined') return
+  const header = document.querySelector(HEADER_SELECTOR)
+  if (header !== observedHeader) {
+    headerObserver?.disconnect()
+    observedHeader = header
+    if (header !== null && typeof ResizeObserver !== 'undefined') {
+      headerObserver = headerObserver ?? new ResizeObserver(() => { publishHeaderHeight() })
+      headerObserver.observe(header)
+    }
+  }
+  publishHeaderHeight()
+}
+
+/**
+ * Marker set on <html> while a non-collapsed text selection lives in the
+ * conversation. CSS uses it to drop the header out of the hit test (see
+ * layout.css.ts "selection handle drag: keep the extent local"):
+ * the native Android handle drag resolves the selection extent by hit-testing
+ * the handle position, and an unselectable bar sitting there makes Blink walk
+ * FORWARD in DOM order to the first selectable node - measured on the live host
+ * as the flow's very first item (the "Load earlier" gate) - which the browser
+ * then reveals, so the viewport teleports to the top of the conversation instead
+ * of extending the selection by a line. Drop the bar out of the hit test and the
+ * same point resolves to the message the lifted scroll box now puts there.
+ */
+const SELECTING_ATTR = 'data-mobile-nav-selecting'
+
+/** True while the document selection is a non-collapsed range inside the
+ *  conversation (composer / drawer selections do not count - they must keep
+ *  their own chrome interactive). Cheap by design: no layout reads, because
+ *  selectionchange fires on every handle move. */
+function selectionLivesInConversation(): boolean {
+  const selection = window.getSelection()
+  if (selection === null || selection.isCollapsed) return false
+  const node = selection.anchorNode
+  if (node === null) return false
+  const element = node instanceof HTMLElement ? node : node.parentElement
+  if (element === null) return false
+  if (element.closest('[data-composer-card]') !== null) return false
+  return element.closest('[data-phase]') !== null
+}
+
+/** Toggle the selection marker for the duration of a conversation selection. */
+export function installSelectionChromeYield(ctx: ClientContext): void {
+  installMobileEffect(ctx, 'dsh-web-mobile: selection chrome yield', () => {
+    if (typeof document === 'undefined') return undefined
+    const root = document.documentElement
+    const sync = (): void => {
+      const wanted = selectionLivesInConversation()
+      if (wanted === root.hasAttribute(SELECTING_ATTR)) return
+      if (wanted) root.setAttribute(SELECTING_ATTR, '')
+      else root.removeAttribute(SELECTING_ATTR)
+    }
+    document.addEventListener('selectionchange', sync)
+    sync()
+    return () => {
+      document.removeEventListener('selectionchange', sync)
+      root.removeAttribute(SELECTING_ATTR)
+    }
+  })
+}
+
+/**
  * Frame marker controller: owns `data-mobile-nav="frame"` and every plugin
  * marker that can survive on the shell-owned frame. Installed once at apply
  * time so effects no longer each need to find/set/clear the frame. Returns a
@@ -182,7 +300,23 @@ export function installFrameController(): () => void {
       frame = null
     },
   })
+  const removeHeaderMetrics = addReconcilerTask({
+    name: 'header-metrics',
+    scopes: ['*'],
+    ensure: () => {
+      syncHeaderHeight()
+    },
+    dispose: () => {
+      headerObserver?.disconnect()
+      headerObserver = null
+      observedHeader = null
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.removeProperty(HEADER_HEIGHT_VAR)
+      }
+    },
+  })
   return () => {
+    removeHeaderMetrics()
     removeTask()
     frameControllerInstalled = false
   }
@@ -567,6 +701,7 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     // The host menu closes on pointerleave, which the finger lift itself fires,
     // and that lift still synthesizes a click on the row: both need guarding.
     let pressTimer: number | null = null
+    let pressFillTimer: number | null = null
     let pressOrigin: { x: number; y: number } | null = null
     let pressRow: HTMLElement | null = null
     let pressFired = false
@@ -574,9 +709,19 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     let swallowClickUntil = 0
     let swallowClickRow: HTMLElement | null = null
 
+    /** Drop the press marker and the inline duration variable from a row —
+     *  only our own attribute/property, never the host's class or style. */
+    const unmarkPressRow = (row: HTMLElement): void => {
+      row.removeAttribute(PRESS_ATTR)
+      row.style.removeProperty(PRESS_MS_VAR)
+    }
+
     const clearPress = (): void => {
       if (pressTimer !== null) window.clearTimeout(pressTimer)
       pressTimer = null
+      if (pressFillTimer !== null) window.clearTimeout(pressFillTimer)
+      pressFillTimer = null
+      if (pressRow !== null) unmarkPressRow(pressRow)
       pressOrigin = null
       pressRow = null
       pressFired = false
@@ -734,14 +879,44 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       if (row === null || target.closest('[class*="_rowActions"]') !== null) return
       pressOrigin = { x: event.clientX, y: event.clientY }
       pressRow = row
+      // Armed from the first frame: CSS turns off the system callout and text
+      // selection on the row, so neither can start inside the 2s hold.
+      row.setAttribute(PRESS_ATTR, 'armed')
+      pressFillTimer = window.setTimeout(() => {
+        pressFillTimer = null
+        if (pressRow === null) return
+        pressRow.style.setProperty(PRESS_MS_VAR, `${longPressFillMs(LONG_PRESS_MS, LONG_PRESS_FILL_DELAY_MS)}ms`)
+        pressRow.setAttribute(PRESS_ATTR, 'fill')
+      }, LONG_PRESS_FILL_DELAY_MS)
       pressTimer = window.setTimeout(() => {
         pressTimer = null
         if (pressRow === null) return
         pressFired = true
+        // The hold is over: the fill has done its job, drop the marker before
+        // the rename dialog opens (pressRow stays for the lift's click swallow).
+        unmarkPressRow(pressRow)
         // 长按 = 改会话名。拿不到标题（宿主标记变了）就退回 ⋯ 菜单：长按至少还能
         // 到达行操作，而不是变成一个什么都不做的死手势。
         if (!requestRowRename(pressRow)) openRowMenu(pressRow)
       }, LONG_PRESS_MS)
+    }
+
+    // The browser claimed the stroke (pan-y scroll start, a system gesture, a
+    // drag): no pointermove/pointerup follows, so without this the 2s timer
+    // would keep counting and rename a row mid-scroll.
+    const onDrawerPointerCancel = (): void => {
+      clearPress()
+    }
+
+    // Android dispatches contextmenu ~500ms into a touch hold — well inside the
+    // 2s window. Left alone it may open the system callout / start a text
+    // selection, either of which pointercancels the stroke and kills the
+    // timer. Only while OUR press is counting, only on the pressed row.
+    const onDrawerContextMenu = (event: MouseEvent): void => {
+      if (pressTimer === null || pressRow === null) return
+      const target = event.target
+      if (!(target instanceof Node) || !pressRow.contains(target)) return
+      event.preventDefault()
     }
 
     const onDrawerPointerMove = (event: PointerEvent): void => {
@@ -811,7 +986,12 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       // a stroke locked mid-swipe but not yet classified — this handler
       // runs before the gesture layer's own pointerup (audit S0/S1: without
       // it the host toggled first and the gesture toggled back, net zero).
-      if (isStrokeLocked() || consumeIfGestured(event)) return
+      if (isStrokeLocked() || consumeIfGestured(event)) {
+        // The finger is up either way: a yielded release must still disarm the
+        // press, or a stale 2s timer renames the row after the lift.
+        clearPress()
+        return
+      }
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
       const pressed = pressFired
       const pressedRow = pressRow
@@ -888,6 +1068,8 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     document.addEventListener('pointermove', onDrawerPointerMove, true)
     document.addEventListener('pointerleave', onDrawerPointerLeave, true)
     document.addEventListener('pointerup', onDrawerPointerUp, true)
+    document.addEventListener('pointercancel', onDrawerPointerCancel, true)
+    document.addEventListener('contextmenu', onDrawerContextMenu, true)
     return () => {
       disarmNav()
       // Also marks the close spent, so a queued `fire` cannot outlive the effect.
@@ -902,6 +1084,8 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       document.removeEventListener('pointermove', onDrawerPointerMove, true)
       document.removeEventListener('pointerleave', onDrawerPointerLeave, true)
       document.removeEventListener('pointerup', onDrawerPointerUp, true)
+      document.removeEventListener('pointercancel', onDrawerPointerCancel, true)
+      document.removeEventListener('contextmenu', onDrawerContextMenu, true)
     }
   })
 }

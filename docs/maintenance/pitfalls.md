@@ -572,6 +572,8 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 ### 反引号
 
 - **CSS 模板字符串注释内禁止反引号**：`src/client/styles/*.css.ts` 的 CSS 是 TypeScript 模板字面量，注释里写 Markdown 反引号会提前终止模板，tsc 报 `TS1005`。引用类名用普通引号或纯文本。
+- **同一族的第二个变种：块注释里禁止出现「星号紧跟斜杠」**（2026-10-07 自伤，同日第二次）。任何块注释里只要写入那个两字符序列（典型来源是 MIME 全通配、正则 `\d*` 加斜杠、路径 glob），注释就在那里**提前闭合**，后面的文字变成代码 ⇒ 一串 `TS1xxx` 解析级联（本次 9 条）+ `client-bundle-smoke` 抛 `SyntaxError: Unexpected token '*'`。**修法是改表述而不是转义**（注释里没有转义）：注释里写「全通配 accept」，字面量只留在代码里。
+- 两条合起来的教训：**`.css.ts` 的注释是「数据」不是「注释」**（模板字符串里那是 CSS，`.ts` 里那是块注释），任何会被编译器/打包器当成结构标记的字符（反引号、「星号斜杠」）都不能随手写。两次都是 `src/client TS1xxx=0` + bundle smoke 这两道门唯一拦住的 —— 别跳过自检直接上机。
 ### has 下限
 
 - CSS relies on `:has()` and therefore requires Chromium 105+; unsupported `:has()` rules can disappear silently in old WebViews. Preserve `prefers-reduced-motion` behavior.
@@ -612,6 +614,8 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 - **宿主更高特异度规则会静默压掉插件的抽屉槽位（0.1.5 实测，2026-09-17）**：关态只剩不在 transition 列表里的 width → 点击开关**无动画**（手势写 inline `transform !important` 幸存）。修＝同特异度重申槽位 + `closeDrawerAnimated(ctx)` 收口六个点击关闭入口 + 开态判定区右缘＝抽屉右缘（`openStateStartMode`）。探针须钉 `rect.left <= -rect.width`，只断「离屏」会漏 → `pitfalls.md` §0.1.5 关态槽位。
 
 ### 性能契约
+
+- **长会话「点抽屉那一拍」= 宿主渲染，不是插件；插件侧唯一有效杠杆是给消息块 content-visibility**（2026-10-07 真宿主实测，最长会话中心列 ~6000 节点）。读数：点抽屉 longtask **236ms / 3 条**（短会话 2478 节点 = **0ms**），随会话长度暴涨；同一拍 CPU profile：`(program)`（样式/布局/绘制）1216ms、宿主自己的 `getAnimations({subtree:true})` 75ms（该调用**只在宿主 bundle 里**，本仓源码 0 处）、插件 JS ≈ **8ms**。运行时注入 A/B（同一会话，每臂 n=3）：给会话滚动区直接子块加 `content-visibility: auto; contain-intrinsic-size: auto 320px` 后，点抽屉 longtask 关 = 247/62/143ms（复测 386/206）→ 开 = **57/61/70ms**；scrollHeight 17699 前后不变、置顶置底正常。选择器要窄：`[class*="scrollBody"] [class*="_scroll"]:not([class*="scrollBody"]) > *`（实测只命中 3 个元素；**绝不要**把 scrollBody 自身设成 content-visibility，那会藏掉整段会话）。已落地在 `layout.css.ts`（767px 块内）+ `tests/css-rules.test.ts` 锚。
 
 - **流式期每帧热点性能契约**：stats-line 快路径 `statsAnchorAlive`（失位先摘旧标记再回落慢路径，scopes 恒 `['*']`）；installed-list 观察者走 `core/raf-scheduler.ts` rAF 合并（flush 重验 mq，dispose cancel）；抽屉会话树 `content-visibility:auto` 为会话数增大后的渐进增强；arm-open 冻结治本在宿主（React 互斥子树同步挂载），插件 CSS 只能消 layout/paint 份额 → `docs/maintenance/pitfalls.md` §性能契约。
 
@@ -716,3 +720,19 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 - **门禁三道执行点**：①profile bundle 装载（不兼容→`skipping profile bundle`）；②patch 行组合预检 `prepareProfileEntries`（不兼容→`disabling profile plugin`；**但裸包名行 manifestOf 解析不到 manifest 时直接放行**——link 安装形态一直靠这条缝隙活，别把「能跑」当「声明兼容」的证据）；③`dsh plugin add` 安装 preflight（不兼容且无豁免→`installation rejected` 硬拒、什么都不装）。
 - **适配新宿主线的验证配方**：用宿主真函数逐版本跑真值表，别按 npm 语义目测范围：`evaluatePluginCompatibility(manifest, {}, '<宿主版本>')`（`node --input-type=module` 动态 import `@deepseek-ai/dsh-app-boot/lib/index.js` 取真函数）——supported 版本期望 `undefined`、下一代期望 issue。peer 引用的包在宿主树里消失（如 0.2.x 无 `dsh-client-runtime`，npm 止于 0.1.1-rc.2）且代码仅 type-only 引用时，删 peer 并把类型源用 devDependencies 钉版补上（见下条判例）。
 - **同坑判例（2026-10-03 PR #146 CI 实锤）：删 peer 前先问「CI 克隆里谁物化它的类型」**。tsconfig paths 指向的 `./node_modules/@deepseek-ai/...` 类型快照不在仓库里（node_modules gitignore）——3.0.3 时代 CI 上的快照由 pnpm 自动装 peer 物化；本机 verify 绿只说明旧物化还躺在磁盘（8 月 20 日装的 runtime 未被清），CI 全新克隆严格按 lockfile 物化、runtime 条目已删即报 `Cannot find module '@deepseek-ai/dsh-client-runtime/client'`。修法 = devDependencies 钉同代版本（`0.1.0-rc.6`，与其余 8 包类型快照同一代），类型源进入 `--frozen-lockfile` 的确定性面。附带实证：pnpm 11 在 manifest/lockfile 漂移时 `pnpm run` 会**先自动重写 lockfile 再跑脚本**（回退旧 lockfile 后跑 verify 复现重写）——lockfile 的「意外改动」先想到 run 前置同步，不是有人手改。教训：**本地绿 ≠ CI 克隆绿，声明层的每一行都要问 CI 克隆里谁物化它**。
+
+### 沙箱 DSH_HOME
+
+- **`HOME=<沙箱> dsh ...` 在 DSHA 容器里不是隔离**（2026-10-07 实测，纠正 `docs/handover/2026-10-07-mobile-ui-batch2-hotload-lead.md` §4 的核心前提）。DSHA 启动器把 `DSH_HOME=/root/.dsh` 导进环境，它压过 `HOME`：`/proc/<pid>/environ` 实测 `HOME=/root/tmp/probe-home` 但 `DSH_HOME=/root/.dsh`，于是「沙箱」实例读的是**真** profile / 会话库 / 凭证，插件目录也回落到 `/root/dsha-web-mobile` 而不是变体目录 —— 在它上面跑的 A/B（含「关掉 7 个桥接插件后页面恢复可加载」）证据链无效，写 profile 配置时还会直改真机那一份。
+- **正确起法**：`HOME=/root/tmp/probe-home DSH_HOME=/root/tmp/probe-home/.dsh dsh --profile web --no-open --port <p>`，然后**核验一处**再相信隔离（读 `/proc/<pid>/environ`，或看启动日志里的 diagnostics 路径落在沙箱里）。判据同「探针运行环境」：隔离是要被证明的，不是被假设的。
+
+### 探针收尾
+
+- **headless 浏览器必须按 pid 精确回收，且要证明收干净了**（2026-10-07 实测：前任一场会话留下 **17 个** ppid=1 的 `headless_shell`，`--user-data-dir=/root/tmp/quick-*|shot-*`，占到一个只剩 ~2.4GB available、swap 吃掉 5.5GB 的机器上；店主真机同时「卡 / 偶尔进不来」，这类遗留本身就是头号嫌疑）。单实例、跑完即杀是既有纪律，但要落到脚本尾部（`finally`）而不是靠人记得。
+- **回收脚本别自杀**：`pkill -f` / `pgrep -f` 配明文模式会把**自己那条 `bash -c` 命令行**也匹配上（2026-10-06、2026-10-07 各实测一次，整条 shell 被 SIGKILL、命令无输出）。要按 `/proc/<pid>/cmdline` 逐个匹配并显式跳过自己（`[ "$p" = "$$" ] && continue`），或只认 `ppid=1` 的孤儿。
+- **CDP 的 `Page.navigate` 卡住 = 本环境的渲染进程真的死了，解法是 `--single-process --no-zygote`**（2026-10-07 实测：多进程形态下连 `data:text/html` 都 4/4 不返回，target URL 已变成目标 URL 说明导航发生了，但此后 `Runtime.evaluate` 全部超时、无 crash 事件；同一二进制 `--dump-dom` 单独跑正常）。加了 `--single-process --no-zygote` 后 navigate + evaluate 3/3 全过 —— **探针脚本一律带这两个开关**（`scripts/cdp-*.mjs` 与临时脚本同）。旧口径「重试 1~3 次即过」不能当结论套用。
+- **同一次排查里还叠了我自己的一个错**：临时脚本读 `process.env.PROBE_TOKEN`，而我启动时传的是 `TOKEN=` ⇒ token 空 → 页面停在登录态 → `waitFor('frame')` 90s 超时。**「探针卡住」要同时排查三种可能：CDP 死、token 空、目标 DOM 不在**，别急着归因环境抖动；判断依据是「有没有拿到任何一步日志」——一步都没有 = 卡在启动/鉴权，别当成页面慢。
+
+### build 顺序
+
+- **`node scripts/build-client.mjs` 不能连跑两次**（2026-10-07 实测）：脚本末尾 `rm -rf .client-build`（`scripts/build-client.mjs:96`），第二次裸跑会 `ENOENT .../.client-build`，且错误尾部是 `Node.js v24.19.0` 一行——用 `tail -1` 看构建输出容易误读成成功。正确顺序永远是 **client `tsc` emit → `build-client.mjs`**，即 `pnpm build`；单独跑时前面必须有那条 emit 命令。

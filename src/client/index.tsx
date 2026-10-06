@@ -5,7 +5,7 @@ import { ComposerFileButton } from './components/ComposerFileButton.tsx'
 import { openFilesPanel } from './components/open-files-panel.ts'
 import { MOBILE_CSS } from './styles/index.ts'
 
-import { installFrameController, installOverlayInteractions, installPhoneChrome, installReconciler, registerReconcileTasks, MOBILE_QUERY } from './effects/phone-chrome.ts'
+import { installFrameController, installOverlayInteractions, installPhoneChrome, installReconciler, installSelectionChromeYield, registerReconcileTasks, MOBILE_QUERY } from './effects/phone-chrome.ts'
 import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installSessionMenuDelete } from './effects/session-menu.ts'
@@ -18,6 +18,10 @@ import { installModelMenuAnchor } from './effects/model-menu-anchor.ts'
 import { installShortcutModalKeyboardGuard } from './effects/shortcut-modal-keyboard-guard.ts'
 import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
+import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
+import { installComposerFilePicker } from './effects/composer-file-picker.ts'
+import { installAttachmentMention } from './effects/attachment-mention.ts'
+import { installFileShare } from './effects/file-share.ts'
 import { createPanelExit, installPanelRowExit } from './effects/panel-exit.ts'
 import { createRafScheduler } from './core/raf-scheduler.ts'
 import { installDebugBadge } from './debug.ts'
@@ -196,6 +200,11 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'dsh-web-mobile: reconciler infrastructure')
 
+  // Selection handle drag: while a conversation selection is live the header drops
+  // out of the hit test, so the native extent stays local instead of snapping to the
+  // flow's first item and revealing it (teleporting to the top of the session).
+  installSelectionChromeYield(ctx)
+
 
 
   // Drawer close interactions: Escape and navigation taps inside the drawer.
@@ -252,9 +261,27 @@ export function apply(ctx: ClientContext): void {
   // autofocus; real taps are unaffected.
   installSessionFocusGuard(ctx)
 
+  // Multi-line paste after an IME commit keeps only the first line (host
+  // Lexical routes Android's insertText paste through the text-insertion
+  // command). Re-dispatch those as a paste event; mobile-only.
+  installComposerPasteGuard(ctx)
+
+  // Composer paperclip (owner report 2026-10-06): the system file picker is the
+  // wrong shape and cannot pick "images only", so the tap opens the plugin's own
+  // two-option sheet (上传图片 / 上传附件) and hands the choice back to the host's
+  // hidden input. Intake stays fully host-owned.
+  installComposerFilePicker(ctx)
+
+  // @ menu 「本次附件」: mention the composer's draft attachments as locked chips.
+  installAttachmentMention(ctx)
+
   installPhoneChrome(ctx)
 
   installAionuiCompat(ctx)
+
+  // Mobile file sharing: Files-tree row buttons + preview header button
+  // (official 0.2.0 slots), share sheet with download fallback.
+  installFileShare(ctx)
 
   // Debug badge (?mobile-nav-debug=1): live state overlay for phone-side
   // repros. No-op without the query param (docs: README, AGENTS.md).

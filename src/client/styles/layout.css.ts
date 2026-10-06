@@ -306,6 +306,65 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     width: 0;
     height: 0;
   }
+  /* ---------- selection-drag autoscroll ramp (2026-10-07 live-host probe) ----------
+     Report (Android): once the conversation chrome became unselectable, dragging
+     the selection handle up stopped grabbing the title bar, but the conversation
+     did not scroll WITH the finger - it teleported a few screens up instead.
+     Mechanism measured on the live host (390x844, touch-emulated, selection anchor
+     inside the message flow, pointer held 1.4s): Blink only starts autoscrolling a
+     selection drag once the pointer is within ~3px of the scrollport's top edge,
+     and the RATE grows with how far the pointer sits ABOVE that edge, saturating
+     fast - y=140/100 -> 0 px/s, y=70 -> 1018, y=50 -> 2225, y=30 -> 3329,
+     y=10 -> 3232 px/s. The conversation scrollport's top edge is the header's
+     bottom edge (y=67), so every finger position on the header is 17-57px "above
+     the list" and lands in the 2200-3300 px/s band: one 777px screen every ~0.23s,
+     which reads as dropped frames / a jump to somewhere else. The ramp is
+     geometric, not ours - from y>=100 nothing scrolls at all, so the speed is
+     decided by where the list's box starts.
+     Fix: extend the scrollport's box up under the header so a drag point over the
+     header is only a few px above the list edge. Measured with the box moved to
+     y=0: y=30 -> 0 px/s, y=10 -> 595 px/s. The visual position is unchanged by
+     construction - the box grows upward by H while padding-top: H pushes the
+     content back down, so an element at content offset X still paints at
+     H + X - scrollTop (live-host check: header [0,0,390,67] and the composer seat
+     [0,740,388,104] are identical before/after; only the box [0,67,388,777] ->
+     [0,0,388,844] and scrollHeight +H move).
+     H comes from --mobile-nav-header-h, written by the reconciler task
+     "header-metrics" (phone-chrome.ts) as the header's bottom edge measured from
+     the frame's top. It is 0px whenever the header is not measurable (hero / blank
+     header), which makes both declarations below a no-op - the layout fails open if
+     the host ever stops rendering a conversation header. Phone tier only: the
+     desktop header is an ordinary in-flow bar and there is no touch selection drag
+     to ramp. */
+  [data-mobile-nav="frame"] [data-phase] [class*="_scrollBody"] {
+    margin-top: calc(-1 * var(--mobile-nav-header-h, 0px)) !important;
+    padding-top: var(--mobile-nav-header-h, 0px) !important;
+  }
+  /* ---------- selection handle drag: keep the extent local (2026-10-07) ----------
+     The phone selection handle drag is a native (Android WebView
+     TouchSelectionController) gesture: each move hit-tests the handle position to
+     resolve the selection extent and then reveals that extent. With the bar
+     unselectable but still hit-testable it won that hit test, Blink walked FORWARD
+     in DOM order to the next selectable node - the flow's first item, the
+     "Load earlier" gate, measured on the live host - and revealed it: the viewport
+     teleported to the top of the conversation instead of extending by a line
+     (reported as "not scroll-selection, it jumps somewhere else"). Dropping the bar
+     out of the hit test for the duration of the selection lets the same point
+     resolve into the message the lifted box above now puts underneath it, so the
+     extent stays local and the scroll ramp stays gentle. 「pointer-events」 only -
+     no layout change, so nothing reflows while the finger is down. The marker is
+     set by installSelectionChromeYield (phone-chrome.ts) and only for selections
+     that live in the conversation (composer/drawer keep their chrome
+     interactive); header buttons remain reachable the moment the selection
+     collapses, which is also what a tap anywhere else does. */
+  html[data-mobile-nav-selecting] [data-mobile-nav="frame"] [data-phase] header {
+    pointer-events: none !important;
+  }
+  /* A transparent header was harmless while nothing could scroll underneath it;
+     with the box lifted it would show the messages through the title row
+     (headless screenshot 2026-10-07: message text bled across "Standard mode"
+     and the tab strip), so the header rule below now carries an opaque
+     background. */
   /* Message action rows (copy / run-time badges) can overflow the right
      edge on narrow screens — keep them inside the message width. */
   [data-phase] [class*="_actions"] {
@@ -958,6 +1017,22 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding-left: 0 !important;
     padding-right: 8px !important;
     position: relative !important;
+    /* Opaque AND above the flow, both required: the host bar has no background,
+       and the message flow is a later sibling, so it painted OVER the bar (three
+       headless screenshots 2026-10-07: transparent -> content read through the
+       title row; opaque but unraised -> byte-identical to transparent, i.e. the
+       background was painted underneath; opaque + raised -> pixel-identical to
+       the untouched band). The scroll box runs underneath because of the
+       "selection-drag autoscroll ramp" rule above (it lifts it by
+       --mobile-nav-header-h). Same surface token the panel ghost uses, so themes
+       carry over; the host keeps its --dsw-alias-border-l3 bottom border.
+       z-index 30 clears the flow's own raised layers (host banners measured at
+       z 6-7 and the marks slot / composer seat at 7 on the live host) while
+       staying under this plugin's overlay tier (55+ backdrops/panels, FAB 21 is
+       hero-only where the header is hidden, drawer/menus 1000+) so a dialog or
+       the drawer still covers the bar. */
+    background: var(--dsw-alias-bg-layer-1, #fff) !important;
+    z-index: 30 !important;
   }
   /* The hero phase's empty header must stay hidden on phones. The host hides
      it via the headerHidden class at (0,1,0), but its own session-controller
@@ -2351,6 +2426,20 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
     margin-left: var(--dsh-web-mobile-panel-clearance) !important;
   }
+  /* 自动化任务面板（@deepseek-ai/dsh-client-ui-schedule，0.2.0-rc.2 随实验性
+     bundle 提供）不是 section[data-plugin-panel]：该 bundle 里
+     「data-plugin-panel」命中 0 次，页头是 t-XoWW_pageHeading(display:flex)，
+     标题是 h1{flex:1;min-width:0;margin:0}。盒模型取自宿主自己的 CSS：
+     pageContent padding = clamp(24px,4vw,48px)（390px 视口取 24px），
+     于是标题左缘 24px 落进 FAB 盒 [10,12,38,38]（右缘 48）——20px 字号的
+     首字被整颗压住（2026-10-06 报障截图）。让位量沿用同一口径
+     （56px − 宿主自身 padding）；作用对象取 h1：它是 margin:0 的 flex item，
+     margin-left 只吃 flex 自由空间，不需要 width 补偿，也不会像整宽盒那样
+     顶出横向滚动条。「_pageHeading」片段在全部宿主 client bundle 里只有这一个
+     渲染者（2026-10-06 全量扫描），不误伤。 */
+  [data-mobile-nav="frame"] [class*="_pageHeading"] > h1 {
+    margin-left: var(--dsh-web-mobile-panel-clearance, calc(56px - clamp(24px, 4vw, 48px))) !important;
+  }
   /* 快捷键弹层在手机上的落地形态。上面那条 :not([data-shortcut-modal="shortcuts"])
      只是把它从设置面板家族里摘出来、还它官方的内部排版（2026-09-25 实测：纵向列
      回来了、标题「快捷键」回来了、列表 441px 可滚、无横向溢出、docScrollWidth
@@ -2427,26 +2516,70 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      element's first style resolution and there is no full-opacity frame first.
      The exit marker is set by JS before the swap for the same reason. */
   @keyframes dsh-web-mobile-panel-in {
-    from { opacity: 0; transform: translateX(16px); }
+    from { opacity: .55; transform: translateX(100%); }
   }
   /* Deliberately NOT reusing dsh-web-mobile-fade: the exit cleanup listens on
      animationend BY NAME, and that keyframe also runs on the backdrop and the
      dialogs, which are frame descendants too — reusing it would end the
      transition early. */
   @keyframes dsh-web-mobile-panel-reveal {
-    from { opacity: 0; }
+    from { opacity: 0; transform: translateX(-14px); }
   }
   [data-mobile-nav="frame"]:has([class*="panelRow"][aria-current="page"]) [class*="_centerCol"] > * > * {
-    animation: dsh-web-mobile-panel-in .15s var(--ds-ease-in-out, ease-in-out) backwards;
+    animation: dsh-web-mobile-panel-in .28s cubic-bezier(0, 0, .2, 1) backwards;
   }
   [data-mobile-nav="frame"][data-mobile-panel-exit]:not(:has([class*="panelRow"][aria-current="page"])) [class*="_centerCol"] > * > * {
     /* ease-out rather than the shared in-out curve: the panel vanishes and the
        conversation appears on the same frame, so the fade has to come up fast
        or the first frames read as a flash of empty background. */
-    animation: dsh-web-mobile-panel-reveal .15s cubic-bezier(0, 0, .2, 1) backwards;
+    animation: dsh-web-mobile-panel-reveal .18s cubic-bezier(0, 0, .2, 1) backwards;
+  }
+  /* ---------- 面板进出：从侧面滑出 / 从原路滑回（2026-10-07 店主两轮报障） ----------
+     ① 第一轮：「退出的时候看着跟掉帧一样，直接回到聊天界面」—— 逐帧实测（390×844，插件页）：
+        点返回后的**第一帧**面板元素就已从 DOM 消失，退场动画落在 0×0 空槽上。
+     ② 第二轮：「空档有点久了……像打开侧边栏一样，从侧面滑出来，然后从原路返回」——
+        上一版把切换推迟 220ms 等真面板滑完，结果会话重挂那次 commit（长会话 ~390ms）
+        又往后挪了 220ms，空档反而更明显。
+     终态：退场不再动真面板，而是把面板 clone 成**冻结快照**（panel-exit.ts 里的
+     panel-ghost），**立刻**切换，让快照在合成器上滑回右侧 —— 主线程忙着重挂会话时它照样
+     不掉帧；进场整屏从右侧滑入（时长与抽屉的 .28s 对齐），会话侧从左侧 14px 滑回。
+     方向：进 = 从右往左推入，退 = 原路推回右侧。 */
+  [data-mobile-nav="panel-ghost"] {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    pointer-events: none;
+    overflow: hidden;
+    background: var(--dsw-alias-bg-layer-1, #fff);
+    animation: dsh-web-mobile-panel-ghost-out .28s cubic-bezier(.4, 0, .2, 1) both;
+  }
+  [data-mobile-nav="panel-ghost"] > * {
+    width: 100%;
+    height: 100%;
+  }
+  @keyframes dsh-web-mobile-panel-ghost-out {
+    to { opacity: .72; transform: translateX(100%); }
+  }
+  /* ---------- 长会话：消息块 content-visibility（2026-10-07 实测） ----------
+     店主报「对话越长、切换/开侧边栏越卡」。真宿主取证（最长会话，中心列 ~6000 节点）：
+       · 点抽屉那一拍 = 236ms longtask / 3 条（短会话 0ms），且随会话长度暴涨；
+       · CPU profile：「(program)」（样式计算/布局/绘制）1216ms、宿主自己的
+         「getAnimations({subtree:true})」 75ms、宿主 JS 个位数 ms、**插件 JS ≈ 8ms**
+         ⇒ 代价是「大 DOM 的布局/绘制」，不是插件逻辑。
+     这里让会话滚动区里的**消息块**自己跳过屏外内容的布局/绘制（窄选择器：只命中
+     滚动区的直接子块，本次实测 3 个；宿主的 scrollBody 自身用 :not 排除）：
+       · 运行时注入 A/B（同一会话，每臂 n=3）：点抽屉长任务 关 = 247/62/143ms
+         （复测 386/206）→ 开 = **57/61/70ms**（紧致一条 ~60ms 带）；
+       · 「contain-intrinsic-size: auto 320px」：auto 表示「渲染过就用记住的真实高度」，
+         只有从未渲染过的块才吃 320px 兜底 ⇒ 本次实测 scrollHeight 17699 前后不变、
+         置顶/置底位置正常，没有滚动跳变。 */
+  [data-mobile-nav="frame"] [class*="scrollBody"] [class*="_scroll"]:not([class*="scrollBody"]) > * {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
   }
   @media (prefers-reduced-motion: reduce) {
     [data-mobile-nav="frame"]:has([class*="panelRow"][aria-current="page"]) [class*="_centerCol"] > * > *,
+    [data-mobile-nav="panel-ghost"],
     [data-mobile-nav="frame"][data-mobile-panel-exit]:not(:has([class*="panelRow"][aria-current="page"])) [class*="_centerCol"] > * > * {
       animation: none !important;
     }
