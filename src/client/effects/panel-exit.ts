@@ -60,6 +60,23 @@ const PANEL_EXIT_ATTR = 'data-mobile-panel-exit'
 /** Safety net: clears the marker if the reveal animation never fires. */
 const PANEL_EXIT_FALLBACK_MS = 2000
 
+/** The frozen panel snapshot that slides back out (see `exit`). */
+const PANEL_GHOST_VALUE = 'panel-ghost'
+
+/**
+ * Ghost slide-out length. Must stay in sync with `dsh-web-mobile-panel-ghost-out`
+ * in layout.css.ts (same .28s as the drawer's transition); this constant only
+ * drives the "animation never fired" cleanup.
+ */
+const PANEL_GHOST_MS = 280
+
+/**
+ * The panel page React swaps into the main area — the very element the enter
+ * rule animates (`[class*="_centerCol"] > * > *`). Queried only while a panel
+ * row is active, so it can never pick up conversation content.
+ */
+const PANEL_ELEMENT_SELECTOR = '[data-mobile-nav="frame"] [class*="_centerCol"] > * > *'
+
 /**
  * `ctx.layout.selectPanel` exists on 0.1.6-alpha.2 but NOT on rc.6, whose
  * layout face carries only toggleSidebar/openDetails/closeDetails (the same
@@ -87,17 +104,24 @@ export interface PanelExit {
 }
 
 /**
- * Leave the panel: switch back to the conversation and let the incoming content
- * fade in.
+ * Leave the panel: freeze the panel into a plugin-owned snapshot that slides back
+ * out to the side, and let the conversation come back on the SAME tick
+ * (2026-10-07: 店主先报「退出像掉帧、直接回聊天界面」，再报「空档有点久了。」)
  *
- * ⚠ The switch is deliberately NOT delayed behind an outgoing animation.
- * `selectPanel(null)` makes React remount the whole conversation, and that
- * commit blocks the main thread long enough to matter (measured on a phone:
- * ~390 ms for a long session). Fading the panel out first would show a blank
- * screen for that entire window — the panel is already transparent but the
- * conversation has not mounted yet. Keeping the panel opaque until the very
- * commit means it disappears on the same frame the conversation appears, and
- * the only transition is the conversation's fade-in.
+ * Two earlier shapes and why they failed:
+ *  · marker-then-swap only: React unmounts the panel inside that same commit, so
+ *    the exit animation painted an empty 0×0 slot — measured frame by frame, the
+ *    panel element was already gone on the first frame after the tap;
+ *  · animate-the-real-panel-first: the departure became visible, but the
+ *    conversation's remount commit (~390ms on a long session) then started 220ms
+ *    later — the owner felt exactly that added blank window.
+ *
+ * Current shape: clone the panel into `[data-mobile-nav="panel-ghost"]` (fixed,
+ * pointer-events:none), swap RIGHT AWAY, then slide the clone out over
+ * `PANEL_GHOST_MS` (the drawer's .28s). The clone's transform/opacity run on the
+ * compositor, so the slide stays smooth while the main thread pays for the
+ * conversation remount — no added gap, and the direction matches the drawer the
+ * owner asked to copy.
  *
  * @param layout - `ctx.layout`; probed, never assumed.
  * @returns the exit action (idempotent while an exit is in flight, so a double
@@ -126,23 +150,67 @@ export function createPanelExit(layout: unknown): PanelExit {
       frame.removeEventListener('animationend', onAnimationEnd, true)
       frame.removeAttribute(PANEL_EXIT_ATTR)
     }
+    removeGhosts()
     panelLeaving = false
     leaving = false
+  }
+
+  /** The panel page element, or null when no panel owns the main area. */
+  function panelElement(): HTMLElement | null {
+    if (!panelOwnsMainArea()) return null
+    const el = document.querySelector(PANEL_ELEMENT_SELECTOR)
+    return el instanceof HTMLElement ? el : null
+  }
+
+  /** Drop any frozen snapshot (idempotent; also called from cleanup). */
+  function removeGhosts(): void {
+    document.querySelectorAll(`[data-mobile-nav="${PANEL_GHOST_VALUE}"]`).forEach((el) => el.remove())
+  }
+
+  /** Freeze the outgoing panel into an inert clone that can slide away. */
+  function freezePanel(panel: HTMLElement): HTMLElement {
+    removeGhosts()
+    const ghost = document.createElement('div')
+    ghost.dataset.mobileNav = PANEL_GHOST_VALUE
+    ghost.setAttribute('aria-hidden', 'true')
+    ghost.append(panel.cloneNode(true))
+    document.body.append(ghost)
+    return ghost
   }
 
   const exit = (): void => {
     if (!supported || leaving) return
     leaving = true
     panelLeaving = true
-    // The marker goes on BEFORE the swap so the incoming conversation carries
-    // the animation from its first style resolution — no full-opacity frame.
+    // The marker goes on BEFORE the swap: the incoming conversation must carry its
+    // reveal from its first style resolution (no full-opacity frame).
     const frame = getFrame()
     if (frame !== null) {
       frame.setAttribute(PANEL_EXIT_ATTR, '')
       frame.addEventListener('animationend', onAnimationEnd, true)
     }
+    const panel = panelElement()
+    const ghost = panel === null ? null : freezePanel(panel)
+    // Commit on this very tick — the whole point of the snapshot is that the
+    // remount no longer waits for any animation to finish.
     selectPanel()
     cleanupTimer = window.setTimeout(cleanup, PANEL_EXIT_FALLBACK_MS)
+    if (ghost !== null) {
+      let dropped = false
+      const drop = (): void => {
+        if (dropped) return
+        dropped = true
+        ghost.removeEventListener('animationend', onGhostEnd, true)
+        ghost.remove()
+      }
+      const onGhostEnd = (event: AnimationEvent): void => {
+        if (event.animationName === 'dsh-web-mobile-panel-ghost-out') drop()
+      }
+      ghost.addEventListener('animationend', onGhostEnd, true)
+      // Fallback: reduced-motion kills the animation, and a layer left behind
+      // would cover the whole screen — never rely on animationend alone.
+      window.setTimeout(drop, PANEL_GHOST_MS + 120)
+    }
   }
 
   return { exit, supported, panelOpen: panelOwnsMainArea, task: createPanelBackExitTask(exit, supported) }

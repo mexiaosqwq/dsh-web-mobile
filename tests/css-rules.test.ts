@@ -32,3 +32,15 @@ test('the message text family carries no hardcoded px font-size', () => {
   assert.doesNotMatch(hit.value, /^\s*[\d.]+px/, `hardcoded size in: ${hit.selector}`)
   assert.match(hit.value, /var\(/)
 })
+
+test('long-conversation message blocks skip off-screen layout (2026-10-07 实测)', () => {
+  // 真宿主取证：点抽屉在长会话上 236ms longtask、短会话 0ms；profile 显示代价在宿主渲染
+  // （(program) 1216ms + 宿主 getAnimations 75ms），插件 JS 仅 ~8ms。
+  // 靠给会话滚动区里的直接子块 content-visibility:auto 削掉（A/B：247/62/143ms → 57/61/70ms）。
+  const selector = '[data-mobile-nav="frame"] [class*="scrollBody"] [class*="_scroll"]:not([class*="scrollBody"]) > *'
+  assert.ok(LAYOUT_CSS.includes(selector), '窄选择器（只打滚动区的直接子块）在位')
+  assert.ok(LAYOUT_CSS.includes('content-visibility: auto'), 'content-visibility 在位')
+  assert.ok(LAYOUT_CSS.includes('contain-intrinsic-size: auto 320px'), '记住真实高度、只给未渲染块兜底')
+  // 滚动容器自身绝不能被设成 content-visibility（那会把整段会话藏掉）。
+  assert.ok(!LAYOUT_CSS.includes('[class*="scrollBody"] {'), '没有把 scrollBody 自身当选择器')
+})

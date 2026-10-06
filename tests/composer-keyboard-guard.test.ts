@@ -52,6 +52,25 @@ test('guard scopes the shadow to composer-card taps outside the editor surface',
   assert.match(SOURCE, /\{\s*\n\s*restore\(\)\s*\n\s*return\s*\n\s*\}/)
 })
 
+test('only presses on a control inside the card arm the blur window (B2 long-press paste)', () => {
+  // Regression pin (2026-10-04): any non-editor press inside the card used to
+  // open the 700ms window. A long-press on blank card padding/gap lands its
+  // pointerdown on the card while the engine's long-press focuses the editor
+  // (~500ms, touch-adjusted) — inside the window — so onFocusIn blurred it and
+  // the system menu's Paste went nowhere (headless probe: afterPaste stayed
+  // "draft"). Blank presses now take the editor-press path.
+  assert.match(SOURCE, /COMPOSER_CONTROL_SELECTOR =\s*\n\s*'button, /)
+  assert.match(
+    SOURCE,
+    /const control = target\.closest\(COMPOSER_CONTROL_SELECTOR\)\s*\n\s*if \(control === null \|\| !card\.contains\(control\)\) \{\s*\n\s*restore\(\)\s*\n\s*return\s*\n\s*\}/,
+  )
+  // The control gate runs after the editor early-return and before the shadow install.
+  const editorGate = SOURCE.indexOf('target.closest(COMPOSER_INPUT_SELECTOR) !== null')
+  const controlGate = SOURCE.indexOf('target.closest(COMPOSER_CONTROL_SELECTOR)')
+  const install = SOURCE.indexOf("editor.setAttribute(SHADOW_MARKER, '')")
+  assert.ok(editorGate > 0 && editorGate < controlGate && controlGate < install)
+})
+
 test('shadow restores deterministically and never outlives the tap', () => {
   assert.match(SOURCE, /setTimeout\(restore, 700\)/)
   assert.match(SOURCE, /SHADOW_MARKER = 'data-mobile-nav-focus-shadow'/)

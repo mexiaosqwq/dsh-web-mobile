@@ -148,9 +148,79 @@ export const BASE_CSS = `
 }
 @media (prefers-reduced-motion: reduce) {
   [data-mobile-nav="delete-dialog-backdrop"],
-  [data-mobile-nav="delete-dialog"] {
+  [data-mobile-nav="delete-dialog"],
+  [data-mobile-nav="file-picker-backdrop"],
+  [data-mobile-nav="file-picker"] {
     animation: none !important;
   }
+}
+
+/* ---------- composer file picker (effects/composer-file-picker.ts) ----------
+   手机档回形针入口的两选项浮层（上传图片 / 上传附件）。宿主在 0.1.6 删掉了自带的
+   附件按钮，只剩 composer 里一个隐藏 input，直接点它只会弹系统文件选择器 ——
+   形态不可控、也没有「只挑图片」这条路（2026-10-06 报障）。
+   形态（同日店主反馈「这个 UI 太丑了，缩小点，不要从底部弹出」）：**贴锚点的小浮层**，
+   不是整宽底部弹层 —— 宽度贴着内容（「width: max-content」，上限 min(78vw, 240px)），行高 34px、
+   行间距 0（2026-10-07 店主：「之间的距离更紧致一点」+「右边的留白有点多了，往左边缩点」），字号 14px。
+   定位用「position: fixed」，top/left 由 JS 按回形针 rect 算（上方优先，夹进视口 8px
+   内边距，且**视口一变就重算** —— 键盘收起把整体下移一个键盘高时浮层必须跟着锚点走，
+   否则会停在会话中部，2026-10-07 真机报障），所以这里只写盒子、不写定位与整宽。
+   没有「取消」行：点浮层外或按返回键关闭（外层透明遮罩只负责收点击）。
+   挂 document.body（与上面的 delete-dialog 同一取舍：挂在 frame 里会被第三方
+   dismiss shim 的捕获链吞点击），z 在移动档块里抬到 1400。 */
+[data-mobile-nav="file-picker-backdrop"] {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: transparent;
+}
+[data-mobile-nav="file-picker"] {
+  position: fixed;
+  box-sizing: border-box;
+  /* 宽度贴着内容（2026-10-07 店主：「右边的留白有点多了，往左边缩点」）：
+     两行都是「图标 + 两字标签」，固定 168px 起步会在右侧留一大块空白。 */
+  width: max-content;
+  min-width: 0;
+  max-width: min(78vw, 240px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2, #fff);
+  box-shadow: rgba(0, 0, 0, .16) 0 8px 28px, rgba(0, 0, 0, .06) 0 0 0 .5px;
+  animation: dsh-web-mobile-fade .12s var(--ds-ease-in-out, ease-in-out);
+}
+[data-mobile-nav="file-picker-option"] {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, currentColor);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.3;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-mobile-nav="file-picker-icon"] {
+  flex: none;
+  display: inline-flex;
+  color: var(--dsw-alias-label-secondary, currentColor);
+}
+[data-mobile-nav="file-picker-icon"] svg {
+  width: 18px;
+  height: 18px;
+}
+[data-mobile-nav="file-picker-option"]:active {
+  background: var(--dsw-alias-interactive-bg-active, rgba(127, 127, 127, .12));
 }
 
 /* ---------- popover band above the open drawer (mobile only) ----------
@@ -213,6 +283,10 @@ export const BASE_CSS = `
   [data-mobile-nav="delete-dialog-backdrop"] {
     z-index: 1400 !important;
   }
+  /* 同一个带里：回形针弹层也要压过抽屉（z 1300）与抽屉遮罩（1250）。 */
+  [data-mobile-nav="file-picker-backdrop"] {
+    z-index: 1400 !important;
+  }
   [data-mobile-nav="delete-dialog"] {
     z-index: 1401 !important;
   }
@@ -269,6 +343,88 @@ export const BASE_CSS = `
     [class*="_overlayLayer"] {
     z-index: 1400 !important;
   }
+}
+
+/* ---------- touch press feedback (mobile + hover: none only) ----------
+   Android WebView paints its own translucent blue tap highlight
+   (-webkit-tap-highlight-color default) over every tapped control. The
+   property is inherited and no host package sets it on descendants (grep of
+   dsh-client-ui-* bundles, 2026-10), so transparent on html/body clears it
+   page-wide; the explicit transparent values on our own controls above stay
+   as the desktop-width fallback. In its place the UI gives its own pressed
+   state: an inset box-shadow tint (paint-only, no layout, does not fight a
+   host background) in the host's interactive-bg-active colour, which the
+   theme defines for both light and dark. Every selector sits in :where(), so
+   (0,0,0) loses to any host or plugin rule that styles the element itself —
+   aria-selected / aria-pressed / own :active states keep their look — and
+   :focus-visible outlines are untouched. Desktop and narrow mouse windows
+   never enter this block (MOBILE_QUERY + hover: none). */
+@media (max-width: 1023px) and (pointer: coarse) {
+  @media (hover: none) {
+    html,
+    body {
+      -webkit-tap-highlight-color: transparent;
+    }
+    :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]) {
+      transition: box-shadow .12s var(--ds-ease-in-out, ease-in-out), transform .12s var(--ds-ease-in-out, ease-in-out);
+    }
+    :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]):where(:active):where(:not(:disabled, [aria-disabled="true"], [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])) {
+      box-shadow: inset 0 0 0 100vmax var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 8%, transparent));
+    }
+    /* Icon-only buttons (a lone svg child, or a button that carries only an
+       aria-label) also shrink a touch. */
+    :where(button:has(> svg:only-child), button[aria-label]:not(:has(> span, > div))):where(:active):where(:not(:disabled, [aria-disabled="true"])) {
+      transform: scale(.96);
+    }
+    /* ---------- session-row long-press progress (phone-chrome.ts) ----------
+       data-mobile-nav-press is written by the long-press timer on the drawer
+       session row: "armed" from pointerdown (no callout, no text selection
+       during the 2s hold — the system would otherwise claim the stroke),
+       "fill" from LONG_PRESS_FILL_DELAY_MS on, when a left-to-right fill runs
+       for --mobile-nav-press-ms (the hold remaining) and completes as the
+       rename fires. transform-only animation on our own ::after; the host's
+       ::before/::after are its drag-reorder indicators (dropBefore /
+       dropAfter), so the fill stands down while dropAfter is on. clearPress
+       removes the attribute and the inline variable on lift, move, cancel
+       and fire. */
+    [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press] {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press="fill"] {
+      position: relative;
+    }
+    [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press="fill"]:not([class*="_dropAfter"])::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 10%, transparent));
+      pointer-events: none;
+      transform-origin: left center;
+      transform: scaleX(0);
+      animation: dsh-web-mobile-press-fill var(--mobile-nav-press-ms, 1700ms) linear forwards;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]) {
+        transition: none;
+      }
+      :where(button:has(> svg:only-child), button[aria-label]:not(:has(> span, > div))):where(:active) {
+        transform: none;
+      }
+      /* Static light hint instead of the moving fill. */
+      [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press="fill"]:not([class*="_dropAfter"])::after {
+        animation: none;
+        transform: none;
+        opacity: .6;
+      }
+    }
+  }
+}
+@keyframes dsh-web-mobile-press-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 
 /* Floating fallback button (hero / blank phases without a session header).

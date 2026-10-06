@@ -21,6 +21,25 @@ export declare const DESKTOP_QUERY = "(min-width: 1024px)";
  *  layout but still gets the 「删除会话」 item. Mouse-driven or pointer-less
  *  windows never arm it, at any width. */
 export declare const TOUCH_QUERY = "(pointer: coarse)";
+/** Long press on a session row renames it (2026-09-22 contract; the ⋯ menu is
+ *  only the fallback when the title cannot be found). 2000ms since 2026-10:
+ *  500ms read as a context menu and fired on ordinary slow taps and on
+ *  touch-and-think pauses — rename must be deliberate. The progress fill
+ *  (`data-mobile-nav-press="fill"`, base.css.ts) shows the hold is counting. */
+export declare const LONG_PRESS_MS = 2000;
+/** Pointer travel that cancels a long press. 14px: a 2s hold drifts more than
+ *  a 0.5s one did. Still above the swipe layer's 8px LOCK_PX, so a horizontal
+ *  stroke is cancelled through `isStrokeLocked()` (the lock lands on the 8px
+ *  move — our pointermove runs first in capture order, so it sees the flag on
+ *  the NEXT move, still well before 14px) and a vertical stroke through the
+ *  browser's pan-y `pointercancel` (see onDrawerPointerCancel). */
+export declare const LONG_PRESS_MOVE_PX = 14;
+/** Hold time before the progress fill appears: a normal tap (≈100-250ms)
+ *  must not flash it. */
+export declare const LONG_PRESS_FILL_DELAY_MS = 300;
+/** Duration the fill animation should take so it completes exactly when the
+ *  long press fires: the hold remaining after the fill delay (never negative). */
+export declare function longPressFillMs(holdMs: number, delayMs: number): number;
 /**
  * Re-arm a mobile-only DOM effect on every query change. Replaces the
  * repeated matchMedia + change-listener scaffold so all breakpoint strings
@@ -34,6 +53,8 @@ export declare function findFrame(): HTMLElement | null;
 /** Resolve the plugin-owned frame marker, falling back to the raw shell frame. */
 export declare function getFrame(): HTMLElement | null;
 export declare function ensureDismissShadow(): void;
+/** Toggle the selection marker for the duration of a conversation selection. */
+export declare function installSelectionChromeYield(ctx: ClientContext): void;
 /**
  * Frame marker controller: owns `data-mobile-nav="frame"` and every plugin
  * marker that can survive on the shell-owned frame. Installed once at apply

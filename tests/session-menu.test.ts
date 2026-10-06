@@ -79,3 +79,29 @@ test('blank (new-session) rows never get the injected delete item', () => {
   // is annotated in the source so it is not re-litigated as a bug.
   assert.match(SOURCE, /Known ceiling/)
 })
+
+test('the row id comes from the host\'s stable anchors, never from title guessing (2026-10-07)', () => {
+  // 宿主 0.2.0-rc.2 把会话行包进 HoverCard 的 <span>，于是 `:scope > _sessionRow` 取不到行
+  // → rowIndex=-1 → 重名标题被静默算成"第一个同名会话"（**会删错会话**）。整套按标题猜 id
+  // 的做法已删除，改成读宿主自己的稳定锚。
+  assert.doesNotMatch(SOURCE, /resolveSessionId/, '按标题/组内位置猜 id 的路径必须不存在')
+  // 只查代码形态（注释里保留历史说明是刻意的）。
+  assert.doesNotMatch(SOURCE, /querySelectorAll<HTMLElement>\(':scope > \[class\*="_sessionRow"\]'\)/, '不再用 :scope > 取行（HoverCard 已包一层）')
+  assert.doesNotMatch(SOURCE, /querySelector<HTMLElement>\(':scope > \[class\*="_projectRow"\]/, '组头锚同样已失效，不许再用')
+  // 1) data-row-key="session:<id>"（宿主 AnimatedRows 同源依赖的稳定属性）
+  assert.match(SOURCE, /row\.getAttribute\('data-row-key'\)/)
+  assert.match(SOURCE, /rowKey\.startsWith\('session:'\)/)
+  assert.match(SOURCE, /rowKey\.slice\('session:'\.length\)/)
+  // 2) DSHA 构建直接戳了 id
+  assert.match(SOURCE, /row\.getAttribute\('data-dsha-session-select'\)/)
+  // 3) 最后才回落到 fiber
+  assert.match(SOURCE, /return findSessionIdInFiber\(reactFiberOf\(row\), isKnownSessionId\)/)
+  // 删除时只用录制到的 id；读不到就报错（不许猜）
+  assert.match(SOURCE, /const sessionId = captured\.sessionId/)
+  assert.match(SOURCE, /if \(sessionId === null\) \{[\s\S]{0,120}?deleteErrorResolve/)
+  // ⋯ 按钮按 aria-label 识别，显式排除同行的归档/置顶按钮（每行三个按钮）
+  assert.match(SOURCE, /\/session actions\/i\.test\(label\)/)
+  assert.match(SOURCE, /!\/archive session\|pin session\/i\.test\(label\)/)
+  assert.doesNotMatch(SOURCE, /row\.querySelector<HTMLButtonElement>\('button'\)/, '不再赌行里只有一个按钮')
+  assert.match(SOURCE, /const sessionId = rowSessionId\(row\)/)
+})

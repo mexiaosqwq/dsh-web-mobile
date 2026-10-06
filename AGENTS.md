@@ -21,11 +21,13 @@
   │  └─ client/
   │     ├─ index.tsx         ← 浏览器半区入口（3 slots）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
-  │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts
-  │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）
-  │     ├─ effects/          ← 20 个效果模块：phone-chrome · sidebar-swipe ·
+  │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
+  │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts
+  │     ├─ effects/          ← 24 个效果模块：phone-chrome · sidebar-swipe ·
   │     │                       gesture-guard · subagent-chip-touch · composer-keyboard-guard ·
-  │     │                       composer-keyboard-lift ·
+  │     │                       composer-keyboard-lift · composer-paste-guard ·
+  │     │                       composer-file-picker ·
+  │     │                       attachment-mention · file-share ·
   │     │                       shortcut-modal-keyboard-guard · session-focus-guard ·
   │     │                       composer-plus-toggle · workspace-chip-toggle · team-chip-toggle ·
   │     │                       model-menu-anchor ·
@@ -42,7 +44,7 @@
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  ├─ css-structure-check.mjs ← CSS 结构检测器（已接入 test:core）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 36 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 43 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
   │  ├─ audits/ · maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json + host-jank-feedback.md）· fork-wzxmt-zhc/
@@ -58,7 +60,7 @@
 
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP；§8=0.1.7-rc.1 复测、§9=rc.2 portal 换锚对照）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
-- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（60 坑原文，名字=锚点，索引在下方 Pitfalls 节）
+- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（63 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 改手势/面板退出等行为契约 → `docs/specs/`（8 篇权威 spec；手势参数与状态机在 2026-08-27-sidebar-swipe-gestures.md，不可破）
 - 宿主升级前 → `docs/upstream/upgrade-runbook.md`（对账清单与验收电池）+ `node scripts/cdp-compat-contracts.mjs`（机读契约自动对账，无需 SESSION_ID）
 - 评估宿主代际兼容面 → `docs/upstream/2026-09-23-dsh-0.1.7-alpha.2-compat-audit.md`（28 条对账 0 改的先例与方法）；升 0.1.6-alpha.2 系前必读 `docs/upstream/2026-09-19-dsh-0.1.6-alpha.2-compat-audit.md` §10（升级前必修 3 项 + 电池 15 项）
@@ -92,6 +94,7 @@ DSH_PROBE_SESSION_ID=<id> pnpm smoke:cdp
 
   Requires a local DSH Web profile already running at `127.0.0.1:3080`.
 
+- Bundle load smoke（不接真机也能跑，热装载前的必过关）: `node scripts/client-bundle-smoke.mjs [lib/client.js]` —— 用桩 `window.__ModuleLoader__` 在 Node 里加载产物并执行 entry factory；语法错/缺模块键/顶层抛错都会在这里红（2026-10-06 白屏事故后补）。
 - Focused unit test: `node --test tests/sidebar-swipe.test.ts` (any single file in `tests/`).
 - Direct swipe regression probes (not the general `smoke:cdp`): `node scripts/cdp-swipe-probe.mjs` and `node scripts/cdp-swipe-failures.mjs`; same `DSH_PROBE_URL`/`DSH_PROBE_CHROME` env vars, and on Termux add writable `TMPDIR`/`XDG_RUNTIME_DIR`.
 - iOS 聚焦放大守卫探针（#45 / #46，23 断言）：`node scripts/cdp-zoom-probe.mjs`（同组 env）。三场景：手机+Chromium UA（无 iOS 标记、第三方 13px 输入框不变、注入的 14px 可编辑域不被抬高）、手机+iPhone UA（标记就位、所有可见文本输入域 >=16px、composer 三件套同尺寸、控件类 input/select 未被改、注入的 14px contenteditable 抬到 16px 而其 `contenteditable="false"` 装饰节点保持 12px）、桌面（标记缺席、字号零影响）；兼验根/抽屉 `touch-action` 含 `pinch-zoom` 且不含 `pan-x`、`gesturestart` 不再被 preventDefault。A7/B6 注入的形状就是 dsh 0.1.2-rc.1 的 Lexical composer，用来在旧宿主上前瞻验证下一版。A11/B7 守 D-1 决策：`_customInput`/`_customTextarea`/`dsfv-*-input` 只在 iOS 抬到 16px（读计算值；旧 bundle 上 A11 实测红 ⇒ 非空转）。A8-A10 守 viewport meta 的所有权（#46 合并部分）：武装期内容必须恰好 `width=device-width, initial-scale=1, viewport-fit=cover`（**出现 maximum-scale/user-scalable 即回归**），宿主改写与整节点替换都要被重申回来。
@@ -109,7 +112,7 @@ dsh web
 - Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus the session-delete endpoint (deletion work in the DI pure core `src/delete-session.ts`, generation-adapted per host).
 - `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers three slots:
   - `conversation.session.header.actions` → `MobileNavToggle` (`order: 10`): drawer toggle + Files button.
-  - `conversation.input.left` → `ComposerFileButton` (`id: mobile-nav-file-upload`, `order: 10`): the permanent composer file entry. Host 0.1.6 deleted the paperclip attach button, leaving the 「文件」row inside the "+" listbox as the only entry; this control sits in the tools lane beside the plus button and triggers the host's own hidden `input[type=file]`, so intake validation, upload and availability stay host-owned. Session-scoped — the hero/blank phase keeps the "+" menu as its only file entry.
+  - `conversation.input.left` → `ComposerFileButton` (`id: mobile-nav-file-upload`, `order: 10`): the permanent composer file entry. Host 0.1.6 deleted the paperclip attach button, leaving the 「文件」row inside the "+" listbox as the only entry; this control sits in the tools lane beside the plus button. Since 2026-10-06 its tap opens the plugin's two-option sheet (`effects/composer-file-picker.ts`: 上传图片 / 上传附件) which hands the choice back to the host's own hidden `input[type=file]`, so intake validation, upload and availability stay host-owned. Session-scoped — the hero/blank phase keeps the "+" menu as its only file entry.
   - `sidebar.footer.action` → `MobileDrawerFooter` (`id: mobile-nav-session-log`, `order: 5`): the session-log export pill only — the Files entry that used to sit beside it was removed on 2026-09-17 (with the drawer open neither the host nor the third-party dismiss shim lets a click reach the right-sidebar opener; contract in `docs/specs/2026-09-17-sidebar-files-coexistence-design.md`). Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
   - There is **no settings slot** anymore; the haptic feedback feature was removed.
 - Shared full-tree reconciler:
@@ -126,6 +129,7 @@ dsh web
   - `subagent-chip-touch.ts` — touch compatibility for the subagent count chip and touch nav-arm close (see Pitfalls).
   - `composer-keyboard-guard.ts` — iOS-only: tapping the composer's send/stop/+ buttons must not re-raise a dismissed keyboard (upstream `keepFocus` focuses the editor on `mousedown`, PR #48; DOM-contract notes in the file header).
   - `composer-keyboard-lift.ts` — iOS-only（#149）：宿主 Lexical 选区滚动助手把布局坐标可视带和视口坐标 caret rect 比对，iOS 键盘的非零窗口滚动让它每次击键误发 `window.scrollBy`，composer 整块沉进系统辅助条。本效果在编辑器持焦期间用 screen-space-only 的 `translateY(−overlap)`（seat rect.bottom vs `vv.height`）把 seat 钉回键盘顶；pinch 或双通道分歧时 fail-open；纯核 `computeComposerLift` 由测试钉死。
+  - `composer-file-picker.ts` — 手机档回形针入口（2026-10-06 报障）：宿主自带的两选项入口 0.1.6 起已删除，直点隐藏 input 只弹系统选择器（形态不可控、也无法「只挑图片」）。本效果吞掉入口的 click，弹插件自绘的两选项**贴锚点小浮层**（上传图片 / 上传附件；同日店主否掉了整宽底部弹层形态，改为按回形针 rect 定位、上方优先、夹进视口，行高 34px / 行间距 0，无「取消」行，点浮层外或返回键关闭），选完仍点宿主那个 hidden input —— 按选项**临时**写 accept（图片 `image/*`、附件显式 `*/*`，`click()` 返回后立刻还原；附件那路 2026-10-07 从「不改属性」改成显式 `*/*` 是**待真机确认的实验**：空 acceptTypes 在 DSHA 上起的是文档选择器而不是「打开方式」应用列表）；浮层挂 `document.body`（同 delete-dialog 的取舍），CSS 在 base.css.ts。**定位必须重锚定**（2026-10-07 真机报障：点回形针会让软键盘收起、布局整体下移一个键盘高，只在打开时算一次坐标的 `position:fixed` 浮层就停在会话中部）：视口一变（`resize` / `orientationchange` / `visualViewport` 的 `resize`+`scroll`）重算 top/left，开完再跟 12 帧 rAF 追键盘动画，锚点脱离文档时收起。
   - `workspace-chip-toggle.ts` — hero 工作区 chip 的「再点关闭」：宿主把选择器菜单开成
     `<Menu anchor={null} portal>`，触发器在 Menu 子树外，于是它的「外部 pointerdown 关闭」
     把 chip 自己的第二击也吃掉；本效果只吞那一击 click，让宿主的关闭成为唯一结果
@@ -135,7 +139,7 @@ dsh web
     outside pointerdown / Escape。本效果开态时先替用户向 `document.body` 派发一次合成
     pointerdown（走宿主自己的 dismiss），再吞掉那颗 click（顺序不可换）。见 Pitfalls「header 拥挤」。
   - `session-menu.ts` — touch-gated injection of a 「删除会话」 item into the workspace session-row ⋯ menu (clone-and-inject from the fork wzxmt-zhc v2.7.0): guard = TOUCH_QUERY (`(pointer: coarse)` at EVERY width — large tablets in landscape included, v2.4.1) + row/menu/label selectors present; inert on hosts whose drawer renders the rail variant (rc.2), activates on hosts rendering session rows in the drawer (0.1.3) or on the ≥1024px desktop panel; after deleting the current session `toggleDrawer(ctx)` only runs on the mobile query (desktop panels must not collapse); confirmation dialog markup/styles live in base.css.ts (wide-touch card capped 420px centered) with corrected animation names.
-  - `panel-exit.ts` — 侧边栏面板的退出：系统返回键/手势（popstate 记账）、再点已选中的面板行、以及面板视图下左上角按钮的语义切换；三条路共用一个 `exit`。`core/layout-compat.ts` 探测 `ctx.layout.selectPanel` 是否存在于本代宿主（rc.6 没有），缺失则整条特性惰性化。
+  - `panel-exit.ts` — 侧边栏面板的退出：系统返回键/手势（popstate 记账）、再点已选中的面板行、以及面板视图下左上角按钮的语义切换；三条路共用一个 `exit`。`core/layout-compat.ts` 探测 `ctx.layout.selectPanel` 是否存在于本代宿主（rc.6 没有），缺失则整条特性惰性化。**退场是「先动画后提交」**（2026-10-07 店主报障「退出像掉帧、直接回聊天界面」）：给面板元素挂 `data-mobile-panel-leaving` → CSS `dsh-web-mobile-panel-out`（220ms，合成器跑）→ `animationend` 之后才 `selectPanel()`。旧顺序（先标记后提交）下宿主在同一次 commit 就卸载面板，退场动画落在 0×0 空槽上（逐帧实测：点返回第一帧面板元素已消失）；兜底计时 `PANEL_OUT_MS + 80` 防 reduced-motion 或宿主提前换元素把用户困在面板里。
   - `shortcut-modal-keyboard-guard.ts` — 手机档：快捷键弹层（宿主 `dsh-client-ui-shortcuts` 的
     `data-shortcut-modal="shortcuts"`）打开时会把焦点抢到搜索框，手机随即弹软键盘 —— 用户是来编辑
     快捷键的，键盘却盖掉半屏，而且弹层按 `100dvh` 定高、键盘一压就整体缩一截（实测 844→520 时
@@ -175,6 +179,8 @@ dsh web
 - **团队岗位分离 SOP（用户要求，2026-09-19）**：多代理协作按三岗走——**实施岗**唯一写代码（接规格令→落码→自检→报告，不跑浏览器）；**验收岗（QA）**唯一接收 bug 与执行测试（browser-review 技能清单 + 探针电池 + 标准报告，不写代码）；**lead** 分诊/拍板/三门+build/对用户。每件 bug 固定回路：报告→定位令→落码→门验→QA 标准报告→PASS 收口 / FAIL 回炉（修复轮 ≤3 记台账）→用户验收。端侧资源纪律：headless chromium 先批后跑、单实例、合并多场景采集、跑完即杀（2026-09-19 OOM 实锤）。
 - **lead 终审铁律（2026-09-19 深查事故后补）**：合并/提交前 lead 全量亲验，禁止只看报告数字：①diff 的**删除行必读**（grep 过滤 `+` 行会漏掉 context 里被删的承载代码，实测造出过伪证）；②QA/子代理的**证据文件必亲读**（报告可能漏报自身缺陷，实测探针结尾崩溃未披露）；③「零残留/exit 0」类自证声明要有脚本外旁证；④报告与证据文件不一致处必须声明（报告纪律）。
 - **成员完工落盘交接文档（用户要求，2026-09-24）**：每个成员（scout/worker/checker）完成任务后，除聊天回执外必须把完整结果写成 Markdown 落盘 `docs/handover/`（本地不入库，见 .gitignore）：`YYYY-MM-DD-<令号或主题>-<岗位>.md`，内容 = Status + 与规格/现象对照 + 证据（文件:行号）+ 变更/取证清单 + 残留风险。lead 终审与后续成员接力以该文档为准，聊天消息只作通知，不以「简单谈话」作交接载体。
+- **改动必须落在源码层，不打补丁（用户要求，2026-10-06）**：一切修复/功能都改 `src/`（配套 `tests/`），再由 `pnpm build` 生成 `lib/`；**禁止**手改 `lib/`、禁止运行时补丁/热补丁、禁止在源码里留 `TEMP`/`TODO-DIAG` 之类的一次性 hack（诊断代码必须还原后才允许构建）。真机诊断优先走既有通道（`?mobile-nav-debug=1` + beacon），**不得**为了取证把插件改成「强制开诊断面板/强制上报」的变体版本——2026-10-06 实测后果：诊断变体 + 连续多次 touch 触发重载，把店主正在用的页面刷坏，只能重启 App（内置目录同时被写回工厂版，热装载全丢）。
+- **热装载前必须过三道自检（2026-10-06 白屏 + 2026-10-07 未定义名事故后补）**：①`--noEmitOnError false` 的构建**必须**再确认 `src/client` 内 `error TS1xxx`（语法类）= 0 —— 事故真因就是 CSS 注释里写了**未转义的反引号**（这些 `.css.ts` 是模板字符串，注释里一律用「」引号，既有代码 0 处反引号），TS 只在有语法错的情况下照样写出了产物；②`node scripts/client-bundle-smoke.mjs` 在 Node 里用桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory，拦住「语法/顶层运行期错误导致整页白屏」；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0** —— 2026-10-07 实测：一个漏掉的 `import`（`hasWebShare`）让产物里出现裸标识符，TS1xxx 门、smoke、286 条单测**全部拦不住**，只有运行时渲染到那个按钮才炸 ReferenceError。**连续重载也要克制**：每次 hot-load 都会让页面重载一次，不要在用户正在使用或 App 处于后台时连续触发。
 
 ## Conventions
 
@@ -195,7 +201,7 @@ dsh web
 
 ## Pitfalls
 
-- **60 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md` 末尾「2026-09-18 迁入原文」节，锚点 `### <名字>`，顺序与下面一一对应。**动手改某块代码前，先按名字读对应条目**——里面是踩过的坑、最硬铁律、实测数据、探针断言与被否决方案；不看就改等于重踩。
+- **63 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md` 末尾「2026-09-18 迁入原文」节，锚点 `### <名字>`，顺序与下面一一对应。**动手改某块代码前，先按名字读对应条目**——里面是踩过的坑、最硬铁律、实测数据、探针断言与被否决方案；不看就改等于重踩。
 - 本文件只放名字，正文一律进 `docs/`（见 Maintenance「体积门槛」）：新增坑位 = 名字加进下面清单 + 原文写进该档并补 `### 同名` 锚点。
 
 - `手势层`
@@ -258,10 +264,13 @@ dsh web
 - `弹层闪`
 - `ContextMeter 挪位`
 - `peer 范围与宿主门禁口径`
+- `沙箱 DSH_HOME`
+- `探针收尾`
+- `build 顺序`
 
 ## Testing & QA
 
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（36 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
+- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（43 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
 - There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the lib freshness gate `git diff --exit-code lib`.
 - After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
   - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.

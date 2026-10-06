@@ -55,6 +55,12 @@ const COMPOSER_CARD_SELECTOR = '[data-composer-card]'
 /** The Lexical editing surface (the only element allowed to raise the keyboard). */
 const COMPOSER_INPUT_SELECTOR = '[data-composer-input]'
 
+/** Interactive controls inside the card — the only presses whose handlers
+ *  (keepFocus on send/stop/+, the + onClick's focusDraftEditor) refocus the
+ *  editor programmatically. Blank card padding/gaps are not controls. */
+const COMPOSER_CONTROL_SELECTOR =
+  'button, [role="button"], [role="option"], [role="menuitem"], [role="combobox"], [aria-haspopup], select, a[href], label, input'
+
 /** Re-arm marker kept on the editor element while its focus is shadowed.
  *  Exported: session-focus-guard.ts shares the same shadow slot (one marker,
  *  one own-property recipe) so both guards stay interoperable. */
@@ -114,6 +120,19 @@ export function installComposerKeyboardGuard(ctx: ClientContext): void {
       // 店主自己点编辑面：这是"我要打字"的正路，立刻解除守卫窗口，
       // 绝不让兜底 blur 打到这一下（窗口内点输入框也必须能弹键盘）。
       if (target.closest(COMPOSER_INPUT_SELECTOR) !== null) {
+        restore()
+        return
+      }
+      // 2026-10-04（B2「长按粘贴被吞」）：只有按在**控件**上才开窗口。卡片里的
+      // 空白（输入区滚动层的留白、输入区与按钮行之间 12px 的 gap 等）不是 keepFocus
+      // 的来源，却曾经同样开出 700ms 的 blur 窗口：长按落在这些空白上时 pointerdown
+      // 命中空白容器，而引擎的长按手势经触点校正（touch adjustment）把光标放进编辑面
+      // 并聚焦它——约 500ms，正在窗口内——onFocusIn 当场 blur，系统菜单的「粘贴」
+      // 随后派发到 body，内容不进草稿（headless 探针：修前长按 gap 处 paste 目标 BODY、
+      // 草稿不变；修后 paste 进编辑面）。空白处按下按"要打字"处理，与按在编辑面上
+      // 同路；控件判定限定在卡片内，卡片外的祖先不算。
+      const control = target.closest(COMPOSER_CONTROL_SELECTOR)
+      if (control === null || !card.contains(control)) {
         restore()
         return
       }
