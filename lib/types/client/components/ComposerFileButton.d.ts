@@ -30,5 +30,5 @@ export interface ComposerFileButtonProps extends PropsRuntime<'conversation.inpu
  * session seat also disables the control. Hidden entirely on wide screens
  * (CSS media query, and the shared desktop hide block in misc.css.ts).
  */
-export declare function ComposerFileButton({ useInput, useSession, t }: ComposerFileButtonProps): JSX.Element;
+export declare function ComposerFileButton({ useInput, useSession, t }: ComposerFileButtonProps): import("react").JSX.Element;
 //# sourceMappingURL=ComposerFileButton.d.ts.map

@@ -18,5 +18,5 @@ export interface MobileDrawerFooterProps extends PropsRuntime<'sidebar.footer.ac
  * the right-sidebar opener, so the entry could only ever close the drawer.
  * Contract: docs/specs/2026-09-17-sidebar-files-coexistence-design.md
  */
-export declare function MobileDrawerFooter({ useSessions, downloadSessionLog, t }: MobileDrawerFooterProps): JSX.Element;
+export declare function MobileDrawerFooter({ useSessions, downloadSessionLog, t }: MobileDrawerFooterProps): import("react").JSX.Element;
 //# sourceMappingURL=MobileDrawerFooter.d.ts.map

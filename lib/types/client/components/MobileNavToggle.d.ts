@@ -15,5 +15,5 @@ export interface MobileNavToggleProps extends PropsRuntime<'conversation.session
  *   phases is the right-edge leftward swipe (sidebar-swipe.ts).
  * Hidden entirely on wide screens (CSS media query).
  */
-export declare function MobileNavToggle({ toggleSidebar, t }: MobileNavToggleProps): JSX.Element;
+export declare function MobileNavToggle({ toggleSidebar, t }: MobileNavToggleProps): import("react").JSX.Element;
 //# sourceMappingURL=MobileNavToggle.d.ts.map
