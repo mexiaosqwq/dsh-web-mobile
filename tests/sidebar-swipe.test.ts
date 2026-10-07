@@ -27,12 +27,9 @@ import {
 const BASE: SwipeThresholds = {
   openDistanceRatio: 0.16,
   closeDistanceRatio: 0.13,
-  velocityWindowMs: 60,
   openVelocity: 0.45,
   closeVelocity: 0.45,
   lockPx: 8,
-  cooldownMs: 350,
-  startZonePx: 176, // startZonePxFor(390) — 45% of the probe viewport
 }
 
 function classify(

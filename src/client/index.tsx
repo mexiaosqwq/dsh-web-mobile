@@ -38,8 +38,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-/** Required services (cordis fiber inject — the loader passes all module exports as an object plugin). */
-export const inject = ['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']
+/**
+ * Required services (cordis fiber inject — the loader passes all module exports
+ * as an object plugin). `inject` is a HARD dependency: a missing service stops
+ * the whole plugin from loading, so nothing may be listed here that the client
+ * does not actually read (issue #86 removed the never-read `workspaces`).
+ */
+export const inject = ['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions']
 
 /**
  * Session-id shape the installed host's sessionLogDownload.download expects.

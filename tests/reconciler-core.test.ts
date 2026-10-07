@@ -205,6 +205,55 @@ test('flush semantics: empty dirty runs nothing; activation forces all; deactiva
   assert.equal(x.disposes, 1)
 })
 
+test('a disposer is idempotent and only disposes a task it owns (issue #86)', () => {
+  const { core } = makeHarness()
+  const a = makeTask('a')
+  const removeA = core.register(a)
+  core.activate()
+  assert.equal(a.ensures, 1)
+  removeA()
+  assert.equal(a.disposes, 1)
+  // Calling the same disposer again must not run dispose() a second time.
+  removeA()
+  assert.equal(a.disposes, 1, 'dispose must not outnumber ensure')
+  // A disposer for a task that never entered the registry's active set is a
+  // no-op, not a way to dispose somebody else's task.
+  const b = makeTask('b')
+  const removeStale = core.register(b)
+  core.deactivate()
+  assert.equal(b.disposes, 1)
+  removeStale()
+  assert.equal(b.disposes, 1, 'stale disposer after deactivate is a no-op')
+})
+
+test('a note() issued while flush is running survives to the next pass (issue #86)', () => {
+  const h = makeHarness()
+  const observed: number[] = []
+  let noted = false
+  const task: ReconcilerTask = {
+    name: 'self-noting',
+    scopes: ['k'],
+    ensure: () => {
+      observed.push(observed.length)
+      if (!noted) {
+        // A task that discovers more work must be able to schedule itself
+        // again; the old flush cleared dirty at the end and swallowed this.
+        noted = true
+        h.core.note(['k'])
+      }
+    },
+    dispose: () => {},
+  }
+  h.core.register(task)
+  h.core.activate()
+  assert.equal(observed.length, 1, 'activation pass')
+  assert.ok(h.frame !== null, 'the self-note must schedule a frame')
+  h.flushFrame()
+  assert.equal(observed.length, 2, 'the dirty key noted during the flush must produce a second pass')
+  h.flushFrame()
+  assert.equal(observed.length, 2, 'and then it settles')
+})
+
 test('preview-close-sync: own open marker must not be treated as a suite close', () => {
   const frameAttrs = new Set(['data-aionui-preview-open'])
   const frame = {

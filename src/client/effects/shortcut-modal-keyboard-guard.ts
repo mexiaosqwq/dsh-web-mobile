@@ -1,4 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { shadowFocus } from '../core/prototype-focus-shadow.ts'
 import { installMobileEffect } from './phone-chrome.ts'
 
 /**
@@ -51,24 +52,20 @@ const AUTOFOCUS_FIELD = SHORTCUT_MODAL + ' [data-modal-autofocus]'
  */
 export function installShortcutModalKeyboardGuard(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: shortcut modal keyboard guard', () => {
-    const proto = HTMLInputElement.prototype
-    // Captured once per arming so restore always puts the real method back.
-    let original: ((this: HTMLInputElement, options?: FocusOptions) => void) | null = null
+    // The shared manager owns the single prototype patch: the model-menu guard
+    // (and any future guard) registers its own predicate on the same patch, so
+    // disarming one never wipes the other or leaves a stale wrapper behind
+    // (see core/prototype-focus-shadow.ts for the measured interleaving).
+    let release: (() => void) | null = null
 
     const arm = (): void => {
-      if (original !== null) return
-      const previous = proto.focus
-      original = previous
-      proto.focus = function focus(this: HTMLInputElement, options?: FocusOptions): void {
-        if (this.matches(AUTOFOCUS_FIELD)) return
-        previous.call(this, options)
-      }
+      if (release !== null) return
+      release = shadowFocus((element) => element.matches(AUTOFOCUS_FIELD))
     }
 
     const disarm = (): void => {
-      if (original === null) return
-      proto.focus = original
-      original = null
+      release?.()
+      release = null
     }
 
     const sync = (): void => {

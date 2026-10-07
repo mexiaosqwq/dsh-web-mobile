@@ -99,9 +99,12 @@ test('every ctx.<service> read in the client half is a declared inject', () => {
 
 test('the inject list actually covers what the entry reaches for', () => {
   // The known-reachable services, pinned so a rename in index.tsx cannot make
-  // the guard above silently permissive.
+  // the guard above silently permissive. `workspaces` is deliberately absent:
+  // the entry never reads it, and `inject` is a hard dependency, so listing it
+  // would only make hosts without that service fail to load the plugin.
   const inject = new Set(declaredInject())
-  for (const service of ['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']) {
+  for (const service of ['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions']) {
     assert.ok(inject.has(service), `inject must declare ${service}`)
   }
+  assert.equal(inject.has('workspaces'), false, 'inject must not demand a service the entry never reads')
 })

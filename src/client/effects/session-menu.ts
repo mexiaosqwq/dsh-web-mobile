@@ -50,8 +50,6 @@ const TRASH_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" x
 interface MenuAnchor {
   /** The ⋯ button that opened the menu (used to close it). */
   button: HTMLButtonElement
-  /** The session row the button lives in. */
-  row: HTMLElement
   /** The row's displayed session title (display + legacy fallback only). */
   title: string
   /**
@@ -354,13 +352,25 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
       dialogHost = { backdrop, card }
     }
 
+    /**
+     * The clones injected into host menus. They are plugin-owned nodes inside
+     * React-owned lists, so disposal must remove them explicitly — the host
+     * never unmounts them on our behalf, and the click listener rides the clone
+     * (issue #86: the old disposer left the node and its listener behind, and a
+     * later tap went through showError on a dead anchor).
+     */
+    const injected = new Set<HTMLElement>()
+
     /** Inject the delete item into one open session menu (idempotent). */
     const injectInto = (menu: HTMLElement): void => {
       if (menu.querySelector(`[${DELETE_ITEM_MARKER}]`) !== null) return
       const template = menu.querySelector<HTMLElement>('[role="menuitem"]')
-      const wrap = template?.parentElement
+      // `?? null` collapses the optional chain so the guard is exact: the old
+      // `wrap === undefined` arm was unreachable once `template === null` had
+      // returned (issue #86).
+      const wrap = template?.parentElement ?? null
       const viewport = menu.querySelector<HTMLElement>('[class*="_viewport"]')
-      if (template === null || wrap === null || wrap === undefined || viewport === null) return
+      if (template === null || wrap === null || viewport === null) return
       const clone = wrap.cloneNode(true) as HTMLElement
       const button = clone.querySelector<HTMLButtonElement>('[role="menuitem"]')
       if (button === null) return
@@ -390,7 +400,7 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
         // Close the host menu by toggling its anchor (React-owned state).
         captured?.button.click()
         try {
-          if (captured === null || captured === undefined) {
+          if (captured === null) {
             showError(navT('deleteErrorResolve'))
             return
           }
@@ -414,6 +424,7 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
         }
       })
       viewport.appendChild(clone)
+      injected.add(clone)
     }
 
     /**
@@ -428,6 +439,8 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
      * resolution itself would still work).
      */
     const injectAll = (): void => {
+      // Drop references to clones the host already unmounted with its menu.
+      for (const clone of injected) if (!clone.isConnected) injected.delete(clone)
       const blankLabel = wsT('session.new')
       for (const menu of document.querySelectorAll<HTMLElement>('[role="menu"]')) {
         if (!isSessionMenu(menu)) continue
@@ -489,7 +502,7 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
       if (button === null) return
       const title = row.querySelector<HTMLElement>('[class*="_title"]')?.textContent?.trim() ?? ''
       const sessionId = rowSessionId(row)
-      anchor = { button, row, title, sessionId }
+      anchor = { button, title, sessionId }
       scheduleInject()
     }
     document.addEventListener('click', onDocumentClick, true)
@@ -516,6 +529,9 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
       observer.disconnect()
       if (injectRaf !== 0) cancelAnimationFrame(injectRaf)
       closeDialog()
+      // Remove the injected items (and with them their click listeners).
+      for (const clone of injected) clone.remove()
+      injected.clear()
       anchor = null
     }
   }, TOUCH_QUERY)

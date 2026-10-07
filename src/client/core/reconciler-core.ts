@@ -101,16 +101,21 @@ export function createReconcilerCore(options: ReconcilerCoreOptions): Reconciler
       forceAll = false
       return
     }
-    if (forceAll) {
+    // Snapshot and clear BEFORE running tasks: a task that calls note() from
+    // inside ensure() must leave its key dirty for the next pass. Clearing at
+    // the end swallowed exactly those keys (issue #86).
+    const keys = dirty
+    const all = forceAll
+    dirty = new Set<string>()
+    forceAll = false
+    if (all) {
       for (const task of active) runEnsure(task)
-    } else if (dirty.size > 0) {
+    } else if (keys.size > 0) {
       for (const task of active) {
         const scopes = task.scopes
-        if (scopes === undefined || scopes.some((key) => dirty.has(key))) runEnsure(task)
+        if (scopes === undefined || scopes.some((key) => keys.has(key))) runEnsure(task)
       }
     }
-    dirty.clear()
-    forceAll = false
   }
 
   const schedule = (): void => {
@@ -129,10 +134,11 @@ export function createReconcilerCore(options: ReconcilerCoreOptions): Reconciler
     }
     return () => {
       registered.delete(task)
-      if (active !== null) {
-        active.delete(task)
-        runDispose(task)
-      }
+      // Ownership check: the disposer is idempotent and only disposes a task
+      // that is actually active. Without it, calling one disposer twice ran
+      // dispose() twice (and a stale disposer could dispose a task this call
+      // never registered — issue #86).
+      if (active !== null && active.delete(task)) runDispose(task)
     }
   }
 

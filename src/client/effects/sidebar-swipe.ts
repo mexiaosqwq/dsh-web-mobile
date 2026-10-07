@@ -226,12 +226,9 @@ let filesToggleFn: () => boolean = () => false
 export interface SwipeThresholds {
   openDistanceRatio: number
   closeDistanceRatio: number
-  velocityWindowMs: number
   openVelocity: number
   closeVelocity: number
   lockPx: number
-  cooldownMs: number
-  startZonePx: number
 }
 
 /**
@@ -380,7 +377,7 @@ export function hitTestStart(
   clientX: number,
   viewportWidthPx: number,
   rtl: boolean,
-  t: Pick<SwipeThresholds, 'startZonePx'>,
+  t: { startZonePx: number },
 ): boolean {
   const edge = rtl ? viewportWidthPx - clientX : clientX
   return edge >= 0 && edge <= t.startZonePx
@@ -792,6 +789,8 @@ function startFollow(): void {
 /** True while the drawer subtree layout+paint is deliberately deferred by
  * the arm-time content-visibility split (see armOpenFollow). */
 let cvDeferred = false
+/** Pending reveal chain handle (double rAF); cancelled on dispose. */
+let armRevealRaf = 0
 
 /** Re-materialize the drawer contents after the mount-frame split. */
 function revealDrawerContent(): void {
@@ -828,8 +827,14 @@ function armOpenFollow(ctx: ClientContext): void {
   cvDeferred = true
   openFollowArmed = true
   ctx.layout.toggleSidebar()
-  requestAnimationFrame(() => {
-    requestAnimationFrame(revealDrawerContent)
+  // Two frames (layout flush, then reveal). Kept in module state so a dispose
+  // between them cancels the chain instead of revealing a drawer that no
+  // longer belongs to this effect (issue #86).
+  armRevealRaf = requestAnimationFrame(() => {
+    armRevealRaf = requestAnimationFrame(() => {
+      armRevealRaf = 0
+      revealDrawerContent()
+    })
   })
 }
 
@@ -943,6 +948,18 @@ function finishPendingCommit(): void {
  * lands. One-shot: a second call settles the previous commit first. */
 function commitWithAnimation(ctx: ClientContext, el: HTMLElement, targetTx: string): void {
   finishPendingCommit()
+  // prefers-reduced-motion: degrade the animation instead of adding one. This
+  // cannot be left to CSS — the transition written below is inline
+  // `!important`, which the stylesheet's reduce block cannot override, and the
+  // gesture-close path reaches here without a reduce check (issue #86). Land
+  // the exact same guarded commit, just without the animation beat.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    fadeOverlayOut()
+    cooldownUntil = performance.now() + COOLDOWN_MS
+    pendingCommit = { el, ctx, timer: 0 }
+    finishPendingCommit()
+    return
+  }
   el.style.setProperty('transition', `transform ${COMMIT_ANIM_MS}ms ease-in-out`, 'important')
   // Flush the before-change style so the transition provably starts from the
   // current (finger) position instead of risking a coalesced recalc that
@@ -1275,12 +1292,9 @@ function endStroke(
             {
               openDistanceRatio: OPEN_DISTANCE_RATIO,
               closeDistanceRatio: CLOSE_DISTANCE_RATIO,
-              velocityWindowMs: VELOCITY_WINDOW_MS,
               openVelocity: OPEN_VELOCITY,
               closeVelocity: CLOSE_VELOCITY,
               lockPx: LOCK_PX,
-              cooldownMs: COOLDOWN_MS,
-              startZonePx: startZonePxFor(viewportWidthPx),
               viewportWidthPx,
               drawerOpen: lockDrawerOpen,
             },
@@ -1554,6 +1568,10 @@ export function installSidebarSwipe(ctx: ClientContext, filesToggle: () => boole
       document.removeEventListener('touchmove', onTouchMove, { capture: true } as EventListenerOptions)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('blur', onBlur)
+      if (armRevealRaf !== 0) {
+        cancelAnimationFrame(armRevealRaf)
+        armRevealRaf = 0
+      }
       abortStroke(ctx, true)
     }
   })

@@ -75,8 +75,6 @@ export declare function normalizeDraftAttachments(descriptors: unknown, uploads?
 export declare function formatBytes(bytes: number): string;
 /** Pick-time refs for the whole rail: ordinal + ambiguity need every sibling. */
 export declare function buildRefs(attachments: readonly DraftAttachment[]): AttachmentRef[];
-/** Chip / row title: the file name, or the localized unnamed label. */
-export declare function labelOf(ref: Pick<AttachmentRef, 'name' | 'ordinal'>, copy: Pick<AttachmentCopy, 'unnamed'>): string;
 /**
  * Whether one attachment survives the live query. A drilled listing or a
  * path-shaped query (contains `/`) belongs to the @文件 browser, so the

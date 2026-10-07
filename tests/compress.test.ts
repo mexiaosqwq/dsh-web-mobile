@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { headerValue, isDeferrable, varyWithAcceptEncoding } from '../src/compress.ts'
+import { headerValue, isDeferrable, parseAcceptedEncodings, pickEncoding, varyWithAcceptEncoding } from '../src/compress.ts'
+import type { ServerResponse } from 'node:http'
 
 test('headerValue finds keys regardless of casing', () => {
   assert.equal(headerValue({ 'Content-Type': 'application/json' }, 'content-type'), 'application/json')
@@ -35,6 +36,129 @@ test('varyWithAcceptEncoding appends without clobbering, preserving key casing',
   varyWithAcceptEncoding(mixed)
   assert.equal(mixed.Vary, 'Origin, Accept-Encoding')
   assert.equal(mixed.vary, undefined)
+})
+
+test('varyWithAcceptEncoding is idempotent and respects an existing token', () => {
+  // Re-running the merge (plugin reload, several compressed responses sharing
+  // one headers object) must not pile up tokens — a duplicated Vary value
+  // pollutes the cache key.
+  const already = { vary: 'Accept-Encoding' }
+  varyWithAcceptEncoding(already)
+  assert.equal(already.vary, 'Accept-Encoding')
+
+  const mixedCase = { Vary: 'accept-encoding' }
+  varyWithAcceptEncoding(mixedCase)
+  assert.equal(mixedCase.Vary, 'accept-encoding')
+
+  const inList = { vary: 'Origin, Accept-Encoding' }
+  varyWithAcceptEncoding(inList)
+  assert.equal(inList.vary, 'Origin, Accept-Encoding')
+
+  // `*` already covers every request header.
+  const star = { vary: '*' }
+  varyWithAcceptEncoding(star)
+  assert.equal(star.vary, '*')
+
+  const empty = { vary: '' }
+  varyWithAcceptEncoding(empty)
+  assert.equal(empty.vary, 'Accept-Encoding')
+})
+
+test('pickEncoding honors q=0 refusals, weights and the wildcard (issue #81)', () => {
+  const of = (acceptEncoding: string) =>
+    pickEncoding({ req: { headers: { 'accept-encoding': acceptEncoding } } } as unknown as ServerResponse)
+
+  // q=0 is a refusal: never hand the client a coding it said it cannot decode.
+  assert.equal(of('br;q=0, gzip'), 'gzip')
+  assert.equal(of('br;q=0'), null)
+  assert.equal(of('gzip;q=0, br'), 'br')
+  assert.equal(of('gzip;q=0'), null)
+  // Weights pick the better coding.
+  assert.equal(of('br;q=0.5, gzip;q=0.9'), 'gzip')
+  assert.equal(of('br;q=0.9, gzip;q=0.5'), 'br')
+  assert.equal(of('br;q=1.0, gzip;q=1.0'), 'br')
+  // The wildcard is an offer, not a refusal; a named q=0 still overrides it.
+  assert.equal(of('*'), 'br')
+  assert.equal(of('br;q=0, *'), 'gzip')
+  // Malformed weights are treated as a refusal rather than trusted.
+  assert.equal(of('gzip;q=nonsense'), null)
+  assert.equal(of('gzip;q=7'), 'gzip')
+  // Unrelated codings stay untouched; no header means no compression.
+  assert.equal(of('deflate'), null)
+  assert.equal(of('identity'), null)
+  assert.equal(of(''), null)
+})
+
+test('parseAcceptedEncodings reads weights, casing and the wildcard', () => {
+  const parsed = parseAcceptedEncodings(' BR;q=0.8 , gzip ; q=0.2, *;q=0.1')
+  assert.equal(parsed.get('br'), 0.8)
+  assert.equal(parsed.get('gzip'), 0.2)
+  assert.equal(parsed.get('*'), 0.1)
+  assert.equal(parseAcceptedEncodings('br').get('br'), 1)
+  // First occurrence wins; a duplicate never overrides an explicit refusal.
+  assert.equal(parseAcceptedEncodings('br;q=0, br').get('br'), 0)
+})
+
+test('end() after flushHeaders() delivers the body instead of throwing (issue #81)', async () => {
+  const { installResponseCompression } = await import('../src/compress.ts')
+  const http = await import('node:http')
+  const restore = installResponseCompression()
+  const payload = JSON.stringify({ data: 'z'.repeat(8 * 1024) })
+  const server = http.createServer((req, res) => {
+    // A caller that flushes headers early: the deferred writeHead can no
+    // longer be replayed and must not throw out of end().
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.flushHeaders()
+    res.end(payload)
+  })
+  try {
+    await new Promise<void>((resolveListen) => server.listen(0, resolveListen))
+    const port = (server.address() as { port: number }).port
+    const out = await new Promise<{ status: number, headers: Record<string, string | string[]>, body: Buffer }>((resolve, reject) => {
+      http.get({ host: '127.0.0.1', port, headers: { 'accept-encoding': 'br' } }, (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }))
+      }).on('error', reject)
+    })
+    assert.equal(out.status, 200)
+    // The headers are already on the wire, so the body goes out verbatim.
+    assert.equal(out.headers['content-encoding'], undefined)
+    assert.equal(out.body.toString(), payload)
+  } finally {
+    server.close()
+    restore()
+  }
+})
+
+test('end() after an early write() delivers every buffered byte (issue #81)', async () => {
+  const { installResponseCompression } = await import('../src/compress.ts')
+  const http = await import('node:http')
+  const restore = installResponseCompression()
+  const payload = JSON.stringify({ data: 'w'.repeat(8 * 1024) })
+  const server = http.createServer((req, res) => {
+    // A write() before writeHead() sends the implicit headers; the deferred
+    // writeHead never lands and end() must still flush the whole body.
+    res.write('lead:')
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(payload)
+  })
+  try {
+    await new Promise<void>((resolveListen) => server.listen(0, resolveListen))
+    const port = (server.address() as { port: number }).port
+    const out = await new Promise<{ status: number, body: Buffer }>((resolve, reject) => {
+      http.get({ host: '127.0.0.1', port, headers: { 'accept-encoding': 'br' } }, (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks) }))
+      }).on('error', reject)
+    })
+    assert.equal(out.status, 200)
+    assert.equal(out.body.toString(), `lead:${payload}`)
+  } finally {
+    server.close()
+    restore()
+  }
 })
 
 test('patched end() replays neither the encoding argument nor callback source (issue #78)', async () => {

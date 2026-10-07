@@ -27,9 +27,13 @@ export function installAionuiCompat(ctx: ClientContext): void {
     const DESKTOP_APPVERSION = '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     let restoreTimer: number | null = null
     let spoofed = false
-    let originalPlatform = navigator.platform
-    let originalUserAgent = navigator.userAgent
-    let originalAppVersion = navigator.appVersion
+    // Restore what was actually there: an own descriptor if the page had one,
+    // otherwise REMOVE the own property we added so the prototype's getter shows
+    // through again. Writing the old VALUE back as an own property leaves a
+    // permanent own-property shadow behind (issue #86), which changes
+    // `Object.keys(navigator)` / descriptor probes for the rest of the session.
+    const NAV_KEYS = ['platform', 'userAgent', 'appVersion'] as const
+    const savedNavigator = new Map<string, PropertyDescriptor | null>()
     const restoreNavigator = (): void => {
       if (restoreTimer !== null) {
         window.clearTimeout(restoreTimer)
@@ -37,15 +41,18 @@ export function installAionuiCompat(ctx: ClientContext): void {
       }
       if (!spoofed) return
       spoofed = false
-      Object.defineProperty(navigator, 'platform', { value: originalPlatform, configurable: true })
-      Object.defineProperty(navigator, 'userAgent', { value: originalUserAgent, configurable: true })
-      Object.defineProperty(navigator, 'appVersion', { value: originalAppVersion, configurable: true })
+      for (const key of NAV_KEYS) {
+        const descriptor = savedNavigator.get(key) ?? null
+        if (descriptor === null) delete (navigator as unknown as Record<string, unknown>)[key]
+        else Object.defineProperty(navigator, key, descriptor)
+      }
+      savedNavigator.clear()
     }
     const spoofDesktop = (): void => {
       if (!spoofed) {
-        originalPlatform = navigator.platform
-        originalUserAgent = navigator.userAgent
-        originalAppVersion = navigator.appVersion
+        for (const key of NAV_KEYS) {
+          savedNavigator.set(key, Object.getOwnPropertyDescriptor(navigator, key) ?? null)
+        }
         Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true })
         Object.defineProperty(navigator, 'userAgent', { value: DESKTOP_UA, configurable: true })
         Object.defineProperty(navigator, 'appVersion', { value: DESKTOP_APPVERSION, configurable: true })

@@ -14,8 +14,6 @@
  */
 /** Above this size the share sheet is skipped and the file is downloaded instead. */
 export declare const SHARE_MAX_BYTES: number;
-/** Above this size nothing is read at all: the browser would hold the whole file in memory. */
-export declare const READ_MAX_BYTES: number;
 /** One ranged read; well under the host's default 2 MiB per-call window cap. */
 export declare const CHUNK_BYTES: number;
 /** Stable failure codes the controls map to localized copy. */

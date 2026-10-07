@@ -20,7 +20,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { installResponseCompression } from './compress.js'
-import { deleteSession, type DeleteSessionDeps } from './delete-session.js'
+import { deleteSession, type DeleteSessionDeps, type DeleteSessionResult } from './delete-session.js'
 import { LLM_PI_AI_ENTRY, fillReasoningEffortDefaults, type SettingsFace } from './reasoning-effort.js'
 
 /** Minimal structural slice of the host cordis Context that apply() needs. */
@@ -310,12 +310,23 @@ export function apply(ctx: HostContext): void {
           })
           return
         }
-        const result = await deleteSession({
-          persistence: persistence as DeleteSessionDeps['persistence'],
-          sessions: ctx.get('sessions') as DeleteSessionDeps['sessions'] | undefined,
-          agents: ctx.get('agents') as DeleteSessionDeps['agents'] | undefined,
-          workspaceRegistry: ctx.get('workspaceRegistry') as DeleteSessionDeps['workspaceRegistry'] | undefined,
-        }, sessionId)
+        // The pure core reports structured failures, but a defect or an
+        // unexpected host rejection must still answer the client: this handler
+        // owns the response, so it may never reject with the socket open (the
+        // host's dispatcher would then answer a bare 400 with no body).
+        let result: DeleteSessionResult
+        try {
+          result = await deleteSession({
+            persistence: persistence as DeleteSessionDeps['persistence'],
+            sessions: ctx.get('sessions') as DeleteSessionDeps['sessions'] | undefined,
+            agents: ctx.get('agents') as DeleteSessionDeps['agents'] | undefined,
+            workspaceRegistry: ctx.get('workspaceRegistry') as DeleteSessionDeps['workspaceRegistry'] | undefined,
+          }, sessionId)
+        } catch (error) {
+          ctx.logger.warn(`dsh-web-mobile: session-delete threw for '${sessionId}': ${String(error)}`)
+          respond(res, 500, { error: { code: 'delete-failed', message: 'session delete failed unexpectedly' } })
+          return
+        }
         if (result.ok) {
           respond(res, 200, { ok: true, deleted: result.deleted })
           return

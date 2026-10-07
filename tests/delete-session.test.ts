@@ -491,3 +491,30 @@ test('skips workspaces that expose no detachSession (0.1.1/0.1.2 hosts)', async 
     await rm(root, { recursive: true, force: true })
   }
 })
+
+// issue #82: the trash move already finished, so a workspace store that throws
+// while detaching must not turn the finished deletion into a rejection — the
+// route handler would otherwise have no structured result to answer with.
+test('reports success when workspace accounting throws after the deletion finished', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-del-'))
+  try {
+    const dir = join(root, PROJECT_DIR, SESSION_ID)
+    await scaffoldSession(root, dir)
+    const deps: DeleteSessionDeps = {
+      persistence: { config: { root }, list: async () => [{ header: storedHeader() }] },
+      workspaceRegistry: {
+        list: () => [
+          { detachSession: async (): Promise<void> => {} },
+          { detachSession: async (): Promise<void> => { throw new Error('workspace store write failed') } },
+        ],
+      },
+    }
+    const result = await deleteSession(deps, SESSION_ID)
+    assert.equal(result.status, 200)
+    assert.equal('deleted' in result && result.deleted, SESSION_ID)
+    // The session really is gone: success is not a lie about the disk state.
+    await assert.rejects(stat(dir), { code: 'ENOENT' })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})

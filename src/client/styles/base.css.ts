@@ -376,36 +376,6 @@ export const BASE_CSS = `
     :where(button:has(> svg:only-child), button[aria-label]:not(:has(> span, > div))):where(:active):where(:not(:disabled, [aria-disabled="true"])) {
       transform: scale(.96);
     }
-    /* ---------- session-row long-press progress (phone-chrome.ts) ----------
-       data-mobile-nav-press is written by the long-press timer on the drawer
-       session row: "armed" from pointerdown (no callout, no text selection
-       during the 2s hold — the system would otherwise claim the stroke),
-       "fill" from LONG_PRESS_FILL_DELAY_MS on, when a left-to-right fill runs
-       for --mobile-nav-press-ms (the hold remaining) and completes as the
-       rename fires. transform-only animation on our own ::after; the host's
-       ::before/::after are its drag-reorder indicators (dropBefore /
-       dropAfter), so the fill stands down while dropAfter is on. clearPress
-       removes the attribute and the inline variable on lift, move, cancel
-       and fire. */
-    [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press] {
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-    [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press="fill"] {
-      position: relative;
-    }
-    [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press="fill"]:not([class*="_dropAfter"])::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      background: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 10%, transparent));
-      pointer-events: none;
-      transform-origin: left center;
-      transform: scaleX(0);
-      animation: dsh-web-mobile-press-fill var(--mobile-nav-press-ms, 1700ms) linear forwards;
-    }
     @media (prefers-reduced-motion: reduce) {
       :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]) {
         transition: none;
@@ -413,18 +383,8 @@ export const BASE_CSS = `
       :where(button:has(> svg:only-child), button[aria-label]:not(:has(> span, > div))):where(:active) {
         transform: none;
       }
-      /* Static light hint instead of the moving fill. */
-      [data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press="fill"]:not([class*="_dropAfter"])::after {
-        animation: none;
-        transform: none;
-        opacity: .6;
-      }
     }
   }
-}
-@keyframes dsh-web-mobile-press-fill {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
 }
 
 /* Floating fallback button (hero / blank phases without a session header).

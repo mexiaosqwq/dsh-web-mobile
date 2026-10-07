@@ -39,39 +39,6 @@ export const DESKTOP_QUERY = '(min-width: 1024px)'
  *  windows never arm it, at any width. */
 export const TOUCH_QUERY = '(pointer: coarse)'
 
-/** Long press on a session row renames it (2026-09-22 contract; the ⋯ menu is
- *  only the fallback when the title cannot be found). 2000ms since 2026-10:
- *  500ms read as a context menu and fired on ordinary slow taps and on
- *  touch-and-think pauses — rename must be deliberate. The progress fill
- *  (`data-mobile-nav-press="fill"`, base.css.ts) shows the hold is counting. */
-export const LONG_PRESS_MS = 2000
-/** Pointer travel that cancels a long press. 14px: a 2s hold drifts more than
- *  a 0.5s one did. Still above the swipe layer's 8px LOCK_PX, so a horizontal
- *  stroke is cancelled through `isStrokeLocked()` (the lock lands on the 8px
- *  move — our pointermove runs first in capture order, so it sees the flag on
- *  the NEXT move, still well before 14px) and a vertical stroke through the
- *  browser's pan-y `pointercancel` (see onDrawerPointerCancel). */
-export const LONG_PRESS_MOVE_PX = 14
-/** Hold time before the progress fill appears: a normal tap (≈100-250ms)
- *  must not flash it. */
-export const LONG_PRESS_FILL_DELAY_MS = 300
-/** Duration the fill animation should take so it completes exactly when the
- *  long press fires: the hold remaining after the fill delay (never negative). */
-export function longPressFillMs(holdMs: number, delayMs: number): number {
-  return Math.max(0, holdMs - delayMs)
-}
-/** Row marker while a long press is armed: any value = no callout / no text
- *  selection; `fill` = the progress fill is running. Plugin-owned attribute on
- *  a host row (React never renders it), always removed by clearPress. */
-const PRESS_ATTR = 'data-mobile-nav-press'
-/** Inline custom property carrying the fill duration; removed by clearPress. */
-const PRESS_MS_VAR = '--mobile-nav-press-ms'
-/** How long the lift may not close the menu the press opened: the host menu
- *  closes on pointerleave, and the finger lift itself fires one. */
-const LONG_PRESS_MENU_GUARD_MS = 1200
-/** Window in which the press's own synthesized click is swallowed, so the lift
- *  neither navigates the row nor collapses the drawer. */
-const LONG_PRESS_CLICK_SWALLOW_MS = 800
 /** Finger-down to finger-up travel that still counts as a tap on a session row
  *  (#49). Per-axis (`isTapWithinSlop` is max-norm, not Euclidean): the drawer
  *  list scrolls vertically, so a 60px vertical drift must not navigate while a
@@ -689,81 +656,17 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     let navObserver: MutationObserver | null = null
     let navTimer: number | null = null
 
-    // 2026-09-22 交互契约（群内统一）：单击 = 选中、双击 = 打开、长按 = 改会话名。
-    // 宿主 0.1.7 把「改会话名」挂在会话行标题的 dblclick 上（onRenameRequest），
-    // 而这恰好是双击手势要用的那个事件：双击会既打开会话又弹改名框。所以真实
-    // dblclick 在这里被吞掉（下方 onDrawerDoubleClick），长按则重放同一个事件去
-    // 开宿主自己的改名框（requestRowRename）——只有我们派发的那一个事件被放行。
-    // Touch has no hover, so the host's `_rowActions` — the ⋯ menu anchor — never
-    // shows up by itself: only `:hover` and `menuOpen` reveal it. Long press used
-    // to be the touch path to that menu; it belongs to rename now, so the mobile
-    // stylesheet pins `_rowActions` open instead (删除 / 归档 / 分叉 仍有触屏入口).
-    // The host menu closes on pointerleave, which the finger lift itself fires,
-    // and that lift still synthesizes a click on the row: both need guarding.
-    let pressTimer: number | null = null
-    let pressFillTimer: number | null = null
-    let pressOrigin: { x: number; y: number } | null = null
-    let pressRow: HTMLElement | null = null
-    let pressFired = false
-    let menuGuardUntil = 0
-    let swallowClickUntil = 0
-    let swallowClickRow: HTMLElement | null = null
-
-    /** Drop the press marker and the inline duration variable from a row —
-     *  only our own attribute/property, never the host's class or style. */
-    const unmarkPressRow = (row: HTMLElement): void => {
-      row.removeAttribute(PRESS_ATTR)
-      row.style.removeProperty(PRESS_MS_VAR)
-    }
-
-    const clearPress = (): void => {
-      if (pressTimer !== null) window.clearTimeout(pressTimer)
-      pressTimer = null
-      if (pressFillTimer !== null) window.clearTimeout(pressFillTimer)
-      pressFillTimer = null
-      if (pressRow !== null) unmarkPressRow(pressRow)
-      pressOrigin = null
-      pressRow = null
-      pressFired = false
-    }
-
-    const openRowMenu = (row: HTMLElement): void => {
-      // A menu already on screen owns the gesture (host touch path, another
-      // plugin's long press); clicking the anchor again would close it.
-      if (document.querySelector('[role="menu"]') !== null) return
-      const button = row.querySelector<HTMLButtonElement>('[class*="_rowActions"] button')
-      if (button === null) return
-      menuGuardUntil = performance.now() + LONG_PRESS_MENU_GUARD_MS
-      button.click()
-    }
-
-    /** The only `dblclick`s allowed through to the host are the ones we
-     *  dispatch ourselves: a real one is the double *tap* that means "open the
-     *  session", and letting it reach the title would open the rename dialog on
-     *  the same gesture. Identity, not a flag on the event: nothing else can
-     *  forge it. */
-    const syntheticDoubleClicks = new WeakSet<Event>()
-
-    /** 长按 = 改会话名：宿主把改名挂在标题的 dblclick 上，这里重放那个事件，
-     *  而不是复制一套弹窗链路（宿主的 rename 状态机是包内私有的）。
-     *  @returns 是否成功派发；宿主标记变了、拿不到标题时为 false，调用方回退。 */
-    const requestRowRename = (row: HTMLElement): boolean => {
-      const title = row.querySelector<HTMLElement>('[class*="_title"]')
-      if (title === null) return false
-      const event = new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window })
-      syntheticDoubleClicks.add(event)
-      title.dispatchEvent(event)
-      return true
-    }
-
-    /** Swallow the host's title-double-click rename (the 2026-09-22 contract puts
-     *  rename on long press, and double tap on "open"). Capture phase on
-     *  `document`, so the event never reaches React's root container and the
-     *  title's own onDoubleClick cannot run. Armed only inside the mobile
-     *  environment (this effect is MOBILE_QUERY-gated), so mouse-driven desktops
-     *  keep the host behaviour untouched. */
+    /** Swallow the host's title double-click rename: on touch a double *tap*
+     *  means "open the session" (DSHA's own two-tap detection sits on the row's
+     *  click handler), and letting the browser's `dblclick` reach the title would
+     *  open the host's rename dialog on that same gesture. Capture phase on
+     *  `document`, so the event never reaches React's root container. Only real
+     *  (trusted) events are swallowed — nothing here dispatches a synthetic
+     *  dblclick since the long-press rename was dropped (2026-10-07). Armed only
+     *  inside the mobile environment (this effect is MOBILE_QUERY-gated), so
+     *  mouse-driven desktops keep the host behaviour untouched. */
     const onDrawerDoubleClick = (event: MouseEvent): void => {
-      if (syntheticDoubleClicks.has(event)) return
+      if (!event.isTrusted) return
       const target = event.target
       if (!(target instanceof Element)) return
       if (target.closest('[class*="sessionRow"] [class*="_title"]') === null) return
@@ -838,6 +741,8 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     // arrives — the store is the honest source of "navigation happened".
     let closeOnNavUnsub: (() => void) | null = null
     let closeOnNavDone = false
+    /** The queued `fire` handle: cleared on disarm so disposal leaves no timer. */
+    let closeOnNavTimer = 0
 
     /** Disarming means spent: mark the close done before dropping the
      *  subscription, so a `fire` a subscription tick already queued cannot
@@ -846,6 +751,10 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       closeOnNavDone = true
       closeOnNavUnsub?.()
       closeOnNavUnsub = null
+      if (closeOnNavTimer !== 0) {
+        window.clearTimeout(closeOnNavTimer)
+        closeOnNavTimer = 0
+      }
     }
 
     const closeOnNavigation = (id: string): void => {
@@ -858,107 +767,26 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       }
       closeOnNavUnsub = ctx.sessions.list.subscribe(() => {
         if (currentSessionIdOf(ctx.sessions.list.getSnapshot()) !== id) return
-        window.setTimeout(fire, 0)
+        if (closeOnNavTimer !== 0) window.clearTimeout(closeOnNavTimer)
+        closeOnNavTimer = window.setTimeout(() => {
+          closeOnNavTimer = 0
+          fire()
+        }, 0)
       })
     }
 
+    /** Record where a touch started. The no-click row-tap fallback in
+     *  onDrawerPointerUp resolves the row's session id at the lift and needs the
+     *  down point to tell a tap from a scroll or a swipe, so every touch
+     *  pointerdown records it BEFORE any early return. */
     const onDrawerPointerDown = (event: PointerEvent): void => {
       touchDownAt = event.pointerType === 'touch' || event.pointerType === 'pen'
         ? { x: event.clientX, y: event.clientY }
         : null
-      clearPress()
-      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
-      if (isStrokeLocked()) return
-      const target = event.target
-      // isDrawerNavTarget already means "inside the drawer, on a row navigation
-      // target, and not on one of its buttons" — and it must stay the
-      // exemption-free base: arming long-press through the tap-close predicate
-      // made DSHA rows un-armable, killing their only touch path to the ⋯ menu.
-      if (!isDrawerNavTarget(target) || !(target instanceof Element)) return
-      const row = target.closest<HTMLElement>('[class*="_sessionRow"]')
-      if (row === null || target.closest('[class*="_rowActions"]') !== null) return
-      pressOrigin = { x: event.clientX, y: event.clientY }
-      pressRow = row
-      // Armed from the first frame: CSS turns off the system callout and text
-      // selection on the row, so neither can start inside the 2s hold.
-      row.setAttribute(PRESS_ATTR, 'armed')
-      pressFillTimer = window.setTimeout(() => {
-        pressFillTimer = null
-        if (pressRow === null) return
-        pressRow.style.setProperty(PRESS_MS_VAR, `${longPressFillMs(LONG_PRESS_MS, LONG_PRESS_FILL_DELAY_MS)}ms`)
-        pressRow.setAttribute(PRESS_ATTR, 'fill')
-      }, LONG_PRESS_FILL_DELAY_MS)
-      pressTimer = window.setTimeout(() => {
-        pressTimer = null
-        if (pressRow === null) return
-        pressFired = true
-        // The hold is over: the fill has done its job, drop the marker before
-        // the rename dialog opens (pressRow stays for the lift's click swallow).
-        unmarkPressRow(pressRow)
-        // 长按 = 改会话名。拿不到标题（宿主标记变了）就退回 ⋯ 菜单：长按至少还能
-        // 到达行操作，而不是变成一个什么都不做的死手势。
-        if (!requestRowRename(pressRow)) openRowMenu(pressRow)
-      }, LONG_PRESS_MS)
-    }
-
-    // The browser claimed the stroke (pan-y scroll start, a system gesture, a
-    // drag): no pointermove/pointerup follows, so without this the 2s timer
-    // would keep counting and rename a row mid-scroll.
-    const onDrawerPointerCancel = (): void => {
-      clearPress()
-    }
-
-    // Android dispatches contextmenu ~500ms into a touch hold — well inside the
-    // 2s window. Left alone it may open the system callout / start a text
-    // selection, either of which pointercancels the stroke and kills the
-    // timer. Only while OUR press is counting, only on the pressed row.
-    const onDrawerContextMenu = (event: MouseEvent): void => {
-      if (pressTimer === null || pressRow === null) return
-      const target = event.target
-      if (!(target instanceof Node) || !pressRow.contains(target)) return
-      event.preventDefault()
-    }
-
-    const onDrawerPointerMove = (event: PointerEvent): void => {
-      if (pressOrigin === null) return
-      if (isStrokeLocked()) {
-        clearPress()
-        return
-      }
-      if (
-        Math.abs(event.clientX - pressOrigin.x) > LONG_PRESS_MOVE_PX
-        || Math.abs(event.clientY - pressOrigin.y) > LONG_PRESS_MOVE_PX
-      ) {
-        clearPress()
-      }
-    }
-
-    // The host menu closes on pointerleave of its anchor; the finger lift fires
-    // one right after the press opened the menu, so stay out of the way until
-    // the finger is long gone.
-    const onDrawerPointerLeave = (event: PointerEvent): void => {
-      if (performance.now() > menuGuardUntil) return
-      const target = event.target
-      if (!(target instanceof Element)) return
-      if (target.closest('[class*="_rowActions"]') === null
-        && target.closest('[class*="_sessionRow"]') === null) return
-      event.stopPropagation()
     }
 
     const onDrawerClick = (event: MouseEvent): void => {
-      // The long press's own synthesized click is the one click that must not
-      // act: the row was not tapped, and the menu it opened must survive. One
-      // click only — a later tap on the ⋯ reaches React normally.
       const target = event.target
-      if (swallowClickRow !== null && performance.now() <= swallowClickUntil) {
-        if (target instanceof Element && (target === swallowClickRow || swallowClickRow.contains(target))) {
-          swallowClickUntil = 0
-          swallowClickRow = null
-          event.preventDefault()
-          event.stopPropagation()
-          return
-        }
-      }
       // A classified swipe already toggled the drawer; never let its
       // synthetic tap also close it / navigate a row (gesture-guard).
       // isStrokeLocked: a stroke axis-locked mid-swipe (audit S0) — the
@@ -986,23 +814,8 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       // a stroke locked mid-swipe but not yet classified — this handler
       // runs before the gesture layer's own pointerup (audit S0/S1: without
       // it the host toggled first and the gesture toggled back, net zero).
-      if (isStrokeLocked() || consumeIfGestured(event)) {
-        // The finger is up either way: a yielded release must still disarm the
-        // press, or a stale 2s timer renames the row after the lift.
-        clearPress()
-        return
-      }
+      if (isStrokeLocked() || consumeIfGestured(event)) return
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
-      const pressed = pressFired
-      const pressedRow = pressRow
-      clearPress()
-      if (pressed && pressedRow !== null) {
-        // The press already opened the menu: the lift must not also navigate
-        // or close the drawer.
-        swallowClickUntil = performance.now() + LONG_PRESS_CLICK_SWALLOW_MS
-        swallowClickRow = pressedRow
-        return
-      }
       const target = event.target
       if (!(target instanceof Element)) return
       if (!shouldCloseOnTapInsideDrawer(target)) return
@@ -1065,27 +878,18 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     document.addEventListener('keydown', onKeyDown, true)
     document.addEventListener('click', onDrawerClick, true)
     document.addEventListener('pointerdown', onDrawerPointerDown, true)
-    document.addEventListener('pointermove', onDrawerPointerMove, true)
-    document.addEventListener('pointerleave', onDrawerPointerLeave, true)
     document.addEventListener('pointerup', onDrawerPointerUp, true)
-    document.addEventListener('pointercancel', onDrawerPointerCancel, true)
-    document.addEventListener('contextmenu', onDrawerContextMenu, true)
     return () => {
       disarmNav()
       // Also marks the close spent, so a queued `fire` cannot outlive the effect.
       disarmCloseOnNav()
       touchDownAt = null
-      clearPress()
       document.removeEventListener('dsha-session-open', onDshaSessionOpen)
       document.removeEventListener('dblclick', onDrawerDoubleClick, true)
       document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('click', onDrawerClick, true)
       document.removeEventListener('pointerdown', onDrawerPointerDown, true)
-      document.removeEventListener('pointermove', onDrawerPointerMove, true)
-      document.removeEventListener('pointerleave', onDrawerPointerLeave, true)
       document.removeEventListener('pointerup', onDrawerPointerUp, true)
-      document.removeEventListener('pointercancel', onDrawerPointerCancel, true)
-      document.removeEventListener('contextmenu', onDrawerContextMenu, true)
     }
   })
 }

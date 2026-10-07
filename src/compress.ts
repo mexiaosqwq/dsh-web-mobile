@@ -56,12 +56,46 @@ interface DeferredResponse {
 /** Per-response state; only present while a JSON response is being deferred. */
 const deferred = new WeakMap<ServerResponse, DeferredResponse>()
 
-/** Choose the codec the client accepts; `br` outranks `gzip`. */
-function pickEncoding(res: ServerResponse): 'br' | 'gzip' | null {
+/**
+ * Parse one `Accept-Encoding` field into a coding → qvalue map. A missing
+ * weight means 1; an unparsable or out-of-range weight means 0 ("not
+ * acceptable"), which is what HTTP implementations do with garbage. The
+ * wildcard `*` is kept as its own entry and consulted as the fallback for any
+ * coding the client did not name.
+ */
+export function parseAcceptedEncodings(field: string): Map<string, number> {
+  const quality = new Map<string, number>()
+  for (const part of field.split(',')) {
+    const [rawName, ...params] = part.trim().toLowerCase().split(';')
+    const name = rawName.trim()
+    if (name === '') continue
+    let value = 1
+    const weight = params.find((param) => /^\s*q\s*=/.test(param))
+    if (weight !== undefined) {
+      const parsed = Number.parseFloat(weight.slice(weight.indexOf('=') + 1))
+      value = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 0
+    }
+    // First occurrence wins: RFC 9110 does not define duplicates and every
+    // real client names a coding once.
+    if (!quality.has(name)) quality.set(name, value)
+  }
+  return quality
+}
+
+/**
+ * Choose the codec the client accepts; `br` outranks `gzip`, and a weight of 0
+ * is a refusal (RFC 9110 §12.4.2) — `br;q=0` must not select brotli, and a
+ * bare `*` is an offer, not a refusal. No acceptable coding means `null` and
+ * the response passes through identity (never 406: identity stays acceptable).
+ */
+export function pickEncoding(res: ServerResponse): 'br' | 'gzip' | null {
   const accepted = (res.req as IncomingMessage | undefined)?.headers['accept-encoding'] ?? ''
-  if (/\bbr\b/.test(accepted)) return 'br'
-  if (/\bgzip\b/.test(accepted)) return 'gzip'
-  return null
+  const quality = parseAcceptedEncodings(accepted)
+  const wildcard = quality.get('*') ?? 0
+  const br = quality.get('br') ?? wildcard
+  const gzip = quality.get('gzip') ?? wildcard
+  if (br > 0 && br >= gzip) return 'br'
+  return gzip > 0 ? 'gzip' : null
 }
 
 /**
@@ -84,14 +118,24 @@ export function isDeferrable(headers: Record<string, string | number | string[]>
   return contentType.includes('json')
 }
 
-/** Append the Accept-Encoding Vary token without clobbering an existing Vary. */
+/**
+ * Append the Accept-Encoding Vary token without clobbering an existing Vary
+ * and without duplicating the token: re-running the patch (or a caller that
+ * already varied on it, in any casing) must stay idempotent, and `*` already
+ * covers Accept-Encoding.
+ */
 export function varyWithAcceptEncoding(headers: Record<string, string | number | string[]>): void {
   const existingKey = Object.keys(headers).find((key) => key.toLowerCase() === 'vary')
   if (existingKey === undefined) {
     headers['vary'] = 'Accept-Encoding'
-  } else {
-    headers[existingKey] = `${String(headers[existingKey])}, Accept-Encoding`
+    return
   }
+  const tokens = String(headers[existingKey])
+    .split(',')
+    .map((token) => token.trim())
+    .filter((token) => token !== '')
+  if (tokens.some((token) => token.toLowerCase() === 'accept-encoding' || token === '*')) return
+  headers[existingKey] = [...tokens, 'Accept-Encoding'].join(', ')
 }
 
 /** Buffer one body chunk for a deferred response, honoring the caller's encoding. */
@@ -176,6 +220,22 @@ export function installResponseCompression(): () => void {
     // the compressed payload (issue #78).
     if (chunk !== undefined && typeof chunk !== 'function') bufferChunk(pending, chunk, typeof rest[0] === 'string' ? rest[0] : undefined)
     const body = Buffer.concat(pending.chunks)
+
+    // The header write was deferred to learn the body size, but something else
+    // may have sent the headers first: `flushHeaders()`, a `write()` issued
+    // before `writeHead()`, or any other path Node treats as an implicit
+    // header write. Replaying the stored writeHead() then throws
+    // ERR_HTTP_HEADERS_SENT synchronously out of end(), which terminates the
+    // process when the caller has no try/catch. Abandon the deferral instead:
+    // hand the buffered body to the native path verbatim (uncompressed, no
+    // header replay) so the response still completes and no bytes are lost.
+    if (this.headersSent) {
+      const ended = body.byteLength === 0
+        ? origEnd.apply(this, callbacks as never) as ServerResponse
+        : origEnd.apply(this, [body, ...callbacks] as never) as ServerResponse
+      fireWriteCallbacks(pending)
+      return ended
+    }
 
     // Small or empty JSON: replay the ORIGINAL header write and body verbatim
     // (no Content-Encoding, original Content-Length intact).
