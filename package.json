@@ -47,6 +47,7 @@
     "verify": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
     "smoke:cdp": "node scripts/cdp-probe.mjs",
     "test:core": "node --test tests/*.test.ts",
+    "test:smoke": "node scripts/client-bundle-smoke.mjs",
     "prepack": "npm run build"
   },
   "dsh": {

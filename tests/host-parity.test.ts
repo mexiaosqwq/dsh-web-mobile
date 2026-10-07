@@ -41,3 +41,12 @@ test('the delete endpoint enforces same-origin and a 1 MiB body cap', () => {
   assert.notEqual(bodyRead, -1)
   assert.ok(methodCheck < originGate && originGate < bodyRead)
 })
+
+// issue #82: the handler owns the response, so a rejection out of the pure
+// core must be answered with a structured 500 instead of escaping into the
+// host dispatcher's bare 400.
+test('the delete route answers a throwing core with a structured 500', () => {
+  assert.match(source, /try \{\n\s+result = await deleteSession\(/)
+  assert.match(source, /catch \(error\) \{[\s\S]*?code: 'delete-failed'/)
+  assert.match(source, /session-delete threw for '\$\{sessionId\}'/)
+})

@@ -116,3 +116,20 @@ test('the two rows sit tight and the sheet frame is slim (owner feedback 2026-10
   const option = BASE_CSS.slice(optionStart, BASE_CSS.indexOf('}', optionStart))
   assert.match(option, /min-height: 34px;/)
 })
+
+test('unmounting and re-opening close the sheet through its own teardown (issue #83)', () => {
+  // 浮层打开的 5 个持久监听（keydown + resize + orientationchange + visualViewport
+  // 的 resize/scroll）只在 close() 里摘。效果卸载原先只删节点，于是每次手机档 ↔
+  // 桌面档切换、或插件热重载，都会留下一套还在找浮层的监听。
+  assert.match(SRC, /let activeClose: \(\(\) => void\) \| null = null/)
+  // 卸载：先走 close（摘监听 + rAF + 计时器），再删节点。
+  const disposer = SRC.slice(SRC.indexOf("document.removeEventListener('click', onClick, true)"))
+  assert.match(disposer, /activeClose\?\.\(\)/)
+  assert.ok(
+    disposer.indexOf('activeClose?.()') < disposer.indexOf('file-picker-backdrop'),
+    'teardown must run before the node is dropped',
+  )
+  // 重开：上一张也必须走 close，不能只 remove() 节点（同一条泄漏路径）。
+  assert.match(SRC, /activeClose\?\.\(\)\n  activeClose = null/)
+  assert.match(SRC, /if \(activeClose === close\) activeClose = null/)
+})

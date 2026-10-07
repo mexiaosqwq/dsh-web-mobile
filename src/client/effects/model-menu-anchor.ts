@@ -58,6 +58,12 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
     const timers: number[] = []
     /** 已确认「开着」的菜单节点；null 表示当前没有菜单（滚动路径据此零查询）。 */
     let active: HTMLElement | null = null
+    /**
+     * 我们最后写进 inline left 的节点与值。卸载/菜单消失时要把这行还回去 ——
+     * 否则宿主之后再渲染同一个菜单会带着我们留下的位置（issue #86）。
+     * 只在值仍是我们写的那份时才清，避免抹掉宿主自己写的位置。
+     */
+    let placedLeft: { el: HTMLElement; value: string } | null = null
 
     const laidOut = (el: Element | null): DOMRect | null => {
       if (el === null) return null
@@ -92,6 +98,7 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       const next = `${Math.round(left)}px`
       // 只在真的不同时才写：避免和宿主来回抢同一帧。
       if (menu.style.left !== next) menu.style.left = next
+      placedLeft = { el: menu, value: next }
     }
 
     /** 交互路径：刷新缓存（会查询）并按新位置落位。 */
@@ -171,6 +178,9 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       if (raf !== 0) window.cancelAnimationFrame(raf)
       for (const timer of timers) window.clearTimeout(timer)
       timers.length = 0
+      // 还回我们写的那行 inline left（只在值仍是我们写的时候）。
+      if (placedLeft !== null && placedLeft.el.style.left === placedLeft.value) placedLeft.el.style.left = ''
+      placedLeft = null
       active = null
     }
   })

@@ -838,6 +838,8 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     // arrives — the store is the honest source of "navigation happened".
     let closeOnNavUnsub: (() => void) | null = null
     let closeOnNavDone = false
+    /** The queued `fire` handle: cleared on disarm so disposal leaves no timer. */
+    let closeOnNavTimer = 0
 
     /** Disarming means spent: mark the close done before dropping the
      *  subscription, so a `fire` a subscription tick already queued cannot
@@ -846,6 +848,10 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       closeOnNavDone = true
       closeOnNavUnsub?.()
       closeOnNavUnsub = null
+      if (closeOnNavTimer !== 0) {
+        window.clearTimeout(closeOnNavTimer)
+        closeOnNavTimer = 0
+      }
     }
 
     const closeOnNavigation = (id: string): void => {
@@ -858,7 +864,11 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       }
       closeOnNavUnsub = ctx.sessions.list.subscribe(() => {
         if (currentSessionIdOf(ctx.sessions.list.getSnapshot()) !== id) return
-        window.setTimeout(fire, 0)
+        if (closeOnNavTimer !== 0) window.clearTimeout(closeOnNavTimer)
+        closeOnNavTimer = window.setTimeout(() => {
+          closeOnNavTimer = 0
+          fire()
+        }, 0)
       })
     }
 

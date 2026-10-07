@@ -20,17 +20,17 @@
   │  ├─ delete-session.ts    ← 会话删除纯核（DI、分代适配、可单测）
   │  ├─ reasoning-effort.ts  ← 手写模型默认思考档位纯核 + settings 读写面（可单测）
   │  └─ client/
-  │     ├─ index.tsx         ← 浏览器半区入口（3 slots）
+  │     ├─ index.tsx         ← 浏览器半区入口（注册 3 个 slot；另有 file-share.ts 的 2 个官方 slot）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
-  │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts
+  │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts · prototype-focus-shadow.ts（两个键盘守卫共享的一个 focus 影子，#84）
   │     ├─ effects/          ← 27 个效果模块：phone-chrome · sidebar-swipe ·
   │     │                       gesture-guard · subagent-chip-touch · composer-keyboard-guard ·
   │     │                       composer-keyboard-lift · composer-paste-guard ·
   │     │                       composer-file-picker ·
   │     │                       attachment-mention · file-share ·
   │     │                       shortcut-modal-keyboard-guard · model-menu-keyboard-guard · plugin-card-tap · session-focus-guard ·
-  │     │                       composer-plus-toggle · workspace-chip-toggle · team-chip-toggle ·
+  │     │                       composer-plus-toggle · workspace-chip-toggle · team-chip-toggle · reasoning-defaults ·
   │     │                       model-menu-anchor ·
   │     │                       file-viewer-compat · aionui-compat · stats-line ·
   │     │                       preview-fullscreen ·
@@ -45,12 +45,12 @@
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  ├─ css-structure-check.mjs ← CSS 结构检测器（已接入 test:core）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 49 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 51 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
   │  ├─ audits/ · maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json + host-jank-feedback.md）· fork-wzxmt-zhc/
   │  └─ debug/ · superpowers/ ← 本地不入库（例外：composer-tree-recon.md 与 settings-market-debug-map.md 已于 2026-09-25 入库）
-  ├─ .github/workflows/ci.yml ← verify → test:core → build → git diff --exit-code lib
+  ├─ .github/workflows/ci.yml ← verify → test:core → build → bundle smoke → git diff --exit-code lib
   ├─ assets/                 ← README 用图
   └─ .local-tests/ · .codegraph/ · .dsh-vision-toolkit/  ← 本地不入库（gitignore 噪音区）
   ```
@@ -84,7 +84,7 @@ npm pack                           # package smoke check (invokes prepack)
 
 - `test:core` = `node --test tests/*.test.ts`（glob；2026-08-31 前是硬编码列表，长期落后于 `tests/`）。
 - `pnpm build` is the required gate after any source change: it emits host ESM, client CommonJS, then inlines the client into `lib/client.js`. `lib/` is committed, so a change is incomplete until `pnpm build` refreshes it.
-- `pnpm verify` + `pnpm test:core` are the fast local checks; there is no lint/format config — the CI gate is `.github/workflows/ci.yml`（verify → test:core → build → lib 新鲜度，见 维护入口）.
+- `pnpm verify` + `pnpm test:core` are the fast local checks; there is no lint/format config — the CI gate is `.github/workflows/ci.yml`（verify → test:core → build → bundle smoke → lib 新鲜度，见 维护入口）.
 - Optional CDP regression probe (not part of `verify`/`build`):
 
 ```sh
@@ -111,7 +111,7 @@ dsh web
 ## Architecture
 
 - Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus the session-delete endpoint (deletion work in the DI pure core `src/delete-session.ts`, generation-adapted per host) and fills the default thinking-level set for hand-declared `llm-pi-ai` models (pure core `src/reasoning-effort.ts`).
-- `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers three slots:
+- `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions']`. `inject` is a hard dependency, so the list carries only services the entry actually reads (`workspaces` was removed in #86). Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers three slots:
   - `conversation.session.header.actions` → `MobileNavToggle` (`order: 10`): drawer toggle + Files button.
   - `conversation.input.left` → `ComposerFileButton` (`id: mobile-nav-file-upload`, `order: 10`): the permanent composer file entry. Host 0.1.6 deleted the paperclip attach button, leaving the 「文件」row inside the "+" listbox as the only entry; this control sits in the tools lane beside the plus button. Since 2026-10-06 its tap opens the plugin's two-option sheet (`effects/composer-file-picker.ts`: 上传图片 / 上传附件) which hands the choice back to the host's own hidden `input[type=file]`, so intake validation, upload and availability stay host-owned. Session-scoped — the hero/blank phase keeps the "+" menu as its only file entry.
   - `sidebar.footer.action` → `MobileDrawerFooter` (`id: mobile-nav-session-log`, `order: 5`): the session-log export pill only — the Files entry that used to sit beside it was removed on 2026-09-17 (with the drawer open neither the host nor the third-party dismiss shim lets a click reach the right-sidebar opener; contract in `docs/specs/2026-09-17-sidebar-files-coexistence-design.md`). Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
@@ -120,7 +120,7 @@ dsh web
   - `src/client/core/reconciler-core.ts` is a DOM-free engine with **zero imports**. It owns task registry, dirty-key routing (`scopes`), coalesced rAF flush scheduling, and per-task error isolation.
   - `src/client/effects/phone-chrome.ts` is the thin browser adapter: one `MutationObserver` on `document.documentElement` maps records to dirty keys (`attributeName`, or `'*'` for tree changes), feeds `core.note()`, and drives activation/deactivation via `installMobileEffect`.
   - Tasks only run while the mobile breakpoint is active, coalesced to one pass per animation frame. `stats-line` must stay `scopes: ['*']` because TPS updates are childList/characterData text mutations.
-  - Registered tasks: `frame-marker`, `preview-fullscreen-toggle`, `preview-close-sync`, `sheet-rise-replay`, `stats-line`, `overlay-backdrop-fab`, `panel-back-exit`.
+  - Registered tasks: `frame-marker`, `header-metrics`, `preview-fullscreen-toggle`, `preview-close-sync`, `sheet-rise-replay`, `file-viewer-open-marker`, `stats-line`, `overlay-backdrop-fab`, `panel-back-exit`.
 - Effects:
   - `phone-chrome.ts` — status bar/theme-color/viewport meta, the iOS focus-zoom marker (`detectIosWebKit` → `html[data-mobile-nav-ios]`), drawer close interactions (Escape + navigation taps), and the overlay backdrop/FAB via reconciler tasks.
   - `sidebar-swipe.ts` + `gesture-guard.ts` — drawer swipe gestures：开=8px 锁轴**提前提交**（inline `-101%` 百分比基线跟随 + arm 帧 `content-visibility:hidden` 拆挂载）；关=**晚提交**（inline 280ms 滑到自身宽×110% px 槽位后翻 marker，防 React 中途换子树）；遮罩经 `fadeOverlayOut` 渐隐；右缘 files 手势与抽屉手势同层双族路由（判定矩阵与已踩坑见 Pitfalls「files 手势」）；`gesture-guard.ts` supplies the host-yield consume marks + stroke axis lock.
@@ -144,9 +144,10 @@ dsh web
   - `shortcut-modal-keyboard-guard.ts` — 手机档：快捷键弹层（宿主 `dsh-client-ui-shortcuts` 的
     `data-shortcut-modal="shortcuts"`）打开时会把焦点抢到搜索框，手机随即弹软键盘 —— 用户是来编辑
     快捷键的，键盘却盖掉半屏，而且弹层按 `100dvh` 定高、键盘一压就整体缩一截（实测 844→520 时
-    600px→496px，就是「打开就闪」）。这里给搜索框挂一个 own 的 no-op `focus` 影子方法（同
-    `composer-keyboard-guard.ts` 的手法）：宿主的 `focusWithoutRing` 落到影子上、输入框不获得焦点、
-    键盘不起；点击不受影响（浏览器原生聚焦不经过 JS 方法），搜一次仍是一次点按。影子在
+    600px→496px，就是「打开就闪」）。这里通过共享管理器 `core/prototype-focus-shadow.ts`（#84）给
+    `HTMLInputElement.prototype.focus` 注册一条「这个搜索框不聚焦」的谓词：宿主的 `focusWithoutRing`
+    落到影子上、输入框不获得焦点、键盘不起；点击不受影响（浏览器原生聚焦不经过 JS 方法），搜一次仍是
+    一次点按。谓词只在弹层存在期间注册，最后一个守卫卸载时真实方法才被放回（两个守卫同装时互不覆盖）。影子在
     MutationObserver（只盯 `document.body` 的 childList）里安装 —— 微任务早于 React 的被动 effect，
     所以第一帧抢焦也拦得住；弹层移除时 `delete` 还原。
   - `session-focus-guard.ts` — 手机档：进入会话不自动弹软键盘（issue #140）。宿主 InputBar 在
@@ -274,8 +275,8 @@ dsh web
 
 ## Testing & QA
 
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（49 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
-- There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the lib freshness gate `git diff --exit-code lib`.
+- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（51 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
+- There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the bundle smoke (`node scripts/client-bundle-smoke.mjs`) and the lib freshness gate `git diff --exit-code lib`.
 - After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
   - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.
   - **Tablet (768–1023px):** verify the intended centered and width-constrained sheet geometry separately from phone behavior.
@@ -307,5 +308,5 @@ dsh web
 
 - **GitHub Release 文案规格（用户要求，2026-09-20）**：Release notes 照 v2.4.1/v2.3.0 文章体例，不许直接贴 README 段落——`## vX.Y.Z · 一句话摘要` 开头 + 导语段（本版是什么、桌面 no-op 承诺、旧宿主回退建议）+ **致谢行必写**（v2.4.0 体例：「特别感谢合作人 @x（PR #63/#65：具体贡献）」+ 社区贡献与报障逐个 `@handle（#NN 报障 / PR #NN）`；条目标题带 `（#NN by @handle）`归属。署名从 GitHub 实测取：PR author + commit author + issue reporter，且只列修复确实落在本 tag 区间的——用 close 日期、closed_by 提交、`git log vA..vB` 引用三路核对，未合并的 PR 与仍 open 的报障不计）+ `### 安装`（DSHA 一句 + npm 代码块 + GitHub 直装行 + 旧名迁移提示）+ `### 新功能` / `### 修复`（`**症状**：根因 + 修法` 句式）+ `### 兼容`（宿主代际范围 + 已实装验证的第三方版本号）+ `### 完整提交`（提交少时逐条 short-hash；大版本列里程碑提交，收尾必带 `compare/vA...vB` 完整变更对比链接）。**README「更新内容」段发版时同步写**（2026-09-25 用户拍板；版本合并补发时按「上游 tag 之后所有改动并入本版」口径整理，Release notes 仍单独写、不贴 README 段落）。
 
-- CI：`.github/workflows/ci.yml`——verify → test:core → build → `git diff --exit-code lib`（lib 新鲜度门）。**本地照抄这条会假绿**：它比的是**工作区↔索引**，`git add` 之后恒真，源码没提交也能过（本分支出过两个只装 `lib/` 的提交）。本地正确判据＝源码与 `lib/` 同一提交 → 再 `pnpm build` → `git diff --exit-code HEAD -- lib`；另加 `git status --porcelain --ignored lib` 必须为空（`git diff` 看不见未跟踪孤儿产物，而 tsc 从不清理 outDir）。**推 `fix/*` 分支不触发任何 CI**（workflow 只监听 main + PR），所以「推上去了」≠「被检查过」。
+- CI：`.github/workflows/ci.yml`——verify → test:core → build → **`node scripts/client-bundle-smoke.mjs`（白屏门，2026-10-07 接入）** → `git diff --exit-code lib`（lib 新鲜度门）。**本地照抄这条会假绿**：它比的是**工作区↔索引**，`git add` 之后恒真，源码没提交也能过（本分支出过两个只装 `lib/` 的提交）。本地正确判据＝源码与 `lib/` 同一提交 → 再 `pnpm build` → `git diff --exit-code HEAD -- lib`；另加 `git status --porcelain --ignored lib` 必须为空（`git diff` 看不见未跟踪孤儿产物，而 tsc 从不清理 outDir）。**推 `fix/*` 分支不触发任何 CI**（workflow 只监听 main + PR），所以「推上去了」≠「被检查过」。
 - 引擎底线：`package.json` engines `node >=24.0.0`（tests 依赖 Node 原生 TS type-stripping）。

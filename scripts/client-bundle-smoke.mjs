@@ -84,5 +84,8 @@ if (missing.length > 0) {
   process.exit(1)
 }
 
-const moduleCount = (source.match(/__modules\["/g) ?? []).length
+// Count module DEFINITIONS only: the entry call line also reads
+// `__modules["index.js"](...)`, so the old `__modules["` count reported one
+// module more than the bundle inlines (issue #86).
+const moduleCount = (source.match(/__modules\["[^"]+"\] = function/g) ?? []).length
 console.log(`SMOKE PASS: ${file} — entry loaded, ${moduleCount} inlined modules, exports ${Object.keys(exports).join(', ')}`)

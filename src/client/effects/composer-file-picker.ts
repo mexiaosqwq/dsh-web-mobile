@@ -31,6 +31,16 @@ const HOST_INPUT_SELECTOR = 'input[type=file]'
 /** mobileNav 命名空间（同 src/client/i18n/locales.ts 的 NS）。 */
 const NS = 'mobileNav'
 
+/**
+ * 当前打开着的那张浮层的 close（一次只会有一张）。
+ *
+ * 存在的理由：效果的 disposer 与「再点一次回形针」都必须走 close 才能把
+ * keydown / resize / orientationchange / visualViewport(resize+scroll) 这几个
+ * 持久监听和 rAF 链一起摘掉；只 remove() 节点会把这些监听留在 document/window 上，
+ * 每次手机档 ↔ 桌面档切换（或插件热重载）叠一套，回调还在找已经不在的浮层。
+ */
+let activeClose: (() => void) | null = null
+
 /** 两个选项：图片走 image 通配，附件保持宿主原样（见 acceptForKind 的实验说明）。 */
 export type FilePickerKind = 'image' | 'file'
 
@@ -104,7 +114,10 @@ function openHostPicker(kind: FilePickerKind): void {
  * @param trigger - 被点的回形针入口（定位锚点）。
  */
 function openSheet(t: PickerTranslate, trigger: Element): void {
-  document.querySelector('[data-mobile-nav="file-picker-backdrop"]')?.remove()
+  // 关掉上一张浮层 —— 必须走它自己的 close（摘监听/rAF/计时器），
+  // 只 remove() 节点会把监听留在 document/window 上（见下方的 disposer 注释）。
+  activeClose?.()
+  activeClose = null
   const backdrop = document.createElement('div')
   backdrop.dataset.mobileNav = 'file-picker-backdrop'
   const sheet = document.createElement('div')
@@ -120,9 +133,11 @@ function openSheet(t: PickerTranslate, trigger: Element): void {
   /** 打开期间挂上的监听/rAF，关闭时逐个摘掉。 */
   const teardown: Array<() => void> = []
   const close = (): void => {
+    if (activeClose === close) activeClose = null
     for (const off of teardown.splice(0)) off()
     backdrop.remove()
   }
+  activeClose = close
   const onKey = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') close()
   }
@@ -239,6 +254,10 @@ export function installComposerFilePicker(ctx: ClientContext): void {
     document.addEventListener('click', onClick, true)
     return () => {
       document.removeEventListener('click', onClick, true)
+      // 浮层还开着就按它自己的路径关掉（先摘监听/rAF，再删节点）——只 remove()
+      // 节点会把 5 个持久监听留在 document/window 上，切换档位/热重载就叠一套。
+      activeClose?.()
+      activeClose = null
       document.querySelector('[data-mobile-nav="file-picker-backdrop"]')?.remove()
     }
   })

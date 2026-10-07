@@ -153,7 +153,7 @@ export function buildRefs(attachments: readonly DraftAttachment[]): AttachmentRe
 }
 
 /** Chip / row title: the file name, or the localized unnamed label. */
-export function labelOf(ref: Pick<AttachmentRef, 'name' | 'ordinal'>, copy: Pick<AttachmentCopy, 'unnamed'>): string {
+function labelOf(ref: Pick<AttachmentRef, 'name' | 'ordinal'>, copy: Pick<AttachmentCopy, 'unnamed'>): string {
   return ref.name === '' ? copy.unnamed(ref.ordinal) : ref.name
 }
 

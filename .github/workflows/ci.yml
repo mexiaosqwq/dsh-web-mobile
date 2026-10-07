@@ -19,5 +19,9 @@ jobs:
       - run: pnpm verify
       - run: pnpm test:core
       - run: pnpm build
+      # The white-screen gate (2026-10-06 incident): load the built bundle with
+      # a stub __ModuleLoader__ and execute the entry factory, so a syntax error
+      # or a missing module key fails CI instead of the user's page.
+      - run: node scripts/client-bundle-smoke.mjs
       - name: lib is fresh (rebuild must not diff)
         run: git diff --exit-code lib

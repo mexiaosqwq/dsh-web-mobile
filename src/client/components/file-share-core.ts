@@ -17,7 +17,7 @@
 export const SHARE_MAX_BYTES = 50 * 1024 * 1024
 
 /** Above this size nothing is read at all: the browser would hold the whole file in memory. */
-export const READ_MAX_BYTES = 200 * 1024 * 1024
+const READ_MAX_BYTES = 200 * 1024 * 1024
 
 /** One ranged read; well under the host's default 2 MiB per-call window cap. */
 export const CHUNK_BYTES = 1024 * 1024
@@ -185,18 +185,26 @@ export async function deliverFile<F extends ShareableFile>(file: F, deps: ShareD
     deps.download(file)
     return { kind: 'downloaded', reason: 'too-large' }
   }
+  // No share seam at all: a real branch of its own (it used to hide inside
+  // `!supported || deps.share === undefined`, where the second half could
+  // never decide anything because `supported` was already false).
+  const share = deps.share
+  if (share === undefined) {
+    deps.download(file)
+    return { kind: 'downloaded', reason: 'unsupported' }
+  }
   let supported = false
   try {
-    supported = deps.share !== undefined && deps.canShare?.({ files: [file] }) === true
+    supported = deps.canShare?.({ files: [file] }) === true
   } catch {
     supported = false
   }
-  if (!supported || deps.share === undefined) {
+  if (!supported) {
     deps.download(file)
     return { kind: 'downloaded', reason: 'unsupported' }
   }
   try {
-    await deps.share({ files: [file], title: file.name })
+    await share({ files: [file], title: file.name })
     return { kind: 'shared' }
   } catch (error) {
     if (isAbortError(error)) return { kind: 'cancelled' }

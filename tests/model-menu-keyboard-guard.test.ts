@@ -26,9 +26,13 @@ test('the shadow swallows exactly the model pane search field', () => {
   // input may match.
   assert.match(SRC, /\[data-menu-material\] input\[role="searchbox"\]/)
   assert.match(SRC, /input\[role="searchbox"\]\[aria-controls\$="-models"\]/)
-  assert.match(SRC, /if \(this\.matches\(MODEL_SEARCHBOX\)\) return/)
-  // A tap must keep working: only the JS method is replaced, not native focus.
-  assert.match(SRC, /previous\.call\(this, options\)/)
+  // The predicate goes to the shared manager (issue #84) instead of the guard
+  // patching the prototype itself — two guards on one global slot used to
+  // overwrite each other and leave a stale wrapper behind.
+  assert.match(SRC, /import \{ shadowFocus \} from '\.\.\/core\/prototype-focus-shadow\.ts'/)
+  assert.match(SRC, /shadowFocus\(\(element\) => element\.matches\(MODEL_SEARCHBOX\)\)/)
+  assert.doesNotMatch(SRC, /HTMLInputElement\.prototype\.focus\s*=/)
+  assert.doesNotMatch(SRC, /proto\.focus =/)
 })
 
 test('the shadow is armed before the host effect can focus, and given back after', () => {
