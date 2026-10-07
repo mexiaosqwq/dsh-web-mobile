@@ -6,7 +6,7 @@ import {
   FileShareError,
   deliverFile,
   fileNameOf,
-  hasWebShare,
+  canShareFiles,
   mimeTypeOf,
   readWholeFile,
 } from './file-share-core.ts'
@@ -116,7 +116,7 @@ function showFallbackNotice(text: string): void {
  * @returns the label for the current state.
  */
 function shareLabel(t: Translate, name: string): string {
-  return hasWebShare(platformDeps()) ? t('shareFile', { name }) : t('downloadFile', { name })
+  return canShareFiles(platformDeps()) ? t('shareFile', { name }) : t('downloadFile', { name })
 }
 
 /** Copy for one outcome; null when the outcome speaks for itself (sheet shown / dismissed). */
@@ -246,7 +246,7 @@ export function FilePreviewShareButton({ absolutePath, sessionId, readFileRange,
         disabled={busy}
         onClick={() => share(absolutePath)}
       >
-        {hasWebShare(platformDeps()) ? <ShareGlyph /> : <DownloadGlyph />}
+        {canShareFiles(platformDeps()) ? <ShareGlyph /> : <DownloadGlyph />}
       </button>
       {toast}
     </>
@@ -302,7 +302,7 @@ export function FilesRowShare({ sessionId, readFileRange, t }: FileShareSlotProp
           button = document.createElement('button')
           button.type = 'button'
           button.dataset.mobileNav = ROW_BUTTON
-          button.innerHTML = hasWebShare(platformDeps()) ? SHARE_SVG : DOWNLOAD_SVG
+          button.innerHTML = canShareFiles(platformDeps()) ? SHARE_SVG : DOWNLOAD_SVG
           button.addEventListener('click', onClick)
           row.appendChild(button)
         }

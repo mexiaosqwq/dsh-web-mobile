@@ -145,18 +145,28 @@ export function isAbortError(error: unknown): boolean {
 }
 
 /**
- * Whether this platform exposes the Web Share API at all.
+ * Whether this platform can deliver a file to another app at all.
  *
- * The UI reads it to label the button HONESTLY: with no `navigator.share` /
- * `navigator.canShare` the press can only end in a download, so calling it
- * 「分享」 would be a lie (owner report 2026-10-07: 「还是选择存到哪里，而不是分享到
- * 媒体，比如说微信QQ，不然这不算是文件分享」). Deliberately a *surface* probe, not a
- * per-file `canShare` call: `canShare` wants real `File` objects, and a fabricated
- * probe object makes browsers report false even for shareable files.
+ * The UI reads it to label the button HONESTLY: when nothing can share, the
+ * press can only end in a download, so calling it 「分享」 would be a lie (owner
+ * report 2026-10-07: 「还是选择存到哪里，而不是分享到媒体，比如说微信QQ，不然这不算是
+ * 文件分享」). Deliberately a *surface* probe, not a per-file `canShare` call:
+ * `canShare` wants real `File` objects, and a fabricated probe object makes
+ * browsers report false even for shareable files.
+ *
+ * Deliberately NOT named after `navigator.share`: Android WebView implements no
+ * Web Share at all (only standalone browsers do), so a host-side bridge — e.g. a
+ * DSHA `ACTION_SEND` entry point — is the route that actually matters on a phone,
+ * and it would NOT show up in these two seams. When such a bridge lands, extend
+ * `ShareDeps` with it and make this predicate (`bridge !== undefined ||` …) and
+ * the `deliverFile` routing order **bridge → Web Share → download** agree; the
+ * label and the glyph follow this predicate automatically, so the button flips
+ * back to 「分享「x」」 with no UI change. Do not pre-guess the bridge's shape from
+ * here: a `path`-only bridge needs the host half, a byte/base64 bridge does not.
  * @param deps - platform seams.
  * @returns true when both Web Share members are present.
  */
-export function hasWebShare<F extends ShareableFile>(deps: ShareDeps<F>): boolean {
+export function canShareFiles<F extends ShareableFile>(deps: ShareDeps<F>): boolean {
   return deps.share !== undefined && deps.canShare !== undefined
 }
 
