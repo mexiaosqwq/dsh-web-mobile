@@ -47,6 +47,10 @@ export declare const LONG_PRESS_FILL_DELAY_MS = 200;
 /** Duration the fill animation should take so it completes exactly when the
  *  long press fires: the hold remaining after the fill delay (never negative). */
 export declare function longPressFillMs(holdMs: number, delayMs: number): number;
+/** 系统长按（Android 在约 500ms 派发 contextmenu）到这个时长就直接触发，
+ *  不再等 LONG_PRESS_MS 计时器 —— 实测真机上扫光出现却什么都没发生，
+ *  最可能是系统随后接管手势把我们的计时器取消掉了。 */
+export declare const LONG_PRESS_SYSTEM_MS = 300;
 /**
  * Re-arm a mobile-only DOM effect on every query change. Replaces the
  * repeated matchMedia + change-listener scaffold so all breakpoint strings

@@ -14,6 +14,7 @@ import {
   LONG_PRESS_FILL_DELAY_MS,
   LONG_PRESS_MOVE_PX,
   LONG_PRESS_MS,
+  LONG_PRESS_SYSTEM_MS,
   longPressFillMs,
 } from '../src/client/effects/phone-chrome.ts'
 
@@ -104,9 +105,26 @@ test('武装、填充、触发三处写/删标记', () => {
   assert.match(down, /setProperty\(PRESS_MS_VAR/)
   assert.match(down, /setAttribute\(PRESS_ATTR, 'fill'\)/)
   assert.match(down, /LONG_PRESS_FILL_DELAY_MS\)/)
-  // Fire path unmarks before opening rename.
-  assert.match(down, /unmarkPressRow\(pressRow\)[\s\S]*requestRowRename\(pressRow\)/)
+  assert.match(down, /pressTimer = window\.setTimeout\(firePress, LONG_PRESS_MS\)/)
+  // Fire path unmarks before opening rename (now shared by the timer and the
+  // system long-press event — see the test below).
+  const fire = bodyOf('firePress')
+  assert.match(fire, /unmarkPressRow\(row\)[\s\S]*requestRowRename\(row\)[\s\S]*openRowMenu\(row\)/)
 })
+
+test('系统长按（contextmenu）也能触发改名，而不是只等计时器', () => {
+  // 真机实测：进度条走了却什么都没发生（最可能是系统随后接管手势取消计时器）。
+  // Android 自己的长按事件（约 500ms）必须能直接触发同一条 firePress 路径。
+  assert.equal(LONG_PRESS_SYSTEM_MS, 300)
+  assert.ok(LONG_PRESS_SYSTEM_MS < LONG_PRESS_MS)
+  const menu = bodyOf('onDrawerContextMenu')
+  assert.match(menu, /performance\.now\(\) - pressStartedAt >= LONG_PRESS_SYSTEM_MS\) firePress\(\)/)
+  assert.match(bodyOf('onDrawerPointerDown'), /pressStartedAt = performance\.now\(\)/)
+  // contextmenu 仍然只在「计时中 + 按住的那一行」上拦截。
+  assert.match(menu, /pressTimer === null \|\| pressRow === null\) return/)
+  assert.match(menu, /pressRow\.contains\(target\)/)
+})
+
 
 test('pointercancel 与让位的 pointerup 都 clearPress；contextmenu 只在计时中、只在按住行上拦截', () => {
   assert.match(bodyOf('onDrawerPointerCancel'), /clearPress\(\)/)

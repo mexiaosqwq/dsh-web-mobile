@@ -40,8 +40,10 @@ test('双击：真实 dblclick 被吞掉，只有我们派发的合成事件放�
 })
 
 test('长按：改名优先，⋯ 菜单只作拿不到标题时的退路', () => {
+  // 触发路径抽到 firePress（计时器与系统 contextmenu 共用），退路照旧。
   const arming = bodyOf(CHROME, 'onDrawerPointerDown')
-  assert.match(arming, /if \(!requestRowRename\(pressRow\)\) openRowMenu\(pressRow\)/)
+  assert.match(arming, /pressTimer = window\.setTimeout\(firePress, LONG_PRESS_MS\)/)
+  assert.match(bodyOf(CHROME, 'firePress'), /if \(!requestRowRename\(row\)\) openRowMenu\(row\)/)
   // Rename replays the host's own entry point instead of forking the dialog:
   // the title's dblclick, dispatched with the identity mark set.
   const rename = bodyOf(CHROME, 'requestRowRename')
