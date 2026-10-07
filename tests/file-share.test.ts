@@ -238,3 +238,17 @@ test('the button is labelled 下载 (and gets a download glyph) when sharing is 
   assert.match(locale, /'downloadFile': '下载「\{name\}」'/)
   assert.match(locale, /'downloadFile': 'Download "\{name\}"'/)
 })
+
+test('the download notice never claims the file landed (2026-10-07 live finding)', async () => {
+  // 真机实测：点「下载」→ 弹系统「另存为」→ 确认后**并未写盘**（DSHA App
+  // 0.2.8-20261004.1719 的 WebView 对 a[download]/blob 静默失败），默认文件名还被换成 UUID。
+  // 我们发不了 ACTION_SEND、也控制不了 App 的写盘，所以提示只能说「已开始下载、请自行确认」，
+  // 不许再写「已下载到「下载」文件夹」这种会被真机打脸的承诺。
+  const locale = await readFile(new URL('../src/client/components/file-share-locale.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(locale, /已下载到/, '不许承诺已经落到「下载」文件夹')
+  assert.doesNotMatch(locale, /forward it from a file manager/, '不许给出「用文件管理器转发」这条在真机上不成立的路')
+  for (const key of ['downloadedUnsupported', 'downloadedTooLarge', 'downloadedShareFailed']) {
+    assert.match(locale, new RegExp(`'${key}': '[^']*请在系统保存位置确认`), `${key} 必须让用户自己去确认`)
+  }
+  assert.match(locale, /'downloadedUnsupported': 'Direct sharing is unavailable here; a download has started/)
+})

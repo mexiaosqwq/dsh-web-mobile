@@ -10,9 +10,9 @@ export declare const fileShareZh: {
     readonly shareFile: "分享「{name}」";
     readonly downloadFile: "下载「{name}」";
     readonly sharing: "正在准备文件…";
-    readonly downloadedUnsupported: "当前环境不支持直接分享，已下载到「下载」文件夹，可在文件管理器里转发给好友";
-    readonly downloadedTooLarge: "文件超过 50 MB，已改为下载";
-    readonly downloadedShareFailed: "分享未能完成，已改为下载";
+    readonly downloadedUnsupported: "当前环境不支持直接分享；已开始下载，请在系统保存位置确认";
+    readonly downloadedTooLarge: "文件超过 50 MB；已开始下载，请在系统保存位置确认";
+    readonly downloadedShareFailed: "分享未能完成；已开始下载，请在系统保存位置确认";
     readonly errorTooLarge: "文件太大（超过 200 MB），无法在手机端分享或下载";
     readonly errorNotFound: "文件不存在或已被移动";
     readonly errorGeneric: "分享失败：{message}";
