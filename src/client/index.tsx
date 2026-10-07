@@ -49,6 +49,59 @@ export const inject = ['slots', 'layout', 'locale', 'sessionLogDownload', 'sessi
 type DownloadSessionId = Parameters<ClientContext['sessionLogDownload']['download']>[0]
 
 /**
+ * How long a remembered scroll position stays usable (see {@link restoreConversationScroll}).
+ * The gap between our teardown and re-apply is one dynamic import inside the host's
+ * client-modules queue — well under a second in practice; ten is generous.
+ */
+const SWAP_RESTORE_MS = 10_000
+
+/** Scroll offsets captured right before our stylesheet is torn down by a hot swap. */
+let scrollsBeforeSwap: number[] | null = null
+/** Wall clock of that capture, so a stale stash can never move the user's view. */
+let scrollSavedAt = 0
+
+/** The host's conversation scrollers (`_scrollBody` is the `overflow-y:auto` box). */
+function conversationScrollers(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('[data-mobile-nav="frame"] [class*="scrollBody"]')]
+}
+
+/**
+ * Remember where the conversation was before a hot swap tears our stylesheet down.
+ *
+ * The host's `client-modules.replace()` (tearDown → import → refresh) removes this
+ * plugin's `<style>` for a beat; without it the long-conversation
+ * `content-visibility` rules vanish, the whole conversation re-lays out, and
+ * Chromium re-anchors the scroller at the top — the owner's 2026-10-07 report
+ * 「聊到一半突然闪到最上面」. Captured only when something is actually scrolled.
+ */
+function rememberConversationScroll(): void {
+  const tops = conversationScrollers().map((element) => element.scrollTop)
+  scrollsBeforeSwap = tops.some((top) => top > 0) ? tops : null
+  scrollSavedAt = Date.now()
+}
+
+/**
+ * Put the conversation back where {@link rememberConversationScroll} found it.
+ *
+ * Deliberately narrow: only a fresh stash is used, and only for a scroller that is
+ * now at 0 — that is exactly the "yanked to the top" symptom. A scroller the host
+ * moved on purpose (auto-scroll to the newest message) is left alone, and a normal
+ * page load has no stash at all, so this is a no-op outside hot swaps.
+ */
+function restoreConversationScroll(): void {
+  const tops = scrollsBeforeSwap
+  const savedAt = scrollSavedAt
+  scrollsBeforeSwap = null
+  if (tops === null || Date.now() - savedAt > SWAP_RESTORE_MS) return
+  requestAnimationFrame(() => {
+    conversationScrollers().forEach((element, index) => {
+      const top = tops[index]
+      if (top !== undefined && top > 0 && element.scrollTop === 0) element.scrollTop = top
+    })
+  })
+}
+
+/**
  * Mobile-adaptive shell, browser half: injects the mobile stylesheet, then
  * contributes the directory toggle to the session header and the backdrop +
  * floating button to the shell overlay.
@@ -77,7 +130,13 @@ export function apply(ctx: ClientContext): void {
     setTimeout(() => {
       if (tag.isConnected) document.head.appendChild(tag)
     }, 0)
+    // 热换后的滚动回位（2026-10-07 店主：「聊到一半突然闪到最上面」）。
+    // 宿主热换插件走 client-modules.replace()：tearDown → import → refresh，
+    // 我们这张表在窗口里会**整个消失**，长会话的 content-visibility 估算与布局
+    // 翻转会让 Chromium 把会话滚动区重锚到顶部。卸载前记下位置、重挂后回填。
+    restoreConversationScroll()
     return () => {
+      rememberConversationScroll()
       tag.remove()
     }
   }, 'dsh-web-mobile: styles')
