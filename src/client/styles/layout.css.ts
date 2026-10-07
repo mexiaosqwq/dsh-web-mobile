@@ -974,6 +974,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-composer-card] [data-mobile-nav="file-upload"]:active::before {
     background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
   }
+  /* 2026-10-07 店主："点一下有一层深一点的灰色，也有一层浅一点的灰色，去掉一层"。
+     真因是**半透明叠半透明**，不是我们画了两层胶囊：宿主全局 CSS 里有
+     「button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}」
+     （特异性 0,2,1 > 上面那条基础规则的 0,2,0，所以它赢了）与
+     「button:active{background-color:#0000001f}」，两者都画在这个按钮的**盒子**上；
+     而 ::before 的可见胶囊又画一层 ⇒ 重叠区深、外圈浅，看着就是两层灰。
+     可见胶囊只留 ::before 一层：盒子在所有状态下强制透明（::after 只有命中区、无底色）。 */
+  [data-composer-card] [data-mobile-nav="file-upload"]:hover,
+  [data-composer-card] [data-mobile-nav="file-upload"]:active,
+  [data-composer-card] [data-mobile-nav="file-upload"]:focus-visible {
+    background: transparent !important;
+  }
   /* 压掉浏览器默认的淡蓝 tap 高亮（店主 2026-09-23："单纯点击图标，出现一个淡蓝色
      的原始的点击画面"）。读源码取证：宿主头部那几个包（dsh-client-ui-subagent /
      agent-preset / dsh-experimental-client-ui-agent-team / jobs）**都没有 :active、
@@ -2588,6 +2600,33 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        重复变暗：屏幕的整体明暗在弹层开合前后完全一致，剩下的变化只有卡片本身。 */
     background: transparent !important;
   }
+  /* --- 插件管理页（dsh-client-ui-plugin-manager）：整卡 / 整行可点 ---
+     2026-10-07 店主：「打开如图里面的功能，需要点击那些加黑字体才行」。读宿主源码确认：
+     卡片只把标题渲染成 「<button aria-label=打开…详情>」（class 含 「cardOpen」，宿主自己的 CSS 是
+     「background:0 0;border:0;padding:0」，尺寸就是那行字），行式条目同理只有 「rowOpen」 那颗
+     「<button>」——图标、徽标（实验性）、描述、以及右侧留白**都不响应点击**，手机上等于只有一行
+     小字能开详情。这两个根节点都带稳定标记（「li[data-plugin-package]」 / 「li[data-plugin-row]」），
+     所以用纯 CSS 把那颗按钮的 ::after 铺满整张卡：绝对定位的包含块取最近的定位祖先，故先给
+     根节点钉死 「position: relative」（宿主当前也是 relative，这里只是不让覆盖层掉到整页上——
+     一旦落空，整页会变成「点哪都开第一个插件的详情」）。
+     子级交互件（开关、以及将来可能加的按钮/链接/输入）抬到覆盖层之上，保证它们依旧可点。 */
+  li[data-plugin-package],
+  li[data-plugin-row] {
+    position: relative !important;
+  }
+  li[data-plugin-package] button[class*="_cardOpen"]::after,
+  li[data-plugin-row] button[class*="_rowOpen"]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  li[data-plugin-package] :is(button:not([class*="_cardOpen"]), a, input),
+  li[data-plugin-row] :is(button:not([class*="_rowOpen"]), a, input) {
+    position: relative;
+    z-index: 1;
+  }
+
   /* ---------- sidebar panel enter / exit (see effects/panel-exit.ts) ----------
      A sidebar panel REPLACES the main area. Two motions, both short and
      horizontal, matching the drawer's own rail-in (.15s, translate + fade):

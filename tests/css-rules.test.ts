@@ -61,3 +61,44 @@ test('the phone stats row keeps its tightened spacing (2026-10-07)', () => {
   assert.match(pill.body, /padding-left: 6px !important/)
   assert.match(pill.body, /padding-right: 6px !important/)
 })
+
+test('the composer file button paints one pill, not two (2026-10-07 店主报障)', () => {
+  // 真因：宿主全局 `button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}`
+  // 特异性 0,2,1 > 我们基础规则的 0,2,0，于是它画在**按钮盒子**上；::before 的可见胶囊再画一层
+  // ⇒ 半透明叠半透明，重叠区深、外圈浅 = 店主看到的「一层深一点、一层浅一点的灰」。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const pill = blocks.find((block) =>
+    block.selector.includes('[data-mobile-nav="file-upload"]:active::before'))
+  assert.ok(pill !== undefined, '可见胶囊（::before）在位')
+  assert.match(pill.body, /var\(--dsw-alias-interactive-bg-hover/)
+  const box = blocks.find((block) =>
+    !block.selector.includes('::before')
+    && block.selector.includes('[data-mobile-nav="file-upload"]:hover')
+    && block.selector.includes('[data-mobile-nav="file-upload"]:active')
+    && block.selector.includes('[data-mobile-nav="file-upload"]:focus-visible'))
+  assert.ok(box !== undefined, '盒子在 hover/active/focus-visible 上必须显式压掉宿主底色')
+  assert.match(box.body, /background:\s*transparent\s*!important/, '不带 !important 压不住宿主 0,2,1 那条')
+})
+
+test('plugin-manager cards and rows are tappable as a whole on mobile (2026-10-07 店主报障)', () => {
+  // 宿主只把标题做成 <button>（cardOpen / rowOpen），图标、徽标、描述、留白都不响应；
+  // 整卡/整行可点靠给那颗按钮铺一层绝对定位覆盖层，因此根节点必须自身定位（否则覆盖层
+  // 会以更外层的定位祖先为包含块，落成「点哪都开第一个插件的详情」）。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const cardOverlay = blocks.find((block) => block.selector.includes('button[class*="_cardOpen"]::after'))
+  assert.ok(cardOverlay !== undefined, '卡片标题按钮的覆盖层在位')
+  assert.match(cardOverlay.body, /position:\s*absolute/)
+  assert.match(cardOverlay.body, /inset:\s*0/)
+  const rowOverlay = blocks.find((block) => block.selector.includes('button[class*="_rowOpen"]::after'))
+  assert.ok(rowOverlay !== undefined, '行式条目的覆盖层在位')
+  assert.match(rowOverlay.body, /inset:\s*0/)
+  const anchored = blocks.find((block) =>
+    block.selector.includes('li[data-plugin-package]')
+    && block.selector.includes('li[data-plugin-row]')
+    && /position:\s*relative\s*!important/.test(block.body))
+  assert.ok(anchored !== undefined, '两种根节点都必须钉住定位')
+  const lifted = blocks.filter((block) =>
+    block.selector.includes('button:not([class*="_cardOpen"])')
+    && block.selector.includes('button:not([class*="_rowOpen"])'))
+  assert.ok(lifted.some((block) => /z-index:\s*1/.test(block.body)), '开关等交互件要抬到覆盖层之上')
+})
