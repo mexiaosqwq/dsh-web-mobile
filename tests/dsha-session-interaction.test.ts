@@ -1,10 +1,11 @@
 // 2026-09-22 会话行交互契约（群内统一）：单击 = 选中、双击 = 打开、长按 = 改会话名。
-// 宿主 0.1.7 把「改会话名」挂在会话行标题的 dblclick 上（workspace 的
-// onRenameRequest），恰好和「双击 = 打开」撞同一个事件：双击会既打开会话又弹改名框。
+// 宿主把「改会话名」挂在会话行标题的 dblclick 上（workspace 的 onRenameRequest），
+// 恰好和「双击 = 打开」撞同一个事件：双击会既打开会话又弹改名框。
 // 这个文件把三环钉住，防止以后有人顺手把任一环改回去：
 //   1) onDrawerDoubleClick 吞掉真实 dblclick，只放行我们自己派发的那一个；
-//   2) 长按计时器走 requestRowRename，只有拿不到标题时才退回 ⋯ 菜单；
-//   3) 移动样式把 _rowActions 常显——长按不再开 ⋯ 菜单，菜单不能因此失去触屏入口。
+//   2) 长按计时器走 openRename（宿主自己的 ⋯ → 「重命名」入口，2026-10-07 真机
+//      定位：事件重放到不了宿主），给标题重放 dblclick 只剩兜底；
+//   3) 移动样式把 _rowActions 常显——长按要能点到那个 ⋯，菜单不能失去触屏入口。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -39,16 +40,19 @@ test('双击：真实 dblclick 被吞掉，只有我们派发的合成事件放�
   assert.match(bodyOf(CHROME, 'requestRowRename'), /syntheticDoubleClicks\.add\(event\)/)
 })
 
-test('长按：改名优先，⋯ 菜单只作拿不到标题时的退路', () => {
-  // 触发路径抽到 firePress（计时器与系统 contextmenu 共用），退路照旧。
+test('长按：改名走宿主自己的 ⋯ → 「重命名」入口，事件重放只作退路', () => {
+  // 触发路径抽到 firePress（计时器与系统 contextmenu 共用）。
   const arming = bodyOf(CHROME, 'onDrawerPointerDown')
   assert.match(arming, /pressTimer = window\.setTimeout\(firePress, LONG_PRESS_MS\)/)
-  assert.match(bodyOf(CHROME, 'firePress'), /if \(!requestRowRename\(row\)\) openRowMenu\(row\)/)
-  // Rename replays the host's own entry point instead of forking the dialog:
-  // the title's dblclick, dispatched with the identity mark set.
+  // 2026-10-07 真机定位：主路径是 openRename（点 ⋯ → 点菜单里的「重命名」），
+  // 因为给标题重放 dblclick 在真机 WebView 上到不了宿主的 onDoubleClick。
+  assert.match(bodyOf(CHROME, 'firePress'), /openRename\(row\)/)
+  assert.match(bodyOf(CHROME, 'openRename'), /clickHost\(button\)[\s\S]*sessionRenameItem\(\)[\s\S]*clickHost\(item\)/)
+  // 退路仍是重放宿主自己的入口：标题的 dblclick，带身份标记派发。
   const rename = bodyOf(CHROME, 'requestRowRename')
   assert.match(rename, /new MouseEvent\('dblclick', \{ bubbles: true, cancelable: true, view: window \}\)/)
   assert.match(rename, /title\.dispatchEvent\(event\)/)
+  assert.match(bodyOf(CHROME, 'openRename'), /requestRowRename\(row\)/)
 })
 
 test('双击拦截挂在 document 捕获阶段（React 根容器之前）', () => {

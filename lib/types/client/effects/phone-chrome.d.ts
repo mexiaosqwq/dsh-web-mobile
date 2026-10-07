@@ -51,6 +51,12 @@ export declare function longPressFillMs(holdMs: number, delayMs: number): number
  *  不再等 LONG_PRESS_MS 计时器 —— 实测真机上扫光出现却什么都没发生，
  *  最可能是系统随后接管手势把我们的计时器取消掉了。 */
 export declare const LONG_PRESS_SYSTEM_MS = 300;
+/** 长按改名走宿主自己的入口（点该行的 ⋯ 触发点 → 点门户菜单里的「重命名」）。
+ *  菜单是 React 门户、异步挂载，这是等它出现的上限。2026-10-07 真机实测
+ *  （DSHA WebView + 宿主 0.2.0-rc.2）：给标题重放 dblclick 传不到宿主的
+ *  onDoubleClick —— 扫光走满、什么都不弹；而宿主菜单里的「重命名」是好的
+ *  （手点该行 ⋯ → 重命名：弹层与键盘都正常）。 */
+export declare const RENAME_MENU_WAIT_MS = 400;
 /**
  * Re-arm a mobile-only DOM effect on every query change. Replaces the
  * repeated matchMedia + change-listener scaffold so all breakpoint strings

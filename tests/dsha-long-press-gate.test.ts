@@ -15,6 +15,7 @@ import {
   LONG_PRESS_MOVE_PX,
   LONG_PRESS_MS,
   LONG_PRESS_SYSTEM_MS,
+  RENAME_MENU_WAIT_MS,
   longPressFillMs,
 } from '../src/client/effects/phone-chrome.ts'
 
@@ -107,9 +108,10 @@ test('武装、填充、触发三处写/删标记', () => {
   assert.match(down, /LONG_PRESS_FILL_DELAY_MS\)/)
   assert.match(down, /pressTimer = window\.setTimeout\(firePress, LONG_PRESS_MS\)/)
   // Fire path unmarks before opening rename (now shared by the timer and the
-  // system long-press event — see the test below).
+  // system long-press event — see the test below), and goes through the
+  // host's own ⋯ → 「重命名」 entry (see the menu-path tests at the end).
   const fire = bodyOf('firePress')
-  assert.match(fire, /unmarkPressRow\(row\)[\s\S]*requestRowRename\(row\)[\s\S]*openRowMenu\(row\)/)
+  assert.match(fire, /unmarkPressRow\(row\)[\s\S]*openRename\(row\)[\s\S]*afterFire\(row\)/)
 })
 
 test('系统长按（contextmenu）也能触发改名，而不是只等计时器', () => {
@@ -154,4 +156,64 @@ test('base.css：触感与进度样式只在移动 + hover:none 块内，进度�
   assert.match(BASE, /@keyframes dsh-web-mobile-press-fill \{\s*from \{ transform: scaleX\(0\); \}\s*to \{ transform: scaleX\(1\); \}/)
   // No pseudo-element/selector outside the mobile block touches the marker.
   assert.equal(BASE.slice(0, start).includes('data-mobile-nav-press'), false)
+})
+
+// 2026-10-07 真机定位（DSHA WebView + 宿主 0.2.0-rc.2）：长按改名的主路径改成
+// 走宿主自己的入口 —— 点该行的 ⋯ 触发点 → 点门户菜单里的「重命名」。旧实现给
+// 标题重放 dblclick，真机上到不了宿主的 onDoubleClick：扫光走满、什么都不弹；
+// 而手点同一行 ⋯ → 重命名每次都开（真机逐项验证）。下面把主路径、菜单判别与
+// 点击吞击的绕行钉住，重放只剩兜底。
+
+test('长按改名主路径 = 点该行 ⋯ → 点宿主菜单里的「重命名」', () => {
+  assert.ok(RENAME_MENU_WAIT_MS > 0 && RENAME_MENU_WAIT_MS <= 1000)
+  const open = bodyOf('openRename')
+  assert.match(open, /querySelector<HTMLButtonElement>\('\[class\*="_rowActions"\] button'\)/)
+  assert.match(open, /clickHost\(button\)/)
+  assert.match(open, /sessionRenameItem\(\)/)
+  assert.match(open, /clickHost\(item\)/)
+  // 门户是异步挂载：等它出现，且有上限。
+  assert.match(open, /renameMenuTimer = window\.setTimeout\(settle, RENAME_MENU_POLL_MS\)/)
+  assert.match(open, /performance\.now\(\) < deadline/)
+  // 行里没有 ⋯、或菜单始终没出现 → 仍退回重放，长按不是死手势。
+  assert.match(open, /requestRowRename\(row\)/)
+  // 触发链路不再有一次性 openRowMenu。
+  assert.equal(CHROME.includes('openRowMenu'), false)
+})
+
+test('菜单靠判别三标签认出（rename + fork + archiveSession）：别点错工作区改名', () => {
+  const item = bodyOf('sessionRenameItem')
+  assert.match(item, /workspaceT\('rename'\)/)
+  assert.match(item, /workspaceT\('menu\.fork'\)/)
+  assert.match(item, /workspaceT\('menu\.archiveSession'\)/)
+  assert.match(item, /!labels\.includes\(rename\) \|\| !labels\.includes\(fork\) \|\| !labels\.includes\(archive\)\) continue/)
+  // 跨代际读标签：rc.2 的 _itemLabel，0.1.5 直接读菜单项自身。
+  assert.match(bodyOf('itemLabel'), /\[class\*="_itemLabel"\]/)
+  // 字典缺席时绝不猜（宁可回退重放，也不点一个可能是别的动作的项）。
+  assert.match(item, /if \(rename === '' \|\| fork === '' \|\| archive === ''\) return null/)
+})
+
+test('我们自己的点击不被长按吞击吃掉；抬手那一击仍然被吞', () => {
+  const click = bodyOf('clickHost')
+  assert.match(click, /swallowClickUntil = 0/)
+  assert.match(click, /swallowClickRow = null/)
+  assert.match(click, /swallowClickAnyTarget = false/)
+  assert.match(click, /element\.click\(\)/)
+  assert.match(click, /swallowClickAnyTarget = any/)
+  // 摘掉是「这一次同步 click」的事：afterFire 仍武装吞击，抬手那一击进不去。
+  assert.match(bodyOf('afterFire'), /swallowClickAnyTarget = true/)
+  assert.match(bodyOf('onDrawerPointerUp'), /afterFire\(pressedRow\)/)
+})
+
+test('等菜单的轮询有生命周期：新手势与效果卸载都清掉', () => {
+  assert.match(CHROME, /let renameMenuTimer: number \| null = null/)
+  assert.match(bodyOf('onDrawerPointerDown'), /clearTimeout\(renameMenuTimer\)/)
+  const disposer = CHROME.slice(CHROME.indexOf('return () => {\n      disarmNav()'))
+  assert.match(disposer, /clearTimeout\(renameMenuTimer\)/)
+})
+
+test('落地复核不再退回「只开菜单」：有改名框或菜单在场就不重复动作', () => {
+  const settle = bodyOf('afterFire')
+  assert.match(settle, /querySelector\('\[class\*="_renameInput"\]'\) !== null\) return/)
+  assert.match(settle, /querySelector\('\[role="menu"\]'\) !== null\) return/)
+  assert.match(settle, /openRename\(row\)/)
 })
