@@ -61,7 +61,7 @@
 
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP；§8=0.1.7-rc.1 复测、§9=rc.2 portal 换锚对照）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
-- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（64 坑原文，名字=锚点，索引在下方 Pitfalls 节）
+- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（66 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 改手势/面板退出等行为契约 → `docs/specs/`（8 篇权威 spec；手势参数与状态机在 2026-08-27-sidebar-swipe-gestures.md，不可破）
 - 宿主升级前 → `docs/upstream/upgrade-runbook.md`（对账清单与验收电池）+ `node scripts/cdp-compat-contracts.mjs`（机读契约自动对账，无需 SESSION_ID）
 - 评估宿主代际兼容面 → `docs/upstream/2026-09-23-dsh-0.1.7-alpha.2-compat-audit.md`（28 条对账 0 改的先例与方法）；升 0.1.6-alpha.2 系前必读 `docs/upstream/2026-09-19-dsh-0.1.6-alpha.2-compat-audit.md` §10（升级前必修 3 项 + 电池 15 项）
@@ -202,7 +202,7 @@ dsh web
 
 ## Pitfalls
 
-- **64 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md` 末尾「2026-09-18 迁入原文」节，锚点 `### <名字>`，顺序与下面一一对应。**动手改某块代码前，先按名字读对应条目**——里面是踩过的坑、最硬铁律、实测数据、探针断言与被否决方案；不看就改等于重踩。
+- **66 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md` 末尾「2026-09-18 迁入原文」节，锚点 `### <名字>`，顺序与下面一一对应。**动手改某块代码前，先按名字读对应条目**——里面是踩过的坑、最硬铁律、实测数据、探针断言与被否决方案；不看就改等于重踩。
 - 本文件只放名字，正文一律进 `docs/`（见 Maintenance「体积门槛」）：新增坑位 = 名字加进下面清单 + 原文写进该档并补 `### 同名` 锚点。
 
 - `手势层`
@@ -269,6 +269,8 @@ dsh web
 - `探针收尾`
 - `build 顺序`
 - `手写模型档位补齐`
+- `双层底`
+- `卡片命中`
 
 ## Testing & QA
 
