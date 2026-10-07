@@ -27,7 +27,7 @@
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { MOBILE_QUERY, TOUCH_QUERY, installMobileEffect, toggleDrawer } from './phone-chrome.ts'
-import { currentSessionIdOf, sessionsCanClear } from '../core/sessions-compat.ts'
+import { currentSessionIdOf, sessionsCanClear, verifySessionDeleted } from '../core/sessions-compat.ts'
 import { findSessionIdInFiber, reactFiberOf } from './session-row-fiber.ts'
 
 // Mirrored from src/client/locales.ts: the custom client bundler cannot
@@ -267,8 +267,35 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
             return
           }
         } catch (reason) {
-          fail(mapError(null, reason))
-          return
+          // A rejected fetch proves nothing. The host half deployed on DSHA
+          // (a DSHA-patched builtin build) aborts the reply AFTER its handler
+          // has already moved the session into the trash, so the browser
+          // reports `TypeError: Failed to fetch` (net::ERR_EMPTY_RESPONSE) for
+          // a delete that DID land — exactly the 2026-10-07 false failure.
+          // Ask the session list instead of the fetch promise; only a session
+          // that survives every re-read is a real failure. Verification itself
+          // must never become the new failure mode, so any surprise in the
+          // snapshot shape falls back to the ordinary error line.
+          let landed = false
+          try {
+            landed = await verifySessionDeleted({
+              listed: () => ctx.sessions.list.getSnapshot()?.byId?.[sessionId] !== undefined,
+              // Called AS A METHOD on ctx.sessions: refresh() reads `this.manager`
+              // and an extracted reference would throw "this is undefined".
+              refresh: async () => {
+                await (ctx.sessions as { refresh?: () => Promise<void> }).refresh?.()
+              },
+              sleep: (ms) => new Promise<void>((resolve) => {
+                window.setTimeout(() => { resolve() }, ms)
+              }),
+            })
+          } catch {
+            landed = false
+          }
+          if (!landed) {
+            fail(mapError(null, reason))
+            return
+          }
         }
         closeDialog()
         if (wasCurrent && sessionsCanClear(ctx.sessions)) ctx.sessions.clear()
