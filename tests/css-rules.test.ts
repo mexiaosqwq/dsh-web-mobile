@@ -63,21 +63,27 @@ test('the phone stats row keeps its tightened spacing (2026-10-07)', () => {
 })
 
 test('the composer file button paints one pill, not two (2026-10-07 店主报障)', () => {
-  // 真因：宿主全局 `button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}`
-  // 特异性 0,2,1 > 我们基础规则的 0,2,0，于是它画在**按钮盒子**上；::before 的可见胶囊再画一层
-  // ⇒ 半透明叠半透明，重叠区深、外圈浅 = 店主看到的「一层深一点、一层浅一点的灰」。
+  // 真机实测（按下瞬间像素剖面）：外圈 130 设备px 的 233（宿主按钮盒底色，圆角 8）
+  // + 内圈 108 设备px 的 222（我们 ::before 胶囊）—— 半透明叠半透明，重叠区更深。
+  // 压层叠（!important）在真机上压不住那一层，于是改成**结构上只有一层**：
+  // 可见胶囊 = 按钮盒本身（28x28、全圆），::before 永久透明。
   const blocks = findRuleBlocks(LAYOUT_CSS)
-  const pill = blocks.find((block) =>
-    block.selector.includes('[data-mobile-nav="file-upload"]:active::before'))
-  assert.ok(pill !== undefined, '可见胶囊（::before）在位')
-  assert.match(pill.body, /var\(--dsw-alias-interactive-bg-hover/)
   const box = blocks.find((block) =>
-    !block.selector.includes('::before')
-    && block.selector.includes('[data-mobile-nav="file-upload"]:hover')
-    && block.selector.includes('[data-mobile-nav="file-upload"]:active')
-    && block.selector.includes('[data-mobile-nav="file-upload"]:focus-visible'))
-  assert.ok(box !== undefined, '盒子在 hover/active/focus-visible 上必须显式压掉宿主底色')
-  assert.match(box.body, /background:\s*transparent\s*!important/, '不带 !important 压不住宿主 0,2,1 那条')
+    !block.selector.includes('::before') && !block.selector.includes(':hover')
+    && block.selector.includes('[data-mobile-nav="file-upload"]') && /width:\s*28px !important/.test(block.body))
+  assert.ok(box !== undefined, '盒子必须是可见胶囊尺寸 28x28')
+  assert.match(box.body, /border-radius:\s*999px/, '盒子本身要是全圆（与加号同尺寸的圆胶囊）')
+  assert.match(box.body, /margin:\s*0 0 0 -8px !important/, '盒宽 34→28 后 margin 要跟着收，图标中心不动')
+  const before = blocks.find((block) => block.selector.includes('[data-mobile-nav="file-upload"]::before') && block.selector.includes(':hover'))
+  assert.equal(before, undefined, '胶囊不再由 ::before 画（否则又是两层）')
+  const painted = blocks.find((block) =>
+    block.selector.includes('[data-mobile-nav="file-upload"]:hover')
+    && block.selector.includes('file-upload"]:focus-visible'))
+  assert.ok(painted !== undefined, '盒子的按下反馈规则在位')
+  assert.match(painted.body, /background:\s*var\(--dsw-alias-interactive-bg-hover/)
+  assert.match(painted.body, /box-shadow:\s*none !important/, '万一那一层是 inset shadow 画的，一并压掉')
+  const hit = blocks.find((block) => block.selector.includes('[data-mobile-nav="file-upload"]::after'))
+  assert.match(hit.body, /inset:\s*-7px/, '命中区仍外扩（28 盒 ⇒ -7 保持约 42）')
 })
 
 test('plugin-manager cards and rows are tappable as a whole on mobile (2026-10-07 店主报障)', () => {

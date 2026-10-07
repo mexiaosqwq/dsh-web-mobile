@@ -17,6 +17,7 @@ import { installTeamChipToggle } from './effects/team-chip-toggle.ts'
 import { installModelMenuAnchor } from './effects/model-menu-anchor.ts'
 import { installShortcutModalKeyboardGuard } from './effects/shortcut-modal-keyboard-guard.ts'
 import { installModelMenuKeyboardGuard } from './effects/model-menu-keyboard-guard.ts'
+import { installPluginCardTap } from './effects/plugin-card-tap.ts'
 import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
 import { installReasoningDefaults } from './effects/reasoning-defaults.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
@@ -320,6 +321,7 @@ export function apply(ctx: ClientContext): void {
   // keyboard covers the list the user just opened. Same method-shadow cure,
   // armed from the capture-phase tap that precedes the pane switch.
   installModelMenuKeyboardGuard(ctx)
+  installPluginCardTap(ctx)
   // Entering a session (issue #140): the host's InputBar focuses the editor
   // from a [locked, sessionId, editor] passive effect on every switch, which
   // raises the soft keyboard over the history the user wanted to read. A short
