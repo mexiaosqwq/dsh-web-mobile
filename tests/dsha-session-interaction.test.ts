@@ -1,11 +1,11 @@
-// 2026-09-22 会话行交互契约（群内统一）：单击 = 选中、双击 = 打开、长按 = 改会话名。
+// 2026-09-22 会话行交互契约（群内统一）：单击 = 选中、双击 = 打开。
 // 宿主把「改会话名」挂在会话行标题的 dblclick 上（workspace 的 onRenameRequest），
-// 恰好和「双击 = 打开」撞同一个事件：双击会既打开会话又弹改名框。
+// 恰好和「双击 = 打开」撞同一个事件：双击会既打开会话又弹改名框。改名本身走那一行
+// 常显的 ⋯ 菜单（长按改名已于 2026-10-07 下线，见 session-row-longpress-removed）。
 // 这个文件把三环钉住，防止以后有人顺手把任一环改回去：
-//   1) onDrawerDoubleClick 吞掉真实 dblclick，只放行我们自己派发的那一个；
-//   2) 长按计时器走 openRename（宿主自己的 ⋯ → 「重命名」入口，2026-10-07 真机
-//      定位：事件重放到不了宿主），给标题重放 dblclick 只剩兜底；
-//   3) 移动样式把 _rowActions 常显——长按要能点到那个 ⋯，菜单不能失去触屏入口。
+//   1) onDrawerDoubleClick 吞掉真实 dblclick（只吞 trusted 事件）；
+//   2) 长按不再武装任何手势 —— pointerdown 只记录触摸起点；
+//   3) 移动样式把 _rowActions 常显 —— 重命名/归档/分叉必须留在触屏入口上。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -30,29 +30,30 @@ const bodyOf = (source: string, name: string): string => {
   return next === -1 ? rest : rest.slice(0, next)
 }
 
-test('双击：真实 dblclick 被吞掉，只有我们派发的合成事件放行', () => {
+test('双击：真实 dblclick 被吞掉（只吞 trusted），不会连带弹出宿主改名框', () => {
   const swallow = bodyOf(CHROME, 'onDrawerDoubleClick')
-  // Identity check first: without it our own long-press replay would be eaten too.
-  assert.match(swallow, /syntheticDoubleClicks\.has\(event\)/)
+  // 长按下线后本插件不再派发任何合成 dblclick，所以判据回到 isTrusted：
+  // 真实双击（= 打开会话）的那一下不会走到标题的 onDoubleClick。
+  assert.match(swallow, /if \(!event\.isTrusted\) return/)
   assert.match(swallow, /target\.closest\('\[class\*="sessionRow"\] \[class\*="_title"\]'\)/)
+  assert.match(swallow, /event\.preventDefault\(\)/)
   assert.match(swallow, /event\.stopPropagation\(\)/)
-  // The event object we dispatch ourselves is the only one marked in the WeakSet.
-  assert.match(bodyOf(CHROME, 'requestRowRename'), /syntheticDoubleClicks\.add\(event\)/)
+  assert.equal(CHROME.includes('syntheticDoubleClicks'), false)
 })
 
-test('长按：改名走宿主自己的 ⋯ → 「重命名」入口，事件重放只作退路', () => {
-  // 触发路径抽到 firePress（计时器与系统 contextmenu 共用）。
-  const arming = bodyOf(CHROME, 'onDrawerPointerDown')
-  assert.match(arming, /pressTimer = window\.setTimeout\(firePress, LONG_PRESS_MS\)/)
-  // 2026-10-07 真机定位：主路径是 openRename（点 ⋯ → 点菜单里的「重命名」），
-  // 因为给标题重放 dblclick 在真机 WebView 上到不了宿主的 onDoubleClick。
-  assert.match(bodyOf(CHROME, 'firePress'), /openRename\(row\)/)
-  assert.match(bodyOf(CHROME, 'openRename'), /clickHost\(button\)[\s\S]*sessionRenameItem\(\)[\s\S]*clickHost\(item\)/)
-  // 退路仍是重放宿主自己的入口：标题的 dblclick，带身份标记派发。
-  const rename = bodyOf(CHROME, 'requestRowRename')
-  assert.match(rename, /new MouseEvent\('dblclick', \{ bubbles: true, cancelable: true, view: window \}\)/)
-  assert.match(rename, /title\.dispatchEvent\(event\)/)
-  assert.match(bodyOf(CHROME, 'openRename'), /requestRowRename\(row\)/)
+test('长按不再是交互：改名只走常显的 ⋯ 菜单，pointerdown 不再武装手势', () => {
+  // 2026-10-07 店主拍板：长按改名整体下线（它依赖的标题 dblclick 重放在真机
+  // WebView 上到不了宿主）。pointerdown 只留触摸起点记录，供点行导航兜底。
+  const down = bodyOf(CHROME, 'onDrawerPointerDown')
+  assert.match(down, /touchDownAt = event\.pointerType/)
+  assert.doesNotMatch(down, /setTimeout/)
+  assert.equal(CHROME.includes('requestRowRename'), false)
+  assert.equal(CHROME.includes('LONG_PRESS_MS'), false)
+  // 重命名的入口 = 常显的 ⋯ 菜单（layout.css），一步可达。
+  assert.match(
+    readFileSync(join(ROOT, 'src/client/styles/layout.css.ts'), 'utf8'),
+    /\[class\*="_rowActions"\] \{\s*display: inline-flex !important;/,
+  )
 })
 
 test('双击拦截挂在 document 捕获阶段（React 根容器之前）', () => {

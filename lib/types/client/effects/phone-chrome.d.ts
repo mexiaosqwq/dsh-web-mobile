@@ -21,42 +21,6 @@ export declare const DESKTOP_QUERY = "(min-width: 1024px)";
  *  layout but still gets the 「删除会话」 item. Mouse-driven or pointer-less
  *  windows never arm it, at any width. */
 export declare const TOUCH_QUERY = "(pointer: coarse)";
-/** Long press on a session row renames it (2026-09-22 contract; the ⋯ menu is
- *  only the fallback when the title cannot be found).
- *
- *  2026-10-07（真浏览器实测，二轮）：2s 阈值配 14px 容差的组合按不出来 ——
- *  在 390×844 触屏仿真下逐项实测：
- *    · 手指完全不动，2.05s → 改名框出现（对照通过）；
- *    · 手指在 2s 内累计漂移 20px → 动作被 LONG_PRESS_MOVE_PX 静默取消，无任何反馈；
- *    · 按住 1.7s 松手 → 同样什么都不发生（2s 没到）。
- *  而人手的自然长按在 0.5~1s，2s 的保持期里累计漂移超过 14px 是常态 ⇒「长按没反应」。
- *  现在取 900ms：明显长于普通点按/「按住想一下」（≤300ms），又落在人手自然长按区间；
- *  容差同时放宽到 32px（滚动仍然照旧取消：横向由滑动手势层 8px 锁轴 + isStrokeLocked，
- *  纵向由浏览器 pan-y 的 pointercancel，见 onDrawerPointerCancel）。
- *  进度条（`data-mobile-nav-press="fill"`，base.css.ts）负责让「还在计时」看得见。 */
-export declare const LONG_PRESS_MS = 500;
-/** Pointer travel that cancels a long press. 32px since 2026-10-07: the
- *  measured 20px drift over a 2s hold cancelled every attempt. Still far above
- *  the swipe layer's 8px LOCK_PX, so a horizontal stroke is cancelled through
- *  `isStrokeLocked()` and a vertical stroke through the browser's pan-y
- *  `pointercancel`. */
-export declare const LONG_PRESS_MOVE_PX = 32;
-/** Hold time before the progress fill appears: a normal tap (≈100-250ms)
- *  must not flash it. */
-export declare const LONG_PRESS_FILL_DELAY_MS = 200;
-/** Duration the fill animation should take so it completes exactly when the
- *  long press fires: the hold remaining after the fill delay (never negative). */
-export declare function longPressFillMs(holdMs: number, delayMs: number): number;
-/** 系统长按（Android 在约 500ms 派发 contextmenu）到这个时长就直接触发，
- *  不再等 LONG_PRESS_MS 计时器 —— 实测真机上扫光出现却什么都没发生，
- *  最可能是系统随后接管手势把我们的计时器取消掉了。 */
-export declare const LONG_PRESS_SYSTEM_MS = 300;
-/** 长按改名走宿主自己的入口（点该行的 ⋯ 触发点 → 点门户菜单里的「重命名」）。
- *  菜单是 React 门户、异步挂载，这是等它出现的上限。2026-10-07 真机实测
- *  （DSHA WebView + 宿主 0.2.0-rc.2）：给标题重放 dblclick 传不到宿主的
- *  onDoubleClick —— 扫光走满、什么都不弹；而宿主菜单里的「重命名」是好的
- *  （手点该行 ⋯ → 重命名：弹层与键盘都正常）。 */
-export declare const RENAME_MENU_WAIT_MS = 400;
 /**
  * Re-arm a mobile-only DOM effect on every query change. Replaces the
  * repeated matchMedia + change-listener scaffold so all breakpoint strings

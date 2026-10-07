@@ -2807,11 +2807,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
   /* ---------- 会话行的 ⋯ 菜单在触屏常显（2026-09-22 交互契约） ----------
      宿主只在 :hover 和 menuOpen 时显示 _rowActions，而手机没有 hover。
-     长按以前是触屏进这个菜单的唯一路径，现在长按改成「改会话名」（见
-     phone-chrome.ts 的 requestRowRename → 标题 dblclick），所以把锚点常显，
-     删除 / 归档 / 分叉 继续有触屏入口。行内布局不动：标题是 flex:1 +
-     min-width:0，自己让位并省略；host 的 time / pinIndicator 保持原样。
-     只作用于抽屉里的会话行，搜索行（searchResultRow）不受影响。 */
+     长按改名已于 2026-10-07 下线（真机上它依赖的事件重放到不了宿主），
+     所以这个锚点是触屏到达重命名 / 分叉 / 归档 / 删除的唯一入口，必须常显。
+     行内布局不动：标题是 flex:1 + min-width:0，自己让位并省略；host 的
+     time / pinIndicator 保持原样。只作用于抽屉里的会话行，搜索行
+     （searchResultRow）不受影响。 */
   [data-mobile-nav="frame"] [class*="sessionRow"] [class*="_rowActions"] {
     display: inline-flex !important;
   }
