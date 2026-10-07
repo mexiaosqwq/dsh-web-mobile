@@ -8,7 +8,14 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { currentSessionIdOf, sessionsCanClear, sessionsCanOpen } from '../src/client/core/sessions-compat.ts'
+import {
+  DELETE_VERIFY_ATTEMPTS,
+  DELETE_VERIFY_INTERVAL_MS,
+  currentSessionIdOf,
+  sessionsCanClear,
+  sessionsCanOpen,
+  verifySessionDeleted,
+} from '../src/client/core/sessions-compat.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FOOTER = readFileSync(join(ROOT, 'src/client/components/MobileDrawerFooter.tsx'), 'utf8')
@@ -63,4 +70,62 @@ test('clear and open are feature-detected, not assumed', () => {
   // Anchored on the a2 comment: the bare closer pair also matches the
   // pre-existing tap-fallback branch, which would make this assertion vacuous.
   assert.match(CHROME, /a2 removed sessions\.open[\s\S]*?disarmCloseOnNav\(\)\n\s*armNav\(\)/)
+})
+
+// --- Aborted delete request: the list, not the fetch promise, is the judge ----
+// The host half deployed on DSHA aborts the reply AFTER the session was moved
+// to the trash, so the browser rejects the fetch for a delete that DID land
+// (2026-10-07). These cases pin the bounded re-read that decides.
+
+test('verifySessionDeleted accepts a delete that already landed', async () => {
+  let listed = true
+  const sleeps: number[] = []
+  const landed = await verifySessionDeleted({
+    listed: () => listed,
+    refresh: async () => { listed = false },
+    sleep: async (ms) => { sleeps.push(ms) },
+  })
+  assert.equal(landed, true)
+  assert.deepEqual(sleeps, [], 'the first re-read already answered')
+})
+
+test('verifySessionDeleted finds a row that disappears after a slow move', async () => {
+  let looks = 0
+  const sleeps: number[] = []
+  const landed = await verifySessionDeleted({
+    listed: () => { looks += 1; return looks < 3 },
+    sleep: async (ms) => { sleeps.push(ms) },
+  })
+  assert.equal(landed, true)
+  assert.equal(looks, 3)
+  assert.equal(sleeps.length, 2)
+})
+
+test('verifySessionDeleted only reports failure when the row survives the budget', async () => {
+  let reads = 0
+  const sleeps: number[] = []
+  const landed = await verifySessionDeleted({
+    listed: () => true,
+    refresh: async () => { reads += 1 },
+    sleep: async (ms) => { sleeps.push(ms) },
+  })
+  assert.equal(landed, false)
+  assert.equal(reads, DELETE_VERIFY_ATTEMPTS)
+  assert.equal(sleeps.length, DELETE_VERIFY_ATTEMPTS - 1)
+  assert.deepEqual([...new Set(sleeps)], [DELETE_VERIFY_INTERVAL_MS])
+})
+
+test('verifySessionDeleted judges from the snapshot when the refresh itself throws', async () => {
+  let listed = true
+  const landed = await verifySessionDeleted({
+    listed: () => listed,
+    refresh: async () => { throw new Error('refresh offline') },
+    sleep: async () => { listed = false },
+  })
+  assert.equal(landed, true)
+})
+
+test('the verification budget is the documented default', () => {
+  assert.equal(DELETE_VERIFY_ATTEMPTS, 4)
+  assert.equal(DELETE_VERIFY_INTERVAL_MS, 350)
 })

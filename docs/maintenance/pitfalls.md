@@ -736,3 +736,12 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 ### build 顺序
 
 - **`node scripts/build-client.mjs` 不能连跑两次**（2026-10-07 实测）：脚本末尾 `rm -rf .client-build`（`scripts/build-client.mjs:96`），第二次裸跑会 `ENOENT .../.client-build`，且错误尾部是 `Node.js v24.19.0` 一行——用 `tail -1` 看构建输出容易误读成成功。正确顺序永远是 **client `tsc` emit → `build-client.mjs`**，即 `pnpm build`；单独跑时前面必须有那条 emit 命令。
+
+
+### 手写模型档位补齐
+
+- **能力落点：宿主半区给「用户自己声明」的 `llm-pi-ai` 模型补默认思考档位**（2026-10-07）。官方「模型」设置页源码里明确写着 `There is deliberately no reasoning-effort control, here or on the editor card`——档位是 per-MODEL 能力、同一 provider 下各模型不一致，provider 级控件会被部分模型拒绝；于是自定义 API 的模型在 composer 里没有「推理等级」，只能手写真值（profile patch 的 `providers.<route>.models[].reasoningEfforts`）。`src/reasoning-effort.ts` 在 `apply()` 里注册一次填充：`settings.describe()` 取 `llm-pi-ai` 描述符，`value`（合并后的活配置）决定**哪里缺**、`user`（profile patch 层）决定**能写什么**；缺档位的用户条目补 `{ off: null, high: 'high', max: 'max' }`，一次 `settings.mutate('llm-pi-ai', ops, revision)` 落盘；`settings/document-updated` 命中 `llm-pi-ai` 时再跑一次 ⇒ 在「模型」页新加的自定义模型立刻有档位，不用重启。
+- **三条硬边界（每条都有依据，不许放宽）**：①**只写用户层**——`models` 是数组，配置分层对数组是**整段替换**（`mergeLayers`：`if (!isPlainObject(under) || !isPlainObject(over)) return over`），把下层（组合 base / 已安装目录）的条目物化进用户层会**丢掉它的 `name`/`contextWindow`/`input`/`compat`**，所以下层模型只计数、不写；②**已声明档位的一律不碰**（用户条目与其解析后条目都查），手写的 wire 拼写（把 `high` 映射成网关的 `ultra`）必须存活；③**settings 服务缺席（老宿主）整条惰性化**，写失败只回 `failed` 状态、绝不 throw 进宿主事件链。
+- **写入带 `describe()` 同一次读到的 `revision`**：用户可能正在「模型」页编辑，`mutate` 的 `expectedRevision` 让并发编辑以 conflict 被拒绝，而不是互相覆盖（被拒绝只是晚一轮，`document-updated` 会再触发）。
+- **默认档为什么是 `off`/`high`/`max`**：这三个是 OpenAI 兼容网关接受度最高的一组（社区 `@hytime/dsh-thinking-effort` 0.3.8 同选择——本机装过并逐行读过其 `fillProviderDefaults` 才落这条口径）；`off: null` 表示「支持关闭」，分派时翻译成**不带思考参数**，不是发空串。
+- 单元锚：`tests/reasoning-effort-fill.test.ts`（15 条：plan 的六种形状 + mutate 契约 + 缺席/失败降级 + 源码接线不变式）。真宿主 `describe()` 的实际形状与写回落点属运行时层，单测层不算数——按仓库口径补活宿主/真机验收。

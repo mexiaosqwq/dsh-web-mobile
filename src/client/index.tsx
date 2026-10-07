@@ -16,7 +16,9 @@ import { installWorkspaceChipToggle } from './effects/workspace-chip-toggle.ts'
 import { installTeamChipToggle } from './effects/team-chip-toggle.ts'
 import { installModelMenuAnchor } from './effects/model-menu-anchor.ts'
 import { installShortcutModalKeyboardGuard } from './effects/shortcut-modal-keyboard-guard.ts'
+import { installModelMenuKeyboardGuard } from './effects/model-menu-keyboard-guard.ts'
 import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
+import { installReasoningDefaults } from './effects/reasoning-defaults.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
 import { installComposerFilePicker } from './effects/composer-file-picker.ts'
@@ -254,12 +256,18 @@ export function apply(ctx: ClientContext): void {
   // EDIT, and the keyboard shrinking the viewport resizes the sheet (owner
   // report: 「打开的时候还是会闪，而且还会唤起键盘」).
   installShortcutModalKeyboardGuard(ctx)
+  // Model / reasoning-level menu (owner report 2026-10-07): drilling into the
+  // model pane focuses the host's 「搜索模型…」 field from a passive effect, so the
+  // keyboard covers the list the user just opened. Same method-shadow cure,
+  // armed from the capture-phase tap that precedes the pane switch.
+  installModelMenuKeyboardGuard(ctx)
   // Entering a session (issue #140): the host's InputBar focuses the editor
   // from a [locked, sessionId, editor] passive effect on every switch, which
   // raises the soft keyboard over the history the user wanted to read. A short
   // shadow-focus window per observed session switch swallows that one
   // autofocus; real taps are unaffected.
   installSessionFocusGuard(ctx)
+  installReasoningDefaults(ctx)
 
   // Multi-line paste after an IME commit keeps only the first line (host
   // Lexical routes Android's insertText paste through the text-insertion

@@ -8,27 +8,28 @@
 - No monorepo, no application server, no workspace layer.
 - Real entrypoints:
   - `cordis.patch.yml` inserts the single host plugin row.
-  - `src/index.ts` is the host half: `apply()` makes the row visible to the host Loader, installs transparent gzip/brotli compression for large JSON responses (`src/compress.ts`), and registers the session-delete endpoint `/api/mobile-nav.session.delete` (work in `src/delete-session.ts`).
+  - `src/index.ts` is the host half: `apply()` makes the row visible to the host Loader, installs transparent gzip/brotli compression for large JSON responses (`src/compress.ts`), registers the session-delete endpoint `/api/mobile-nav.session.delete` (work in `src/delete-session.ts`), and installs the default thinking-level fill for hand-declared `llm-pi-ai` models (work in `src/reasoning-effort.ts`).
   - `package.json` exposes `./client` and declares `dsh.client.platform: "web"`; DSH discovers the browser half from `src/client/index.tsx`.
 - Key layout（注释版仓库树；`(不入库)` = gitignore，外部 clone 不可见）:
 
   ```text
   dsh-web-mobile/
   ├─ src/                    ← 真源码，唯一该手改的地方
-  │  ├─ index.ts             ← 宿主半区入口（apply 装响应压缩 + 会话删除端点）
+  │  ├─ index.ts             ← 宿主半区入口（apply 装响应压缩 + 会话删除端点 + 手写模型档位补齐）
   │  ├─ compress.ts          ← 进程级 prototype patch
   │  ├─ delete-session.ts    ← 会话删除纯核（DI、分代适配、可单测）
+  │  ├─ reasoning-effort.ts  ← 手写模型默认思考档位纯核 + settings 读写面（可单测）
   │  └─ client/
   │     ├─ index.tsx         ← 浏览器半区入口（3 slots）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts
-  │     ├─ effects/          ← 24 个效果模块：phone-chrome · sidebar-swipe ·
+  │     ├─ effects/          ← 26 个效果模块：phone-chrome · sidebar-swipe ·
   │     │                       gesture-guard · subagent-chip-touch · composer-keyboard-guard ·
   │     │                       composer-keyboard-lift · composer-paste-guard ·
   │     │                       composer-file-picker ·
   │     │                       attachment-mention · file-share ·
-  │     │                       shortcut-modal-keyboard-guard · session-focus-guard ·
+  │     │                       shortcut-modal-keyboard-guard · model-menu-keyboard-guard · session-focus-guard ·
   │     │                       composer-plus-toggle · workspace-chip-toggle · team-chip-toggle ·
   │     │                       model-menu-anchor ·
   │     │                       file-viewer-compat · aionui-compat · stats-line ·
@@ -44,7 +45,7 @@
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  ├─ css-structure-check.mjs ← CSS 结构检测器（已接入 test:core）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 43 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 48 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
   │  ├─ audits/ · maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json + host-jank-feedback.md）· fork-wzxmt-zhc/
@@ -60,7 +61,7 @@
 
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP；§8=0.1.7-rc.1 复测、§9=rc.2 portal 换锚对照）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
-- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（63 坑原文，名字=锚点，索引在下方 Pitfalls 节）
+- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（64 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 改手势/面板退出等行为契约 → `docs/specs/`（8 篇权威 spec；手势参数与状态机在 2026-08-27-sidebar-swipe-gestures.md，不可破）
 - 宿主升级前 → `docs/upstream/upgrade-runbook.md`（对账清单与验收电池）+ `node scripts/cdp-compat-contracts.mjs`（机读契约自动对账，无需 SESSION_ID）
 - 评估宿主代际兼容面 → `docs/upstream/2026-09-23-dsh-0.1.7-alpha.2-compat-audit.md`（28 条对账 0 改的先例与方法）；升 0.1.6-alpha.2 系前必读 `docs/upstream/2026-09-19-dsh-0.1.6-alpha.2-compat-audit.md` §10（升级前必修 3 项 + 电池 15 项）
@@ -109,7 +110,7 @@ dsh web
 
 ## Architecture
 
-- Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus the session-delete endpoint (deletion work in the DI pure core `src/delete-session.ts`, generation-adapted per host).
+- Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus the session-delete endpoint (deletion work in the DI pure core `src/delete-session.ts`, generation-adapted per host) and fills the default thinking-level set for hand-declared `llm-pi-ai` models (pure core `src/reasoning-effort.ts`).
 - `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions', 'workspaces']`. Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers three slots:
   - `conversation.session.header.actions` → `MobileNavToggle` (`order: 10`): drawer toggle + Files button.
   - `conversation.input.left` → `ComposerFileButton` (`id: mobile-nav-file-upload`, `order: 10`): the permanent composer file entry. Host 0.1.6 deleted the paperclip attach button, leaving the 「文件」row inside the "+" listbox as the only entry; this control sits in the tools lane beside the plus button. Since 2026-10-06 its tap opens the plugin's two-option sheet (`effects/composer-file-picker.ts`: 上传图片 / 上传附件) which hands the choice back to the host's own hidden `input[type=file]`, so intake validation, upload and availability stay host-owned. Session-scoped — the hero/blank phase keeps the "+" menu as its only file entry.
@@ -180,11 +181,11 @@ dsh web
 - **lead 终审铁律（2026-09-19 深查事故后补）**：合并/提交前 lead 全量亲验，禁止只看报告数字：①diff 的**删除行必读**（grep 过滤 `+` 行会漏掉 context 里被删的承载代码，实测造出过伪证）；②QA/子代理的**证据文件必亲读**（报告可能漏报自身缺陷，实测探针结尾崩溃未披露）；③「零残留/exit 0」类自证声明要有脚本外旁证；④报告与证据文件不一致处必须声明（报告纪律）。
 - **成员完工落盘交接文档（用户要求，2026-09-24）**：每个成员（scout/worker/checker）完成任务后，除聊天回执外必须把完整结果写成 Markdown 落盘 `docs/handover/`（本地不入库，见 .gitignore）：`YYYY-MM-DD-<令号或主题>-<岗位>.md`，内容 = Status + 与规格/现象对照 + 证据（文件:行号）+ 变更/取证清单 + 残留风险。lead 终审与后续成员接力以该文档为准，聊天消息只作通知，不以「简单谈话」作交接载体。
 - **改动必须落在源码层，不打补丁（用户要求，2026-10-06）**：一切修复/功能都改 `src/`（配套 `tests/`），再由 `pnpm build` 生成 `lib/`；**禁止**手改 `lib/`、禁止运行时补丁/热补丁、禁止在源码里留 `TEMP`/`TODO-DIAG` 之类的一次性 hack（诊断代码必须还原后才允许构建）。真机诊断优先走既有通道（`?mobile-nav-debug=1` + beacon），**不得**为了取证把插件改成「强制开诊断面板/强制上报」的变体版本——2026-10-06 实测后果：诊断变体 + 连续多次 touch 触发重载，把店主正在用的页面刷坏，只能重启 App（内置目录同时被写回工厂版，热装载全丢）。
-- **热装载前必须过三道自检（2026-10-06 白屏 + 2026-10-07 未定义名事故后补）**：①`--noEmitOnError false` 的构建**必须**再确认 `src/client` 内 `error TS1xxx`（语法类）= 0 —— 事故真因就是 CSS 注释里写了**未转义的反引号**（这些 `.css.ts` 是模板字符串，注释里一律用「」引号，既有代码 0 处反引号），TS 只在有语法错的情况下照样写出了产物；②`node scripts/client-bundle-smoke.mjs` 在 Node 里用桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory，拦住「语法/顶层运行期错误导致整页白屏」；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0** —— 2026-10-07 实测：一个漏掉的 `import`（`hasWebShare`）让产物里出现裸标识符，TS1xxx 门、smoke、286 条单测**全部拦不住**，只有运行时渲染到那个按钮才炸 ReferenceError。**连续重载也要克制**：每次 hot-load 都会让页面重载一次，不要在用户正在使用或 App 处于后台时连续触发。
+- **热装载前必须过四道自检（2026-10-06 白屏 + 2026-10-07 未定义名 + 2026-10-07 entry 激活事故后补）**：①`--noEmitOnError false` 的构建**必须**再确认 `src/client` 内 `error TS1xxx`（语法类）= 0 —— 事故真因就是 CSS 注释里写了**未转义的反引号**（这些 `.css.ts` 是模板字符串，注释里一律用「」引号，既有代码 0 处反引号），TS 只在有语法错的情况下照样写出了产物；②`node scripts/client-bundle-smoke.mjs` 在 Node 里用桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory，拦住「语法/顶层运行期错误导致整页白屏」；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0** —— 2026-10-07 实测：一个漏掉的 `import`（`hasWebShare`）让产物里出现裸标识符，TS1xxx 门、smoke、286 条单测**全部拦不住**，只有运行时渲染到那个按钮才炸 ReferenceError；④`node --test tests/client-inject-surface.test.ts` —— **`src/client` 里任何 `ctx.<service>` 读取都必须在 `export const inject` 名单内**（含 `(ctx as …).x` 形态）。2026-10-07 实测：为订阅宿主事件在效果里读了一次 `ctx.remote`，客户端运行时服务代理直接抛 `cannot get property "remote" without inject`，而该读取发生在 `apply()` 期间 ⇒ **整个 entry 激活失败**，页面变成「Failed to load plugins / dsh-web-mobile: failed」白屏（前三个门全绿也拦不住：类型合法、smoke 只跑 factory、单测只做字符串断言）。跨 `inject` 取服务一律走 `ctx.get(name)`。**连续重载也要克制**：每次 hot-load 都会让页面重载一次，不要在用户正在使用或 App 处于后台时连续触发。
 
 ## Conventions
 
-- Keep the host/client split intact; the host half stays minimal (`apply()` installs response compression + the session-delete endpoint, nothing else).
+- Keep the host/client split intact: the host half owns exactly three host-side jobs — response compression, the session-delete endpoint, and the reasoning-level fill for hand-declared `llm-pi-ai` models (`src/reasoning-effort.ts`). Anything browser-facing belongs in `src/client/`.
 - Use stable `data-*` markers and structural selectors before hashed classes. For unavoidable hashed classes use substring matching (`[class*=_frag]`), never attribute-suffix (`[class$=…]`) — the class attribute often carries extra tokens or trailing spaces, and a suffix test runs against the whole attribute value, so it silently misses (verified in the full-codebase migration). Scope the selector to its owning region and guard prefix-overlapping fragments with `:not`; for tree rows use `[class*="_treeRow"]` and exclude `[class*="_treeArrowEmpty"]` when distinguishing directories from files.
 - Put every long-lived style tag, listener, timer, or `MutationObserver` inside `ctx.effect(() => { ...; return disposer }, label)`. Re-arm width-sensitive effects on `matchMedia(MOBILE_QUERY)` changes via `installMobileEffect` so wide→narrow transitions work; import the constant from phone-chrome.ts instead of hardcoding query strings.
 - Treat DOM markers as the cross-module state contract: `data-mobile-nav="frame"`, `data-sidebar-collapsed`, `data-aionui-explorer-open`, `data-aionui-preview-open`, `data-mobile-preview-full`, `data-mobile-nav="stats"`, `data-mobile-nav="stats-ring"` + overlay 体系五标记（`stats-ring-reserve` / `stats-tps-reserve` / `stats-tps` / `stats-ring-dock` / `stats-tps-row`，#104）， `data-file-viewer-open` (frame-level gate for the dsh-file-viewer compat layout, keyed on `.dsfv-panel`), `data-mobile-nav="session-delete"` (menu-item probe key), `delete-dialog-backdrop` + `delete-dialog` (confirmation dialog), and `data-mobile-nav-ios` (on `<html>`, iOS-only CSS gate).
@@ -201,7 +202,7 @@ dsh web
 
 ## Pitfalls
 
-- **63 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md` 末尾「2026-09-18 迁入原文」节，锚点 `### <名字>`，顺序与下面一一对应。**动手改某块代码前，先按名字读对应条目**——里面是踩过的坑、最硬铁律、实测数据、探针断言与被否决方案；不看就改等于重踩。
+- **64 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md` 末尾「2026-09-18 迁入原文」节，锚点 `### <名字>`，顺序与下面一一对应。**动手改某块代码前，先按名字读对应条目**——里面是踩过的坑、最硬铁律、实测数据、探针断言与被否决方案；不看就改等于重踩。
 - 本文件只放名字，正文一律进 `docs/`（见 Maintenance「体积门槛」）：新增坑位 = 名字加进下面清单 + 原文写进该档并补 `### 同名` 锚点。
 
 - `手势层`
@@ -267,10 +268,11 @@ dsh web
 - `沙箱 DSH_HOME`
 - `探针收尾`
 - `build 顺序`
+- `手写模型档位补齐`
 
 ## Testing & QA
 
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（43 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
+- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（48 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
 - There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the lib freshness gate `git diff --exit-code lib`.
 - After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
   - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.

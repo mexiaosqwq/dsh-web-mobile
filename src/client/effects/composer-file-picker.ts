@@ -155,6 +155,22 @@ function openSheet(t: PickerTranslate, trigger: Element): void {
   // 定位：锚点 rect → 上方优先，夹进视口。挂载后再量，所以这里量得到自身尺寸。
   const GAP = 8
   const EDGE = 8
+  // 先定好位再显形（2026-10-07 店主：「点击回形针弹出来的两个选项，会弹一下」）：
+  // 点回形针会让软键盘收起，视口在随后约 200ms 里持续变化。若按旧坐标立刻画出来，
+  // 用户看到的是「先出现在键盘上方、再跳一下」。所以隐藏挂载（`visibility` 不参与
+  // 布局，仍能量尺寸），等**连续两帧位置相同**再显形；follow 跑完或 400ms 兜底也必须
+  // 显形，免得 rAF 停摆（后台标签页）把浮层永久留在隐藏态。
+  sheet.style.visibility = 'hidden'
+  let revealed = false
+  const reveal = (): void => {
+    if (revealed) return
+    revealed = true
+    sheet.style.visibility = ''
+  }
+  let stableKey = ''
+  let stableFrames = 0
+  const revealTimer = window.setTimeout(reveal, 400)
+  teardown.push(() => window.clearTimeout(revealTimer))
   const place = (): void => {
     if (!trigger.isConnected) {
       close()
@@ -165,8 +181,17 @@ function openSheet(t: PickerTranslate, trigger: Element): void {
     let top = anchor.top - GAP - own.height
     if (top < EDGE) top = Math.min(anchor.bottom + GAP, window.innerHeight - own.height - EDGE)
     const left = Math.max(EDGE, Math.min(anchor.left, window.innerWidth - own.width - EDGE))
-    sheet.style.top = `${Math.round(Math.max(EDGE, top))}px`
-    sheet.style.left = `${Math.round(left)}px`
+    const settledTop = Math.round(Math.max(EDGE, top))
+    const settledLeft = Math.round(left)
+    sheet.style.top = `${settledTop}px`
+    sheet.style.left = `${settledLeft}px`
+    const key = `${settledTop}:${settledLeft}`
+    if (key === stableKey) stableFrames += 1
+    else {
+      stableKey = key
+      stableFrames = 0
+    }
+    if (stableFrames >= 2) reveal()
   }
   place()
   // 重锚定（2026-10-07 真机报障）：浮层是 position:fixed，坐标若只在打开时算一次，
@@ -184,8 +209,11 @@ function openSheet(t: PickerTranslate, trigger: Element): void {
   teardown.push(() => window.visualViewport?.removeEventListener('scroll', onViewport))
   let frames = 0
   let raf = requestAnimationFrame(function follow() {
+    // The keyboard animation is progressive, so the anchored position only
+    // stops changing after ~10 frames; reveal on the last one at the latest.
     place()
     if (++frames < 12) raf = requestAnimationFrame(follow)
+    else reveal()
   })
   teardown.push(() => cancelAnimationFrame(raf))
 }

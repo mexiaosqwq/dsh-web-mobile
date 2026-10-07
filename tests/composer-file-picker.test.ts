@@ -48,6 +48,20 @@ test('accept is written for the image route and always restored after click', ()
   assert.match(body, /if \(hadAccept\) input\.setAttribute\('accept', priorAccept \?\? ''\)/)
 })
 
+test('the sheet is positioned BEFORE it is shown, so the keyboard-collapse reflow cannot make it jump (2026-10-07)', () => {
+  // 店主原话：「点击回形针弹出来的两个选项，会弹一下」——点回形针会让软键盘收起，
+  // 视口在随后约 200ms 内持续变化；按旧坐标立刻画出来就会「先出现在键盘上方、再跳一次」。
+  // 所以隐藏挂载（visibility 不参与布局、仍能量尺寸），连续两帧位置相同再显形。
+  assert.match(SRC, /sheet\.style\.visibility = 'hidden'/)
+  assert.match(SRC, /const reveal = \(\): void => \{/)
+  assert.match(SRC, /revealed = true\n    sheet\.style\.visibility = ''/)
+  assert.match(SRC, /if \(stableFrames >= 2\) reveal\(\)/)
+  // 兜底：rAF 停摆（后台标签页）或 follow 跑完时也必须显形，不能永远藏着。
+  assert.match(SRC, /const revealTimer = window\.setTimeout\(reveal, 400\)/)
+  assert.match(SRC, /teardown\.push\(\(\) => window\.clearTimeout\(revealTimer\)\)/)
+  assert.match(SRC, /if \(\+\+frames < 12\) raf = requestAnimationFrame\(follow\)\n    else reveal\(\)/)
+})
+
 test('it is an anchored popover, not a full-width bottom sheet (owner feedback 2026-10-06)', () => {
   // 定位来自回形针自身的 rect：上方优先、夹进视口；必须先挂载再量自身尺寸。
   assert.match(SRC, /trigger\.getBoundingClientRect\(\)/)

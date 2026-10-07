@@ -105,3 +105,21 @@ test('the row id comes from the host\'s stable anchors, never from title guessin
   assert.doesNotMatch(SOURCE, /row\.querySelector<HTMLButtonElement>\('button'\)/, '不再赌行里只有一个按钮')
   assert.match(SOURCE, /const sessionId = rowSessionId\(row\)/)
 })
+
+test('an unanswered delete is verified against the session list before it is reported as failed (2026-10-07)', () => {
+  // 设备上工厂版宿主半区会在「会话已移入回收站之后」掐断响应，于是浏览器拿到的
+  // 是 `Failed to fetch`（net::ERR_EMPTY_RESPONSE）——删成功的会话被报成失败。
+  // 判据只能是会话列表，不是 fetch 的 promise。
+  assert.match(SOURCE, /import \{[^}]*verifySessionDeleted[^}]*\} from '\.\.\/core\/sessions-compat\.ts'/)
+  assert.match(SOURCE, /landed = await verifySessionDeleted\(\{/)
+  assert.match(SOURCE, /listed: \(\) => ctx\.sessions\.list\.getSnapshot\(\)\?\.byId\?\.\[sessionId\] !== undefined/)
+  // refresh 必须仍以 ctx.sessions 为 receiver 调用（抽出来的引用会 this undefined）。
+  assert.match(SOURCE, /await \(ctx\.sessions as \{ refresh\?: \(\) => Promise<void> \}\)\.refresh\?\.\(\)/)
+  // 旧的「catch 了就直接报失败」路径必须不存在。
+  assert.doesNotMatch(SOURCE, /\} catch \(reason\) \{\s*\n\s*fail\(mapError\(null, reason\)\)/)
+  // 验证本身不许变成新的失败模式：快照形状意外时退回普通错误行。
+  assert.match(SOURCE, /let landed = false/)
+  assert.match(SOURCE, /\} catch \{[\s\S]{0,40}?landed = false/)
+  // 响应本身有答案时（HTTP 403/404 等）不进验证路径，直接按服务端口径报错。
+  assert.match(SOURCE, /fail\(mapError\(payload, new Error\(`HTTP \$\{response\.status\}`\)\)\)/)
+})

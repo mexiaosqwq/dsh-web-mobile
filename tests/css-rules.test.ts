@@ -44,3 +44,20 @@ test('long-conversation message blocks skip off-screen layout (2026-10-07 实测
   // 滚动容器自身绝不能被设成 content-visibility（那会把整段会话藏掉）。
   assert.ok(!LAYOUT_CSS.includes('[class*="scrollBody"] {'), '没有把 scrollBody 自身当选择器')
 })
+
+test('the phone stats row keeps its tightened spacing (2026-10-07)', () => {
+  // 宿主三层叠出来的空隙：root gap 12 + sep margin 6/6 + pill padding 8/8。
+  // 手机档收成 6 / 2 / 6 —— 三条都必须带 stats 标记作用域，换代后只会惰性化。
+  const scope = '[data-mobile-nav="frame"] [data-phase] [data-mobile-nav="stats"]'
+  const blocks = findRuleBlocks(LAYOUT_CSS).filter((block) => block.selector.includes(scope))
+  const row = blocks.find((block) => block.body.includes('gap:'))
+  assert.ok(row !== undefined, 'stats 行的手机规则块在位')
+  assert.match(row.body, /gap: 6px !important/)
+  const sep = blocks.find((block) => block.selector.includes('[class*="_sep"]'))
+  assert.ok(sep !== undefined, '分隔符规则块在位')
+  assert.match(sep.body, /margin: 0 2px !important/)
+  const pill = blocks.find((block) => block.selector.includes('[class*="_pill"]'))
+  assert.ok(pill !== undefined, '指标胶囊规则块在位')
+  assert.match(pill.body, /padding-left: 6px !important/)
+  assert.match(pill.body, /padding-right: 6px !important/)
+})
