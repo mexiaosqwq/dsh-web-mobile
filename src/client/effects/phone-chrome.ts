@@ -52,7 +52,7 @@ export const TOUCH_QUERY = '(pointer: coarse)'
  *  容差同时放宽到 32px（滚动仍然照旧取消：横向由滑动手势层 8px 锁轴 + isStrokeLocked，
  *  纵向由浏览器 pan-y 的 pointercancel，见 onDrawerPointerCancel）。
  *  进度条（`data-mobile-nav-press="fill"`，base.css.ts）负责让「还在计时」看得见。 */
-export const LONG_PRESS_MS = 900
+export const LONG_PRESS_MS = 500
 /** Pointer travel that cancels a long press. 32px since 2026-10-07: the
  *  measured 20px drift over a 2s hold cancelled every attempt. Still far above
  *  the swipe layer's 8px LOCK_PX, so a horizontal stroke is cancelled through
@@ -759,13 +759,31 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       button.click()
     }
 
-    /** 长按到点（计时器或系统 contextmenu 任一先到，只生效一次）。 */
+    /** 触发之后的收尾：抬手那一击必须吞掉（宿主改名弹层是模态，会盖住手指），
+     *  并在稍后复核改名 UI 是否真的站住，没站住就退到行菜单。 */
+    const afterFire = (row: HTMLElement): void => {
+      swallowClickUntil = performance.now() + LONG_PRESS_CLICK_SWALLOW_MS
+      swallowClickRow = row
+      swallowClickAnyTarget = true
+      if (renameSettleTimer !== null) window.clearTimeout(renameSettleTimer)
+      renameSettleTimer = window.setTimeout(() => {
+        renameSettleTimer = null
+        if (!row.isConnected) return
+        if (document.querySelector('[class*="_renameInput"]') === null) openRowMenu(row)
+      }, RENAME_SETTLE_MS)
+    }
+
+    /** 长按到点（计时器 / 系统 contextmenu / 系统接管时的 pointercancel，任一先到，只生效一次）。 */
     const firePress = (): void => {
       const row = pressRow
       if (row === null || pressFired) return
       if (pressTimer !== null) {
         window.clearTimeout(pressTimer)
         pressTimer = null
+      }
+      if (pressFillTimer !== null) {
+        window.clearTimeout(pressFillTimer)
+        pressFillTimer = null
       }
       pressFired = true
       // The hold is over: the fill has done its job, drop the marker before
@@ -774,6 +792,7 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       // 长按 = 改会话名。拿不到标题（宿主标记变了）就退回 ⋯ 菜单：长按至少还能
       // 到达行操作，而不是变成一个什么都不做的死手势。
       if (!requestRowRename(row)) openRowMenu(row)
+      afterFire(row)
     }
 
     /** The only `dblclick`s allowed through to the host are the ones we
@@ -946,7 +965,21 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     // The browser claimed the stroke (pan-y scroll start, a system gesture, a
     // drag): no pointermove/pointerup follows, so without this the 2s timer
     // would keep counting and rename a row mid-scroll.
-    const onDrawerPointerCancel = (): void => {
+    const onDrawerPointerCancel = (event: PointerEvent): void => {
+      // 真机实测（店主）：进度扫光走到一半就消失、改名框始终不出现 —— 按住被
+      // 中途取消，计时器根本没跑到。系统（Android 自己的长按/选择/滚动接管）取消
+      // 掉这一笔时，如果手指其实没怎么动、而且已经按住过系统长按的时长，那这次
+      // 接管就**正是用户要的长按**：直接触发，而不是把整个手势丢掉。
+      // 真滚动/真滑动会在取消之前先累积位移（> LONG_PRESS_MOVE_PX）或先锁轴，
+      // 那两条路径仍然走 clearPress（不触发）。
+      const heldMs = performance.now() - pressStartedAt
+      const movedPx = pressOrigin === null
+        ? 0
+        : Math.max(Math.abs(event.clientX - pressOrigin.x), Math.abs(event.clientY - pressOrigin.y))
+      if (pressRow !== null && !pressFired && heldMs >= LONG_PRESS_SYSTEM_MS && movedPx <= LONG_PRESS_MOVE_PX) {
+        firePress()
+        return
+      }
       clearPress()
     }
 
@@ -1050,15 +1083,7 @@ export function installOverlayInteractions(ctx: ClientContext): void {
         // or close the drawer. The swallow is target-blind for this one click
         // (the rename modal covers the finger), and a short settle check turns
         // 「改名 UI 没出来」 into the row menu instead of a dead gesture.
-        swallowClickUntil = performance.now() + LONG_PRESS_CLICK_SWALLOW_MS
-        swallowClickRow = pressedRow
-        swallowClickAnyTarget = true
-        if (renameSettleTimer !== null) window.clearTimeout(renameSettleTimer)
-        renameSettleTimer = window.setTimeout(() => {
-          renameSettleTimer = null
-          if (!pressedRow.isConnected) return
-          if (document.querySelector('[class*="_renameInput"]') === null) openRowMenu(pressedRow)
-        }, RENAME_SETTLE_MS)
+        afterFire(pressedRow)
         return
       }
       const target = event.target

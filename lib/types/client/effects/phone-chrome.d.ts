@@ -34,7 +34,7 @@ export declare const TOUCH_QUERY = "(pointer: coarse)";
  *  容差同时放宽到 32px（滚动仍然照旧取消：横向由滑动手势层 8px 锁轴 + isStrokeLocked，
  *  纵向由浏览器 pan-y 的 pointercancel，见 onDrawerPointerCancel）。
  *  进度条（`data-mobile-nav-press="fill"`，base.css.ts）负责让「还在计时」看得见。 */
-export declare const LONG_PRESS_MS = 900;
+export declare const LONG_PRESS_MS = 500;
 /** Pointer travel that cancels a long press. 32px since 2026-10-07: the
  *  measured 20px drift over a 2s hold cancelled every attempt. Still far above
  *  the swipe layer's 8px LOCK_PX, so a horizontal stroke is cancelled through
