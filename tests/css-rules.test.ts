@@ -97,8 +97,12 @@ test('plugin-manager cards and rows are tappable as a whole on mobile (2026-10-0
     && block.selector.includes('li[data-plugin-row]')
     && /position:\s*relative\s*!important/.test(block.body))
   assert.ok(anchored !== undefined, '两种根节点都必须钉住定位')
+  // 宿主已经铺了覆盖层，但描述盒子（-webkit-box）在 DOM 里排在按钮之后、绘制更晚，
+  // 会把点击整块吃掉 —— 所以覆盖层必须自带 z-index，交互件再高一档。
+  assert.match(cardOverlay.body, /z-index:\s*1/, '覆盖层要抬到描述之上，否则点了没反应')
+  assert.match(rowOverlay.body, /z-index:\s*1/, '行式覆盖层同理')
   const lifted = blocks.filter((block) =>
     block.selector.includes('button:not([class*="_cardOpen"])')
     && block.selector.includes('button:not([class*="_rowOpen"])'))
-  assert.ok(lifted.some((block) => /z-index:\s*1/.test(block.body)), '开关等交互件要抬到覆盖层之上')
+  assert.ok(lifted.some((block) => /z-index:\s*2/.test(block.body)), '开关等交互件要比覆盖层再高一档')
 })
