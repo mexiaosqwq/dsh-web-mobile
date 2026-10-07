@@ -40,21 +40,28 @@ export const DESKTOP_QUERY = '(min-width: 1024px)'
 export const TOUCH_QUERY = '(pointer: coarse)'
 
 /** Long press on a session row renames it (2026-09-22 contract; the ⋯ menu is
- *  only the fallback when the title cannot be found). 2000ms since 2026-10:
- *  500ms read as a context menu and fired on ordinary slow taps and on
- *  touch-and-think pauses — rename must be deliberate. The progress fill
- *  (`data-mobile-nav-press="fill"`, base.css.ts) shows the hold is counting. */
-export const LONG_PRESS_MS = 2000
-/** Pointer travel that cancels a long press. 14px: a 2s hold drifts more than
- *  a 0.5s one did. Still above the swipe layer's 8px LOCK_PX, so a horizontal
- *  stroke is cancelled through `isStrokeLocked()` (the lock lands on the 8px
- *  move — our pointermove runs first in capture order, so it sees the flag on
- *  the NEXT move, still well before 14px) and a vertical stroke through the
- *  browser's pan-y `pointercancel` (see onDrawerPointerCancel). */
-export const LONG_PRESS_MOVE_PX = 14
+ *  only the fallback when the title cannot be found).
+ *
+ *  2026-10-07（真浏览器实测，二轮）：2s 阈值配 14px 容差的组合按不出来 ——
+ *  在 390×844 触屏仿真下逐项实测：
+ *    · 手指完全不动，2.05s → 改名框出现（对照通过）；
+ *    · 手指在 2s 内累计漂移 20px → 动作被 LONG_PRESS_MOVE_PX 静默取消，无任何反馈；
+ *    · 按住 1.7s 松手 → 同样什么都不发生（2s 没到）。
+ *  而人手的自然长按在 0.5~1s，2s 的保持期里累计漂移超过 14px 是常态 ⇒「长按没反应」。
+ *  现在取 900ms：明显长于普通点按/「按住想一下」（≤300ms），又落在人手自然长按区间；
+ *  容差同时放宽到 32px（滚动仍然照旧取消：横向由滑动手势层 8px 锁轴 + isStrokeLocked，
+ *  纵向由浏览器 pan-y 的 pointercancel，见 onDrawerPointerCancel）。
+ *  进度条（`data-mobile-nav-press="fill"`，base.css.ts）负责让「还在计时」看得见。 */
+export const LONG_PRESS_MS = 900
+/** Pointer travel that cancels a long press. 32px since 2026-10-07: the
+ *  measured 20px drift over a 2s hold cancelled every attempt. Still far above
+ *  the swipe layer's 8px LOCK_PX, so a horizontal stroke is cancelled through
+ *  `isStrokeLocked()` and a vertical stroke through the browser's pan-y
+ *  `pointercancel`. */
+export const LONG_PRESS_MOVE_PX = 32
 /** Hold time before the progress fill appears: a normal tap (≈100-250ms)
  *  must not flash it. */
-export const LONG_PRESS_FILL_DELAY_MS = 300
+export const LONG_PRESS_FILL_DELAY_MS = 200
 /** Duration the fill animation should take so it completes exactly when the
  *  long press fires: the hold remaining after the fill delay (never negative). */
 export function longPressFillMs(holdMs: number, delayMs: number): number {

@@ -58,14 +58,15 @@ test('#82: both tap-close callers keep the DSHA-exempt predicate', () => {
   assert.match(bodyOf('shouldCloseOnTapInsideDrawer'), /data-dsha-session-select/)
 })
 
-// 2026-10 会话行长按改名：500ms → 2000ms（防误触），并加按住进度提示。
-// 钉住：时长与移动阈值常量、进度时长纯函数、data-mobile-nav-press 标记与
-// 内联时长变量在 clearPress 路径被移除、pointercancel / contextmenu 处理、
-// 以及 base.css.ts 里只在移动 + hover:none 块内生效的样式。
+// 2026-10 会话行长按改名：500ms → 2000ms（防误触）→ 900ms + 32px 容差（2026-10-07
+// 真浏览器实测：2s 保持期内手指漂移 20px 就被 14px 容差静默取消，且 1.7s 松手什么都不发生
+// ⇒「长按没反应」）。钉住：时长与移动阈值常量、进度时长纯函数、进度可见性、
+// data-mobile-nav-press 标记与内联时长变量在 clearPress 路径被移除、
+// pointercancel / contextmenu 处理、以及 base.css.ts 里只在移动 + hover:none 块内生效的样式。
 
-test('长按改名时长 2000ms，移动取消阈值 14px 且高于滑动层 8px 锁轴', () => {
-  assert.equal(LONG_PRESS_MS, 2000)
-  assert.equal(LONG_PRESS_MOVE_PX, 14)
+test('长按改名时长 900ms，移动取消阈值 32px 且高于滑动层 8px 锁轴', () => {
+  assert.equal(LONG_PRESS_MS, 900)
+  assert.equal(LONG_PRESS_MOVE_PX, 32)
   const lock = SWIPE.match(/const LOCK_PX = (\d+)/)
   assert.ok(lock, 'LOCK_PX not found in sidebar-swipe.ts')
   // The swipe layer must lock (and isStrokeLocked cancel the press) first.
@@ -74,9 +75,16 @@ test('长按改名时长 2000ms，移动取消阈值 14px 且高于滑动层 8px
 })
 
 test('进度时长 = 剩余按住时间，且从不为负', () => {
-  assert.equal(longPressFillMs(LONG_PRESS_MS, LONG_PRESS_FILL_DELAY_MS), 1700)
+  assert.equal(longPressFillMs(LONG_PRESS_MS, LONG_PRESS_FILL_DELAY_MS), 700)
   assert.equal(longPressFillMs(200, 300), 0)
   assert.ok(LONG_PRESS_FILL_DELAY_MS > 0 && LONG_PRESS_FILL_DELAY_MS < LONG_PRESS_MS)
+})
+
+test('进度反馈必须看得见：currentColor 24%（不是宿主的 10% 底）', () => {
+  const rule = BASE.slice(BASE.indexOf('[data-mobile-nav="frame"] [class*="_sessionRow"][data-mobile-nav-press="fill"]:not'))
+  const filled = rule.slice(0, rule.indexOf('}'))
+  assert.match(filled, /background: color-mix\(in srgb, currentColor 2[0-9]%, transparent\);/)
+  assert.doesNotMatch(filled, /var\(--dsw-alias-interactive-bg-active/)
 })
 
 test('clearPress 移除行标记与内联时长变量，并清掉两个计时器', () => {

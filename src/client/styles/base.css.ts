@@ -400,11 +400,15 @@ export const BASE_CSS = `
       position: absolute;
       inset: 0;
       border-radius: inherit;
-      background: var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 10%, transparent));
+      /* 2026-10-07（真浏览器实测）：原样用宿主的 interactive-bg-active 只有
+         rgba(38,49,72,.1) —— 在手机上几乎看不见，用户根本不知道「还在计时」，
+         于是提前松手 ⇒ 也不改名。改成 currentColor 24%（暗色主题自动翻成浅色），
+         一眼能看出进度在走；仍是纯 transform 动画，不动宿主任何属性。 */
+      background: color-mix(in srgb, currentColor 24%, transparent);
       pointer-events: none;
       transform-origin: left center;
       transform: scaleX(0);
-      animation: dsh-web-mobile-press-fill var(--mobile-nav-press-ms, 1700ms) linear forwards;
+      animation: dsh-web-mobile-press-fill var(--mobile-nav-press-ms, 700ms) linear forwards;
     }
     @media (prefers-reduced-motion: reduce) {
       :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]) {
