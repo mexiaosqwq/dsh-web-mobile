@@ -932,11 +932,17 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        （面积 +47%），再由下面的 ::after 向外扩 4px（最终命中区约 42×42）。
        **图标位置不变**：盒宽 +6 后 margin-left 从 -10 收到 -13，图标中心原地不动；
        高度对齐发送键的 34px，行高不受影响。 */
-    width: 34px !important;
-    min-width: 34px !important;
-    max-width: 34px !important;
-    height: 34px !important;
-    min-height: 34px !important;
+    /* 2026-10-07 店主：「点一下有一层深一点的灰色，也有一层浅一点的灰色，去掉一层」。
+       根因是**嵌套两层**：宿主的按钮盒底色（34x34、圆角 8）与我们的 ::before 胶囊
+       （28x28 圆）半透明叠半透明 —— 重叠区深、外圈浅。压层叠（!important）在真机上
+       压不住那一层（实测按下仍是 233 外圈 + 222 内层），所以改成**结构上只有一层**：
+       可见胶囊 = 按钮盒本身。盒子 28x28 + 全圆角，与加号同尺寸；图标中心不变
+       （盒宽 34→28 ⇒ margin-left 由 -11 收到 -8）；命中区仍由 ::after 外扩。 */
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
     padding: 0 !important;
     position: relative !important;
     /* 左移 10px + 图标 14→16px（2026-09-23，店主："太往右了、有点小"）：
@@ -947,11 +953,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        = 盒左缘 + 8.85，故盒左缘取 98 ⇒ margin-left: -10px（吃掉 6px gap 后再
        压进 modes 尾部留白 4px，不碰它的墨迹：chevron 墨迹止于 ~91）。
        这一个数值就是"往左多少"的旋钮，可按眼睛调，别动别的。 */
-    margin: 0 0 0 -11px !important;
+    margin: 0 0 0 -8px !important;
     display: grid !important;
     place-items: center;
     border: 0 !important;
-    border-radius: 8px;
+    border-radius: 999px;
     background: transparent;
     color: inherit;
     cursor: pointer;
@@ -970,9 +976,24 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     background: transparent;
     transition: background .12s ease;
   }
-  [data-composer-card] [data-mobile-nav="file-upload"]:hover::before,
-  [data-composer-card] [data-mobile-nav="file-upload"]:active::before {
+  [data-composer-card] [data-mobile-nav="file-upload"]::before {
+    /* 胶囊已由盒子本体承担，这一层永久透明（保留节点是为了不惊动既有锚点）。 */
+    background: transparent !important;
+  }
+  /* 2026-10-07 店主："点一下有一层深一点的灰色，也有一层浅一点的灰色，去掉一层"。
+     真因是**半透明叠半透明**，不是我们画了两层胶囊：宿主全局 CSS 里有
+     「button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}」
+     （特异性 0,2,1 > 上面那条基础规则的 0,2,0，所以它赢了）与
+     「button:active{background-color:#0000001f}」，两者都画在这个按钮的**盒子**上；
+     而 ::before 的可见胶囊又画一层 ⇒ 重叠区深、外圈浅，看着就是两层灰。
+     可见胶囊只留 ::before 一层：盒子在所有状态下强制透明（::after 只有命中区、无底色）。 */
+  [data-composer-card] [data-mobile-nav="file-upload"]:hover,
+  [data-composer-card] [data-mobile-nav="file-upload"]:active,
+  [data-composer-card] [data-mobile-nav="file-upload"]:focus-visible {
     background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+    box-shadow: none !important;
+    outline: none !important;
+    border-color: transparent !important;
   }
   /* 压掉浏览器默认的淡蓝 tap 高亮（店主 2026-09-23："单纯点击图标，出现一个淡蓝色
      的原始的点击画面"）。读源码取证：宿主头部那几个包（dsh-client-ui-subagent /
@@ -1028,8 +1049,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-composer-card] [data-mobile-nav="file-upload"]::after {
     content: '';
     position: absolute;
-    inset: -4px;
-    border-radius: 12px;
+    inset: -7px;
+    border-radius: 999px;
   }
   /* A busy submit phase or a subagent session refuses attachments. The host
      gates intake on canAcceptDrop (package-private), so this reads the closest
@@ -2588,6 +2609,37 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        重复变暗：屏幕的整体明暗在弹层开合前后完全一致，剩下的变化只有卡片本身。 */
     background: transparent !important;
   }
+  /* --- 插件管理页（dsh-client-ui-plugin-manager）：整卡 / 整行可点 ---
+     2026-10-07 店主：「打开如图里面的功能，需要点击那些加黑字体才行」。读宿主源码确认到两层：
+     ① 宿主**已经**给标题按钮铺了整卡覆盖层（「.cardOpen:after{position:absolute;inset:0}」 配
+        「.cardLink{position:relative}」，标准 stretched-link）；
+     ② 但卡片 DOM 顺序是 icon → titleRow(button) → **cardDesc**，描述是个 -webkit-box 盒子，
+        绘制顺序排在覆盖层**之后** ⇒ 描述整块把点击吃掉，点它什么都不发生；只有标题（按钮自身）
+        与描述以外的细缝能开详情。
+     所以本规则不是「再加一层」，而是**把覆盖层抬到描述之上**（z-index），并把卡片里的其它
+     交互件（开关等）抬得更高，保证它们仍能单独点。
+     根节点仍钉 「position: relative」：一旦宿主换代不再给 cardLink 定位，「inset:0」 的包含块会
+     落到更外层 —— 覆盖层铺满整页，就成了「点哪都开第一个插件的详情」。 */
+  li[data-plugin-package],
+  li[data-plugin-row] {
+    position: relative !important;
+  }
+  li[data-plugin-package] button[class*="_cardOpen"]::after,
+  li[data-plugin-row] button[class*="_rowOpen"]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    /* 关键一行：压过同卡片里的描述/徽标等静态盒子（宿主那层没有 z-index）。 */
+    z-index: 1;
+  }
+  li[data-plugin-package] :is(button:not([class*="_cardOpen"]), a, input),
+  li[data-plugin-row] :is(button:not([class*="_rowOpen"]), a, input) {
+    position: relative;
+    /* 比覆盖层高一档：开关等控件仍在覆盖层之上，可单独点。 */
+    z-index: 2;
+  }
+
   /* ---------- sidebar panel enter / exit (see effects/panel-exit.ts) ----------
      A sidebar panel REPLACES the main area. Two motions, both short and
      horizontal, matching the drawer's own rail-in (.15s, translate + fade):
@@ -2790,4 +2842,5 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     inset: -4px;
   }
 }
+
 `

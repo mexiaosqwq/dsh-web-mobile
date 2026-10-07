@@ -103,3 +103,20 @@ test('the effect is wired into the client entry', () => {
   )
   assert.match(entry, /installComposerKeyboardGuard\(ctx\)/)
 })
+
+test('a hot swap puts the conversation scroll back where it was (2026-10-07 店主报障)', () => {
+  // 宿主热换插件走 client-modules.replace()：tearDown → import → refresh，我们那张
+  // <style> 在窗口里整段消失 ⇒ 长会话 content-visibility 估算与布局翻转，Chromium 把
+  // 会话滚动区重锚到顶部（店主：「聊到一半突然闪到最上面」）。卸载前记、重挂后回填。
+  const source = readFileSync(fileURLToPath(new URL('../src/client/index.tsx', import.meta.url)), 'utf8')
+  assert.match(source, /const SWAP_RESTORE_MS = 10_000/, '存档要有保鲜期常量')
+  assert.match(source, /function conversationScrollers\(\): HTMLElement\[\] \{\s*return \[\.\.\.document\.querySelectorAll<HTMLElement>\('\[data-mobile-nav="frame"\] \[class\*="scrollBody"\]'\)\]\s*\}/,
+    '滚动区取宿主的 _scrollBody（overflow-y:auto 的那个盒子）')
+  // 卸载路径：先记位置，再删表（顺序不可换，删完就读不到了）。
+  assert.match(source, /return \(\) => \{\s*rememberConversationScroll\(\)\s*tag\.remove\(\)/,
+    'disposer 必须先记滚动位置再删样式表')
+  assert.match(source, /restoreConversationScroll\(\)\n\s*return \(\) => \{/, 'apply 路径要尝试回位')
+  // 只在「被弹到 0」时回填：宿主自己滚到底/滚到新消息时不抢。
+  assert.match(source, /element\.scrollTop === 0\) element\.scrollTop = top/, '只回填被弹到顶的那种')
+  assert.match(source, /top > 0 && element\.scrollTop === 0/, '没有存档或本来就在顶部时不动作')
+})

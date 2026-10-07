@@ -745,3 +745,20 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 - **写入带 `describe()` 同一次读到的 `revision`**：用户可能正在「模型」页编辑，`mutate` 的 `expectedRevision` 让并发编辑以 conflict 被拒绝，而不是互相覆盖（被拒绝只是晚一轮，`document-updated` 会再触发）。
 - **默认档为什么是 `off`/`high`/`max`**：这三个是 OpenAI 兼容网关接受度最高的一组（社区 `@hytime/dsh-thinking-effort` 0.3.8 同选择——本机装过并逐行读过其 `fillProviderDefaults` 才落这条口径）；`off: null` 表示「支持关闭」，分派时翻译成**不带思考参数**，不是发空串。
 - 单元锚：`tests/reasoning-effort-fill.test.ts`（15 条：plan 的六种形状 + mutate 契约 + 缺席/失败降级 + 源码接线不变式）。真宿主 `describe()` 的实际形状与写回落点属运行时层，单测层不算数——按仓库口径补活宿主/真机验收。
+
+### 双层底
+
+- **同一元素上的「盒底 + 胶囊」会叠出两层灰（2026-10-07 店主：「点一下有一层深一点的灰色，也有一层浅一点的灰色，去掉一层」）**。composer 回形针（`[data-mobile-nav="file-upload"]`）本该只有一个 28px 圆胶囊，真机按下却看到两层。
+- **取证手法可复用**：容器里既没有图像库也没有浏览器，于是用 Node 原生 `zlib` 自写 PNG 解码（IHDR/IDAT + 四种 filter 反解），对真机截图做**逐像素剖面**——按下瞬间取一条穿过按钮中心的横线，量到外层 **130 设备px / rgb≈233**、内层 **108 / ≈222**；再用同排 ＋ 的 103px 反推 DPR≈3.68 ⇒ 外层 = 34 CSS px 的**按钮盒**、内层 = 28 CSS px 的**圆胶囊**，内层更深 ⇒ 半透明叠半透明。沿 y 扫外层的左缘还能把圆角量到 ≈8px（正是我们自己写的 `border-radius`），据此判定「这一层就画在我们按钮身上」而非父容器。
+- **机理**：宿主全局 CSS 里有 `button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}`（特异性 0,2,1 > 我们基础规则的 0,2,0）与 `button:active{background-color:#0000001f}`，它们画在**按钮盒**上；而我们的可见胶囊画在 `::before` 上 ⇒ 重叠区深、外圈浅。
+- **`!important` 不一定救得回来**：补 `background: transparent !important`（并按 `box-shadow`/`outline`/`border-color` 一起兜底）在真机上**仍未消除那一层**（实测按下依旧 233 + 222）。别把「我赢了层叠」当成「视觉已修」。
+- **修法是结构性而非对抗性**：把**可见胶囊做成按钮盒本身** —— 盒子 28×28 + `border-radius:999px`（与加号同尺寸），`::before` 永久透明；`margin-left` 跟着从 −11 收到 −8 让图标中心不动，命中区由 `::after` 外扩（`inset:-7px`）。这样**同一个元素只可能画出一层**，无论那层灰最终是谁赢。
+- 锚：`tests/css-rules.test.ts`「the composer file button paints one pill, not two」钉住「盒子=胶囊、`::before` 不再上色、`box-shadow/outline/border-color` 兜底、`::after` 外扩」。
+
+### 卡片命中
+
+- **插件管理页只有加黑标题能开详情（2026-10-07 店主：「打开如图里面的功能，需要点击那些加黑字体才行」）**。宿主 `dsh-client-ui-plugin-manager` 的条目（卡片 `li[data-plugin-package]`、行式 `li[data-plugin-row]`）**只把标题**渲染成 `<button aria-label=打开…详情>`（class 含 `cardOpen`／行式 `rowOpen`），描述、图标、徽标、留白都不响应点击。
+- **宿主自带的 stretched-link 是被它自己的描述挡住的**：宿主 CSS 有 `.cardOpen:after{content:"";position:absolute;inset:0}` 配 `.cardLink{position:relative}`（标准手法，本该整卡可点）；但卡片 DOM 顺序是 `icon → titleRow(button) → **cardDesc**`，描述是个 `-webkit-box` 盒子，**绘制顺序排在覆盖层之后**，整块把点击吃掉。真机实测：给覆盖层补 `z-index` 抬升**仍不生效**。
+- **修法：行为级转发，不再依赖绘制顺序**。`effects/plugin-card-tap.ts` 在**捕获期**监听 `click`：命中条目根、又不在任何交互控件（`button`/`a`/`input`/…/`[role="switch"]`）上 ⇒ `preventDefault()` 后 `openButton.click()`；**点标题本身放过**（宿主自己会开，转发会双重触发），**开关一律不抢**。判定抽成零 import 纯核 `core/plugin-card-tap-core.ts` 由单测钉死，手机档由 `installMobileEffect` 门控。
+- **教训**：命中/点击这类问题，绘制顺序与层叠赢不了时改**行为级转发**——它是确定性的，不随宿主换代或引擎差异漂移。
+- 锚：`tests/plugin-card-tap.test.ts`（四种点击情形 + 选择器/捕获期/门控/接线不变式）。
