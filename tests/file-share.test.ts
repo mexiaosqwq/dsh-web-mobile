@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   CHUNK_BYTES,
-  hasWebShare,
+  canShareFiles,
   FileShareError,
   SHARE_MAX_BYTES,
   deliverFile,
@@ -214,26 +214,31 @@ test('a running share blocks every row button, not only the tapped one', async (
   assert.match(source, /if \(active\) button\.setAttribute\('aria-busy', 'true'\)/)
 })
 
-test('hasWebShare only reports true when the platform really has Web Share', () => {
+test('canShareFiles only reports true when the platform really has Web Share', async () => {
   // 诚实语义的地基：DSHA 的 WebView 两个成员都没有 ⇒ 按钮必须叫「下载」而不是「分享」。
   const noop = (): void => {}
-  assert.equal(hasWebShare({ share: noop, canShare: () => true, download: noop }), true)
-  assert.equal(hasWebShare({ share: undefined, canShare: () => true, download: noop }), false)
-  assert.equal(hasWebShare({ share: noop, canShare: undefined, download: noop }), false)
-  assert.equal(hasWebShare({ share: undefined, canShare: undefined, download: noop }), false)
+  assert.equal(canShareFiles({ share: noop, canShare: () => true, download: noop }), true)
+  assert.equal(canShareFiles({ share: undefined, canShare: () => true, download: noop }), false)
+  assert.equal(canShareFiles({ share: noop, canShare: undefined, download: noop }), false)
+  assert.equal(canShareFiles({ share: undefined, canShare: undefined, download: noop }), false)
+  // 名字刻意不叫 hasWebShare：判据管的是「有没有任何投递到别的 App 的路」，而手机上真正
+  // 有用的那条是宿主桥（Android WebView 根本没有 Web Share）——叫 Web Share 会误导后人。
+  const core = await readFile(new URL('../src/client/components/file-share-core.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(core, /hasWebShare/, '别再退回那个会误导人的名字')
+  assert.match(core, /bridge → Web Share → download/, '桥优先的路由顺序要写在判据旁边，接桥时照它改')
 })
 
 test('the button is labelled 下载 (and gets a download glyph) when sharing is impossible', async () => {
   const source = await readFile(new URL('../src/client/components/file-share-controls.tsx', import.meta.url), 'utf8')
   // 两个标签点（预览头 + 文件树行）都必须走同一个诚实标签函数。
   assert.match(source, /function shareLabel\(t: Translate, name: string\): string \{/)
-  assert.match(source, /hasWebShare\(platformDeps\(\)\) \? t\('shareFile', \{ name \}\) : t\('downloadFile', \{ name \}\)/)
+  assert.match(source, /canShareFiles\(platformDeps\(\)\) \? t\('shareFile', \{ name \}\) : t\('downloadFile', \{ name \}\)/)
   assert.equal((source.match(/shareLabel\(/g) ?? []).length, 3, '定义 1 + 使用 2')
   assert.doesNotMatch(source, /busy \? t\('sharing'\) : t\('shareFile'/, '预览头不再无条件叫分享')
   assert.doesNotMatch(source, /active \? tr\('sharing'\) : tr\('shareFile'/, '文件树行不再无条件叫分享')
   // 图标也跟着换：分享图标配「下载」标签会自相矛盾。
-  assert.match(source, /hasWebShare\(platformDeps\(\)\) \? <ShareGlyph \/> : <DownloadGlyph \/>/)
-  assert.match(source, /button\.innerHTML = hasWebShare\(platformDeps\(\)\) \? SHARE_SVG : DOWNLOAD_SVG/)
+  assert.match(source, /canShareFiles\(platformDeps\(\)\) \? <ShareGlyph \/> : <DownloadGlyph \/>/)
+  assert.match(source, /button\.innerHTML = canShareFiles\(platformDeps\(\)\) \? SHARE_SVG : DOWNLOAD_SVG/)
   const locale = await readFile(new URL('../src/client/components/file-share-locale.ts', import.meta.url), 'utf8')
   assert.match(locale, /'downloadFile': '下载「\{name\}」'/)
   assert.match(locale, /'downloadFile': 'Download "\{name\}"'/)
