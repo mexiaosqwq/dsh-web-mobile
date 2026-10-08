@@ -25,8 +25,12 @@ test('the switch and any other control keep their own clicks', () => {
 })
 
 test('the effect targets the host entry roots and forwards in the capture phase', () => {
-  assert.match(EFFECT, /const CARD = 'li\[data-plugin-package\], li\[data-plugin-row\]'/, '两种条目根（卡片/行式）都锚稳定标记')
-  assert.match(EFFECT, /const OPEN = 'button\[class\*="_cardOpen"\], button\[class\*="_rowOpen"\]'/, '打开按钮锚语义化 class 子串')
+  // 三种根都要在。2026-10-08 店主截图定位：宿主「官方」组 = 包卡片（有开关）+ item 卡（无开关），
+  // 第一版只写了前两种，于是 `li[data-plugin-item]` 那四张（终端 / Agent 循环 / 子智能体 /
+  // 网页搜索）仍然只有加黑标题能点。
+  assert.match(EFFECT, /const CARD = 'li\[data-plugin-package\], li\[data-plugin-row\], li\[data-plugin-item\]'/, '三种条目根（包卡片 / 行式 / item 卡）都锚稳定标记')
+  assert.match(EFFECT, /li\[data-plugin-item\]/, 'item 卡根必须在选择器里')
+  assert.match(EFFECT, /const OPEN = 'button\[class\*="_cardOpen"\], button\[class\*="_rowOpen"\]'/, '打开按钮锚语义化 class 子串（item 卡的标题按钮同样是 CardHead 的 cardOpen）')
   assert.match(EFFECT, /role="switch"/, '开关必须在放过清单里')
   assert.match(EFFECT, /document\.addEventListener\('click', onClick, true\)/, '捕获期监听')
   assert.match(EFFECT, /event\.preventDefault\(\)\s*\n\s*open\.click\(\)/, '转发前先掐掉本次点击的默认行为')

@@ -101,8 +101,16 @@ test('plugin-manager cards and rows are tappable as a whole on mobile (2026-10-0
   const anchored = blocks.find((block) =>
     block.selector.includes('li[data-plugin-package]')
     && block.selector.includes('li[data-plugin-row]')
+    && block.selector.includes('li[data-plugin-item]')
     && /position:\s*relative\s*!important/.test(block.body))
-  assert.ok(anchored !== undefined, '两种根节点都必须钉住定位')
+  assert.ok(anchored !== undefined, '三种根节点都必须钉住定位（包卡片 / 行式 / item 卡）')
+  // 2026-10-08：宿主「官方」组 = 包卡片 + item 卡（`plugins.item` 槽）两类，第一版漏了后者，
+  // 真机症状是「有开关的能整卡点，从『终端』起那四张只有加黑标题能点」。
+  assert.ok(cardOverlay.selector.includes('li[data-plugin-item]'), 'item 卡的标题按钮也要有覆盖层')
+  const itemOverlayLift = blocks.find((block) =>
+    block.selector.includes('li[data-plugin-item]')
+    && block.selector.includes('button:not([class*="_cardOpen"])'))
+  assert.ok(itemOverlayLift !== undefined, 'item 卡里的交互件同样要抬到覆盖层之上')
   // 宿主已经铺了覆盖层，但描述盒子（-webkit-box）在 DOM 里排在按钮之后、绘制更晚，
   // 会把点击整块吃掉 —— 所以覆盖层必须自带 z-index，交互件再高一档。
   assert.match(cardOverlay.body, /z-index:\s*1/, '覆盖层要抬到描述之上，否则点了没反应')
