@@ -15,13 +15,23 @@ import { installMobileEffect } from './phone-chrome.ts'
  * 抬升仍不生效（本文件所在的同一批修复里试过），所以这里改走**行为级**：
  * 在捕获期把「卡片内、且不在任何交互控件上」的点击转发给那颗打开按钮。
  *
- * 与 CSS 的分工：layout.css.ts 里那组 `li[data-plugin-package] …::after` 规则保留
+ * 与 CSS 的分工：layout.css.ts 里那组 `li[data-plugin-*] …::after` 规则保留
  * （负责悬停视觉与桌面浏览器上的 stretched-link 语义），点击的**确定性**由本效果保证。
  * 桌面档由 installMobileEffect 门控 ⇒ 鼠标环境零影响。
+ *
+ * 2026-10-08 补第三种根（店主截图：「官方」组里**从「终端」起**的四张点不动，之前四张正常）：
+ * 宿主的「官方」组是两类卡拼起来的 —— `official.map(packageCard)` 出 `li[data-plugin-package]`，
+ * `ledger.items.map(ItemCard)` 出 **`li[data-plugin-item]`**（`plugins.item` 槽的条目）。
+ * 两类卡的标题按钮都由同一个 `CardHead` 渲染（class 同样含 `cardOpen`），只是 item 卡没有
+ * 开关/徽标，所以症状看起来像「有开关的能点、没开关的不能点」。CARD 选择器当初漏了后者。
  */
 
-/** 插件管理页条目根节点（宿主稳定标记：卡片与行式两种）。 */
-const CARD = 'li[data-plugin-package], li[data-plugin-row]'
+/**
+ * 插件管理页条目根节点（宿主三种稳定标记）：
+ * `li[data-plugin-package]` 包卡片、`li[data-plugin-row]` 包详情里的行、
+ * `li[data-plugin-item]` 官方 item 卡（`plugins.item` 槽）。
+ */
+const CARD = 'li[data-plugin-package], li[data-plugin-row], li[data-plugin-item]'
 
 /** 条目里唯一能打开详情的按钮（卡片 `cardOpen` / 行式 `rowOpen`）。 */
 const OPEN = 'button[class*="_cardOpen"], button[class*="_rowOpen"]'

@@ -2619,13 +2619,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      所以本规则不是「再加一层」，而是**把覆盖层抬到描述之上**（z-index），并把卡片里的其它
      交互件（开关等）抬得更高，保证它们仍能单独点。
      根节点仍钉 「position: relative」：一旦宿主换代不再给 cardLink 定位，「inset:0」 的包含块会
-     落到更外层 —— 覆盖层铺满整页，就成了「点哪都开第一个插件的详情」。 */
+     落到更外层 —— 覆盖层铺满整页，就成了「点哪都开第一个插件的详情」。
+     2026-10-08 补：宿主的条目根有**三种**（li[data-plugin-package] 包卡片、li[data-plugin-row]
+     包详情里的行、li[data-plugin-item] 官方 item 卡）。item 卡（plugins.item 槽）当初漏了 ——
+     真机症状正是「有开关的包卡片能整卡点，从『终端』起的 item 卡只有加黑标题能点」。 */
   li[data-plugin-package],
-  li[data-plugin-row] {
+  li[data-plugin-row],
+  li[data-plugin-item] {
     position: relative !important;
   }
   li[data-plugin-package] button[class*="_cardOpen"]::after,
-  li[data-plugin-row] button[class*="_rowOpen"]::after {
+  li[data-plugin-row] button[class*="_rowOpen"]::after,
+  li[data-plugin-item] button[class*="_cardOpen"]::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -2634,7 +2639,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     z-index: 1;
   }
   li[data-plugin-package] :is(button:not([class*="_cardOpen"]), a, input),
-  li[data-plugin-row] :is(button:not([class*="_rowOpen"]), a, input) {
+  li[data-plugin-row] :is(button:not([class*="_rowOpen"]), a, input),
+  li[data-plugin-item] :is(button:not([class*="_cardOpen"]), a, input) {
     position: relative;
     /* 比覆盖层高一档：开关等控件仍在覆盖层之上，可单独点。 */
     z-index: 2;
