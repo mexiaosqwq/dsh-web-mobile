@@ -526,13 +526,27 @@ export function installPhoneChrome(ctx: ClientContext): void {
     // the scroller (layout.css.ts), which shifts nothing visible.
     let stableVh = 0
     let stableWidth = 0
+    // Writing a custom property on :root invalidates style for the WHOLE
+    // document, so the value is compared before the property is touched: a
+    // width change that leaves the height alone (split-screen resize, a
+    // rotation that lands back on the same height) used to re-run the document
+    // style pass for an identical string. Measured 2026-10-09 on Android 16
+    // WebView: the monotonic rule above already suppresses every keyboard
+    // driven write (the keyboard only lowers the height, and a lower height
+    // never passes the growth test), so no per-frame dedup is needed here —
+    // this guard only removes the redundant identical writes.
+    let stableValue = ''
     const syncStableViewport = (): void => {
       const height = window.innerHeight
       const width = window.innerWidth
       if (stableVh === 0 || height > stableVh || width !== stableWidth) {
         stableVh = height
         stableWidth = width
-        root.style.setProperty(STABLE_VIEWPORT_VAR, `${height}px`)
+        const next = `${height}px`
+        if (next !== stableValue) {
+          stableValue = next
+          root.style.setProperty(STABLE_VIEWPORT_VAR, next)
+        }
       }
     }
     syncStableViewport()
@@ -540,6 +554,7 @@ export function installPhoneChrome(ctx: ClientContext): void {
 
     return () => {
       window.removeEventListener('resize', syncStableViewport)
+      stableValue = ''
       root.style.removeProperty(STABLE_VIEWPORT_VAR)
       metaObserver.disconnect()
       headObserver.disconnect()

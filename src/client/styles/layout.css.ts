@@ -2724,6 +2724,23 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     content-visibility: auto;
     contain-intrinsic-size: auto 320px;
   }
+  /* ---------- 文档预览的代码行：屏外行跳过布局/绘制（2026-10-09 实测） ----------
+     报障场景：打开一份 13.4k 行文件的文档预览（DOM 23,662 节点）后整页卡死。
+     真机读数（Android 16 WebView）：单帧最差 269 / 310 / 395 / 485 / 530ms，
+     rAF 帧率掉到 2 / 5 / 17，长任务每秒合计最高 1031ms；加上下面这条规则后
+     最长帧 33ms、帧率 88–119、长任务归零，只剩首次挂载建 React 元素的那几帧。
+     代码行行高统一（约 20px），所以 contain-intrinsic-size 的估值精确，滚回很久
+     以前的历史也不会跳滚动条 —— 这正是它与上面那条消息块规则（高度差异大、
+     兜底给 320px）分开写的原因。
+     选择器保持窄：只在移动 frame 内，且必须落在宿主文档预览模块自己的代码行
+     容器里（dsh-client-ui-sidebar-documentpreview 的 TextPreview：_textDocument
+     容器中的 _line 行）。同模块的 _preview 是更泛的词根，chat / conversation /
+     deliverables 等别的宿主模块也有这个名字，纳入会越界改到那些面板，所以不收。
+     这一条只省布局与绘制，不省 React 挂载的 JS，「切换会话」的卡顿不在它的射程内。 */
+  [data-mobile-nav="frame"] [class*="_textDocument"] [class*="_line"] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 20px;
+  }
   @media (prefers-reduced-motion: reduce) {
     [data-mobile-nav="frame"]:has([class*="panelRow"][aria-current="page"]) [class*="_centerCol"] > * > *,
     [data-mobile-nav="panel-ghost"],

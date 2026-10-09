@@ -73,3 +73,19 @@ test('dispose hands the official layout back', () => {
   assert.match(src, /removeEventListener\('resize', viewportHandler\)/)
   assert.match(src, /el\.remove\(\)/)
 })
+
+test('viewport relayout is coalesced and skips an unmoved anchor (2026-10-09 实测)', () => {
+  // 输入法动画期间 visualViewport.resize 每帧一次，而落位要读 rect + 写样式
+  // （强制同步布局）⇒ 原本是每帧一次 overlay 落位。真机读数：侧边栏打开时的
+  // 58ms 长任务归零。
+  assert.match(src, /if \(relayoutRaf !== 0\) return/, '同一帧只排一次 rAF')
+  assert.match(
+    src,
+    /requestAnimationFrame\(\(\) => \{\s*relayoutRaf = 0\s*relayoutNow\(\)/,
+    'rAF 回调里清账再落位',
+  )
+  assert.match(src, /if \(key === relayoutKey\) return/, '锚点盒子没动就不重复落位')
+  // dispose 必须把排队的帧和缓存的 key 一起收回，否则热重载后旧回调仍会落位。
+  assert.match(src, /cancelAnimationFrame\(relayoutRaf\)/)
+  assert.match(src, /relayoutKey = ''/)
+})
