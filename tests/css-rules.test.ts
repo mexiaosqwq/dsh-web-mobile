@@ -45,6 +45,23 @@ test('long-conversation message blocks skip off-screen layout (2026-10-07 实测
   assert.ok(!LAYOUT_CSS.includes('[class*="scrollBody"] {'), '没有把 scrollBody 自身当选择器')
 })
 
+test('document preview code lines skip off-screen layout (2026-10-09 实测)', () => {
+  // 报障：打开 13.4k 行文件的文档预览（DOM 23,662 节点）后整页卡死。
+  // 单帧最差 269/310/395/485/530ms、rAF 帧率 2/5/17、长任务每秒最高 1031ms；
+  // 加规则后最长帧 33ms、帧率 88–119、长任务归零。
+  // 代码行行高统一（约 20px），所以估值用 20px —— 与消息块那条的 320px 粗兜底
+  // 分开写；scrollBody 那条不适合复用（消息高度差异大）。
+  const selector = '[data-mobile-nav="frame"] [class*="_textDocument"] [class*="_line"]'
+  assert.ok(LAYOUT_CSS.includes(selector), '窄选择器：只在移动 frame 的文档预览代码行容器内')
+  assert.ok(LAYOUT_CSS.includes('contain-intrinsic-size: auto 20px'), '代码行估值 20px')
+  // 泛词根不许进：_preview 同模块也有，但 chat / conversation / deliverables
+  // 这些别的宿主模块同样带这个名字，纳入就会越界改到它们的面板。
+  assert.ok(
+    !LAYOUT_CSS.includes('[class*="_preview"] [class*="_line"]'),
+    '不收 _preview 词根',
+  )
+})
+
 test('the phone stats row keeps its tightened spacing (2026-10-07)', () => {
   // 宿主三层叠出来的空隙：root gap 12 + sep margin 6/6 + pill padding 8/8。
   // 手机档收成 6 / 2 / 6 —— 三条都必须带 stats 标记作用域，换代后只会惰性化。
