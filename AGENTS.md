@@ -301,7 +301,7 @@ dsh web
 - **知识去向（用户偏好，2026-09-18 拍板）**：零碎的规矩 / 要求 / 偏好 → **写进本文件对应节**，不要只存进记忆（记忆跨会话，但它不能替代仓库文档，而本文件是每个会话都必然读到的那份）；需要推导 / 证据 / 大段流程 / 实测数字的内容 → `docs/`（坑位 → `pitfalls.md`，设计 → `specs/`，审计 → `audits/`，调试考古 → `debug/`，上游契约 → `upstream/`）。记忆只留「跨会话需要主动回忆的教训」，且不得成为某条规矩的唯一存放处。
 - **同一 worktree 有并发写者时**：别人可能把你**未提交**的工作区改动一起提交走（症状：`git status` 突然变空、`git diff --exit-code HEAD -- lib` 返回 0 却不是你的提交）。别据此重做改动或补空提交——先 `git show HEAD:<file>` 确认内容已在；提交只 `git add` 自己点名的路径，**绝不 `git add -A`**。
 - **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：本仓有高频并发的另一制作人（提交与合并是两个账号），本地 `main` 可能落后几十个提交而毫无提示——`git log main` 看着「没有」的修复，其实早已随别人的 PR 落地（2026-10-10 实测：本地 `main` 落后 30 个提交、自认「未上 main」的多行粘贴修复实际已在）。判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`（纯本地，不动远端）。
-- **文档写法（用户偏好，每次写文档都适用）**：变更条目只描述结果、不写过程；功能不列举特点细节；README「更新内容」条目按 v3.0.0 段样式写结果导向一句话，机制与根因细节只进 Release notes（2026-10-03 用户裁定）；计数条目（探针 / 测试 / spec 篇数）在 README 与 AGENTS.md 两处必须同步；README「未发布」段参数定稿前先对源码常量核对。
+- **文档写法（用户偏好，每次写文档都适用）**：变更条目只描述结果、不写过程；功能不列举特点细节；README「更新内容」条目按 v3.0.0 段样式写结果导向一句话，机制与根因细节只进 Release notes（2026-10-03 用户裁定）；计数条目（探针 / 测试 / spec 篇数）在 README 与 AGENTS.md 两处必须同步——`tests/` 文件数由 `tests/docs-consistency.test.ts` 在 `test:core` 里强制（新增测试文件的提交必须同改 AGENTS.md 树行与 Testing 节两处，否则计数门直接红）；README「未发布」段参数定稿前先对源码常量核对。
 - Keep it accurate and concise; remove stale entries as the codebase changes (e.g. removed features, renamed files, new scripts).
 - Verify claims against source before writing them; do not preserve guidance that no longer matches the current tree.
 
