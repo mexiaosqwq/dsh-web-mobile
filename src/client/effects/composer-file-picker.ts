@@ -1,4 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { NS } from '../i18n/locales.ts'
 import { installMobileEffect } from './phone-chrome.ts'
 
 /**
@@ -41,8 +42,6 @@ const TRIGGER_SELECTOR = '[data-mobile-nav="file-upload"]'
 const CARD_SELECTOR = '[data-composer-card]'
 /** 宿主真正接收文件的 input —— 插件不另起 intake。 */
 const HOST_INPUT_SELECTOR = 'input[type=file]'
-/** mobileNav 命名空间（同 src/client/i18n/locales.ts 的 NS）。 */
-const NS = 'mobileNav'
 
 /**
  * 当前打开着的那张浮层的 close（一次只会有一张）。
@@ -208,7 +207,7 @@ function openHostPicker(kind: FilePickerKind): void {
  *
  * 回落链：桥不存在 → 直接 `openHostPicker('file')`；桥抛错 / 返回脏数据 / 注入失败 →
  * 也回落（那时候 App 侧若已合入 #101，宿主 input 自己就会弹 chooser）。
- * @param t - mobileNav 文案。
+ * @param t - 插件 `NS` 命名空间文案。
  */
 export async function openAttachmentPicker(t: PickerTranslate): Promise<void> {
   const bridge = (window as unknown as { DSHA?: DshaPickFileBridge }).DSHA
@@ -240,7 +239,7 @@ export async function openAttachmentPicker(t: PickerTranslate): Promise<void> {
  * 位置**每次视口变化都重算**（软键盘收起会整体下移一个键盘高，算一次的浮层会
  * 停在会话中部 —— 2026-10-07 真机报障）。
  * 无「取消」行：点浮层外或按返回键关闭（浮层外的透明遮罩只负责收点击）。
- * @param t - mobileNav 文案。
+ * @param t - 插件 `NS` 命名空间文案。
  * @param trigger - 被点的回形针入口（定位锚点）。
  */
 function openSheet(t: PickerTranslate, trigger: Element): void {

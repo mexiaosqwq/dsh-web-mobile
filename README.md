@@ -169,6 +169,8 @@
 - [dsh-meme](https://www.npmjs.com/package/dsh-meme)——**0.1.39**
 - [dsh-file-viewer](https://www.npmjs.com/package/dsh-file-viewer)——**未安装**（0.3.1 时期验证过布局兼容，装回后需复验）
 
+**与 dsh-pocket 同装**：[dsh-pocket](https://github.com/shaobeichen/dsh-pocket) 内嵌了本插件的移动端适配副本（`client/mobile/`，保留 `mobileNav` 命名空间）。与 3.0.5 及更早版本同装时，两者抢同一个 locale 命名空间会让本插件注册抛错、进而把整个 Web 端打成错误页（#165；桌面宽屏不受影响，因为它的移动端适配在 desktop 下会提前 return）。此后版本改用独立命名空间，崩溃不再发生，但两套移动端适配仍会同时生效——**建议二选一**，或给 dsh-pocket 传 `?dsh-layout=desktop` 让它让位。
+
 ## 安装
 
 > [DSHA](https://github.com/qiannianhuanxiang/DSHA) 用户无需单独安装：DSHA 已内置本插件，装 APK 即用。

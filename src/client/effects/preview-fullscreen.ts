@@ -1,8 +1,9 @@
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
+import { NS } from '../i18n/locales.ts'
 import { getFrame } from './phone-chrome.ts'
 
-export function createPreviewFullscreenTask(t: TranslateNS<'mobileNav'>): ReconcilerTask {
+export function createPreviewFullscreenTask(t: TranslateNS<typeof NS>): ReconcilerTask {
   let button: HTMLButtonElement | null = null
   const syncLabel = (target: HTMLButtonElement): void => {
     const full = getFrame()?.hasAttribute('data-mobile-preview-full') ?? false

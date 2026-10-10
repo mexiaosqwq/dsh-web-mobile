@@ -45,7 +45,7 @@
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  ├─ css-structure-check.mjs ← CSS 结构检测器（已接入 test:core）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 52 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 53 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
   │  ├─ audits/ · maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json + host-jank-feedback.md）· fork-wzxmt-zhc/
@@ -196,7 +196,7 @@ dsh web
 - TypeScript style: single quotes, no semicolons, explicit exported return types, installer names `install<Domain>`.
 - Client-local relative imports must include `.ts`/`.tsx` extensions; `tsconfig.client.json` rewrites them for CommonJS emit. Use type-only imports for DSH module augmentation and SlotMap/Context typing.
 - **`src/client/effects/` 的 `../` import：原禁令已证伪（2026-09-14 A/B 实测）**。曾被记为「自定义打包器无法解析 effects 向父级的相对 require，会把 `../x.ts` 误解析为同目录 `x.js` 并报 `client module not found`」——实测**不成立**：`phone-chrome.ts` 的值导入 `import { createReconcilerCore } from '../core/reconciler-core.ts'` 一直正常，A/B 把 `const NS` 镜像换成 `import { NS } from '../i18n/locales.ts'` 后 `pnpm build` 通过、bundle 里落成 `require("./i18n/locales.js")` + `__modules["i18n/locales.js"]`（26 模块内联不变），已还原。所以**跨目录导入本身可用**；当年报错的 `../locales.ts`（`locales.ts` 后迁到 `i18n/`）已无法复现，具体触发条件未定（不排除当时是源码/构建产物不同步，须再撞到才能定论——别把这条当已解释的历史）。**仍然要守的既有事实**：`reconciler-core.ts` 保持零 import；task 模块拿 `ReconcilerTask` 类型：`reconciler-core.ts` 导出类型、`phone-chrome.ts` 是适配器（现为 `import type`，编译期擦除、不进 bundle）。新代码不必为「禁令」绕路加镜像常量——能 import 就直接 import。
-- Add locale keys to `zh` first, then mirror the same keys in typed `en`; `MobileNavKey` is derived from `zh`.
+- Add locale keys to `zh` first, then mirror the same keys in typed `en`; `MobileNavKey` is derived from `zh`. **Namespace ids carry the package prefix** (`dshWebMobileNav`, `dshWebMobileNav.attachments`, `dshWebMobileNavFileShare`): the host's `locale.register` THROWS on a duplicate namespace and that throw fails the whole entry, killing the web boot — and downstream forks copy our source files wholesale (dsh-pocket did, #165). Any new namespace starts with `dshWebMobileNav`; `tests/locale-namespace.test.ts` anchors the family.
 - Keep CSS in `src/client/styles/`, not in component files. Preserve the `base → layout → compat → misc` concatenation order and complete CSS comments/section boundaries. **该顺序是行为契约，不是排版偏好**：aionui 探索器/预览两列的平板档「居中不铺满」压在 compat 的铺满规则之上（两者同 (0,1,0) 且都 `!important`，只靠 misc 在后分胜负——把顺序翻过来就退回铺满，2026-09-16 用 `order-flip.mjs` 复现）。
 - Preserve mobile-only behavior and modal precedence: capture-phase drawer handlers must yield to `[aria-modal="true"]` dialogs and ignore session-row action buttons. `transform: none`, rather than an identity `translateX(0)`, is required for the open drawer so fixed descendants keep the correct containing block.
 - Do not edit `lib/` directly; rebuild and include generated artifacts after any source/config change.
@@ -275,7 +275,7 @@ dsh web
 
 ## Testing & QA
 
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（52 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
+- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（53 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
 - There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the bundle smoke (`node scripts/client-bundle-smoke.mjs`) and the lib freshness gate `git diff --exit-code lib`.
 - After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
   - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.
@@ -300,6 +300,7 @@ dsh web
 - **体积门槛（2026-09-18 起）**：本文件受工作区指令预算 ~64 KB 限制，超了会被**静默截尾**（末尾内容每轮丢失；实测 65,443 B 时 `## 维护入口` 末条长期读不到）。所以这里只写命令、约定、契约、触发词索引与一两行的铁律；凡是「说不清、要摆证据」的内容一律进 `docs/`（坑位 → `docs/maintenance/pitfalls.md`，设计 → `docs/specs/`，审计 → `docs/audits/`），本文件只留一行指针。
 - **知识去向（用户偏好，2026-09-18 拍板）**：零碎的规矩 / 要求 / 偏好 → **写进本文件对应节**，不要只存进记忆（记忆跨会话，但它不能替代仓库文档，而本文件是每个会话都必然读到的那份）；需要推导 / 证据 / 大段流程 / 实测数字的内容 → `docs/`（坑位 → `pitfalls.md`，设计 → `specs/`，审计 → `audits/`，调试考古 → `debug/`，上游契约 → `upstream/`）。记忆只留「跨会话需要主动回忆的教训」，且不得成为某条规矩的唯一存放处。
 - **同一 worktree 有并发写者时**：别人可能把你**未提交**的工作区改动一起提交走（症状：`git status` 突然变空、`git diff --exit-code HEAD -- lib` 返回 0 却不是你的提交）。别据此重做改动或补空提交——先 `git show HEAD:<file>` 确认内容已在；提交只 `git add` 自己点名的路径，**绝不 `git add -A`**。
+- **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：本仓有高频并发的另一制作人（提交与合并是两个账号），本地 `main` 可能落后几十个提交而毫无提示——`git log main` 看着「没有」的修复，其实早已随别人的 PR 落地（2026-10-10 实测：本地 `main` 落后 30 个提交、自认「未上 main」的多行粘贴修复实际已在）。判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`（纯本地，不动远端）。
 - **文档写法（用户偏好，每次写文档都适用）**：变更条目只描述结果、不写过程；功能不列举特点细节；README「更新内容」条目按 v3.0.0 段样式写结果导向一句话，机制与根因细节只进 Release notes（2026-10-03 用户裁定）；计数条目（探针 / 测试 / spec 篇数）在 README 与 AGENTS.md 两处必须同步；README「未发布」段参数定稿前先对源码常量核对。
 - Keep it accurate and concise; remove stale entries as the codebase changes (e.g. removed features, renamed files, new scripts).
 - Verify claims against source before writing them; do not preserve guidance that no longer matches the current tree.
