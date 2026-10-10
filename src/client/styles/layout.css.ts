@@ -267,6 +267,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding-top: env(safe-area-inset-top, 0px) !important;
   }
 
+  /* Phone chrome keeps only the collapse control. Split visibility must not
+     depend on data-dockkit-split-blocked: DockLayout measures after each commit,
+     so conditional display can alternate blocked/allowed at the width threshold.
+     Hide the wrapper too, since a blocked split wrapper is a tab stop. */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-sidebar-right-panel] [data-dockkit-split-button],
+    [data-sidebar-right-panel] span:has(> [data-dockkit-split-button]),
+    [data-sidebar-right-panel] [data-sidebar-right-mode="push"] {
+      display: none !important;
+    }
+  }
+
   /* prefers-reduced-motion: the drawer's .28s slide is motion; drop it
      (audit S2 2026-08-27 — the old reduce block only covered the settings
      sheet and its mask). Same idiom as the animation:none blocks below. */

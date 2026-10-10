@@ -37,7 +37,11 @@ test('全文档查询只有一个入口，且只在命中触发器/菜单的交�
   }
 })
 
-test('菜单仍在输入框里水平居中（店主第三轮定稿）', () => {
-  assert.match(SRC, /cardBox\.left \+ cardBox\.width \/ 2/)
-  assert.match(SRC, /const left = Math\.min\(Math\.max\(center - width \/ 2, GUTTER\), max\)/)
+test('菜单能放入视口时贴触发器右缘，越界时回退卡片居中', () => {
+  assert.match(SRC, /triggerBox\.right - width/)
+  assert.match(SRC, /flush >= GUTTER && flush <= max/)
+  assert.match(SRC, /cardBox\.left \+ \(cardBox\.width - width\) \/ 2/)
+  const start = SRC.indexOf('const place = ')
+  const end = SRC.indexOf('const refresh = ', start)
+  assert.ok(!SRC.slice(start, end).includes('querySelector'), 'place() 只能读取缓存锚点')
 })
