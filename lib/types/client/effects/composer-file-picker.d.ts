@@ -70,7 +70,7 @@ export declare function handFilesToHost(files: File[]): boolean;
  *
  * 回落链：桥不存在 → 直接 `openHostPicker('file')`；桥抛错 / 返回脏数据 / 注入失败 →
  * 也回落（那时候 App 侧若已合入 #101，宿主 input 自己就会弹 chooser）。
- * @param t - mobileNav 文案。
+ * @param t - 插件 `NS` 命名空间文案。
  */
 export declare function openAttachmentPicker(t: PickerTranslate): Promise<void>;
 /**

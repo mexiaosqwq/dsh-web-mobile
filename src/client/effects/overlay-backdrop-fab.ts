@@ -1,5 +1,6 @@
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
+import { NS } from '../i18n/locales.ts'
 import type { PanelExit } from './panel-exit.ts'
 import { getFrame } from './phone-chrome.ts'
 
@@ -32,7 +33,7 @@ const FAB_DRAWER_ICON =
   '</svg>'
 
 /**
- * @param t - `mobileNav` dictionary.
+ * @param t - our dictionary (the `NS` locale namespace, i18n/locales.ts).
  * @param toggleSidebar - opens/closes the drawer.
  * @param panelExit - the sidebar-panel exit face (panel-exit.ts). The FAB is the
  *   screen's only control while a panel owns the main area — the header toggle
@@ -40,7 +41,7 @@ const FAB_DRAWER_ICON =
  *   cannot select panels (rc.6), where it stays a plain drawer button.
  */
 export function createOverlayTask(
-  t: TranslateNS<'mobileNav'>,
+  t: TranslateNS<typeof NS>,
   toggleSidebar: () => void,
   panelExit: PanelExit | null,
 ): ReconcilerTask {

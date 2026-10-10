@@ -33,8 +33,8 @@ import type { AttachmentCandidate, AttachmentInsert, DraftAttachment } from '../
  *   the insert `appearance` (chip glyphs: 'session' | 'file' | 'folder' only —
  *   there is no image glyph, so images use 'file').
  */
-/** Own locale namespace (locales.ts stays untouched; same NS/zh/en shape as ui-reference). */
-export declare const ATTACHMENT_NS = "mobileNav.attachments";
+/** Own locale namespace, package-prefixed (locales.ts stays untouched; same NS/zh/en shape as ui-reference). */
+export declare const ATTACHMENT_NS = "dshWebMobileNav.attachments";
 export declare const ATTACHMENT_ZH: {
     readonly section: "本次附件";
     readonly 'kind.file': "文件";
@@ -49,7 +49,7 @@ export declare const ATTACHMENT_EN: Record<AttachmentMentionKey, string>;
 declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {
         /** 「本次附件」 @ source copy. */
-        'mobileNav.attachments': AttachmentMentionKey;
+        'dshWebMobileNav.attachments': AttachmentMentionKey;
     }
 }
 interface SessionProjection {

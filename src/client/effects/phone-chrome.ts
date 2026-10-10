@@ -4,6 +4,7 @@ import { findSessionIdInFiber, isTapWithinSlop, reactFiberOf } from './session-r
 import { createReconcilerCore } from '../core/reconciler-core.ts'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { currentSessionIdOf, sessionsCanOpen } from '../core/sessions-compat.ts'
+import { NS } from '../i18n/locales.ts'
 import { createPreviewCloseTask, createSheetRiseTask } from './aionui-compat.ts'
 import { createStatsLineTask } from './stats-line.ts'
 import { createPreviewFullscreenTask } from './preview-fullscreen.ts'
@@ -11,10 +12,6 @@ import { createOverlayTask } from './overlay-backdrop-fab.ts'
 import { createFileViewerMarkerTask } from './file-viewer-compat.ts'
 import type { PanelExit } from './panel-exit.ts'
 import { closeDrawerAnimated } from './sidebar-swipe.ts'
-
-// The custom client bundler cannot resolve `../` requires from src/client/effects,
-// so this mirrors the namespace id from src/client/locales.ts. Keep in sync.
-const NS = 'mobileNav'
 
 /** Same width bound as the shell's SIDEBAR_AUTO_COLLAPSE (viewport < 1024),
  *  ANDed with a touch-primary pointer guard. Width alone cannot tell a phone

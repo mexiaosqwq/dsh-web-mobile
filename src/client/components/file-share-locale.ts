@@ -1,9 +1,9 @@
 /**
- * `mobileNavFileShare` namespace: file-share copy, registered by
+ * `dshWebMobileNavFileShare` namespace: file-share copy, registered by
  * installFileShare (effects/file-share.ts) through ctx.locale.register — kept
  * out of i18n/locales.ts so the feature owns its dictionary end to end.
  */
-export const FILE_SHARE_NS = 'mobileNavFileShare'
+export const FILE_SHARE_NS = 'dshWebMobileNavFileShare'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const fileShareZh = {
@@ -39,6 +39,6 @@ export const fileShareEn: Record<FileShareKey, string> = {
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** File-share controls copy (files tree rows + preview header). */
-    'mobileNavFileShare': FileShareKey
+    'dshWebMobileNavFileShare': FileShareKey
   }
 }

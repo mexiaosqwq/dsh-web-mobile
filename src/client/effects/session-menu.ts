@@ -28,11 +28,9 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { MOBILE_QUERY, TOUCH_QUERY, installMobileEffect, toggleDrawer } from './phone-chrome.ts'
 import { currentSessionIdOf, sessionsCanClear, verifySessionDeleted } from '../core/sessions-compat.ts'
+import { NS } from '../i18n/locales.ts'
 import { findSessionIdInFiber, reactFiberOf } from './session-row-fiber.ts'
 
-// Mirrored from src/client/locales.ts: the custom client bundler cannot
-// resolve `../` requires from effects/. Keep in sync.
-const NS = 'mobileNav'
 /** The ui-workspace dictionary namespace the host session menu labels come from. */
 const WORKSPACE_NS = 'workspace'
 

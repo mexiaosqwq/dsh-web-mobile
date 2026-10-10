@@ -45,8 +45,8 @@ import type { AttachmentCandidate, AttachmentCopy, AttachmentInsert, DraftAttach
  *   there is no image glyph, so images use 'file').
  */
 
-/** Own locale namespace (locales.ts stays untouched; same NS/zh/en shape as ui-reference). */
-export const ATTACHMENT_NS = 'mobileNav.attachments'
+/** Own locale namespace, package-prefixed (locales.ts stays untouched; same NS/zh/en shape as ui-reference). */
+export const ATTACHMENT_NS = 'dshWebMobileNav.attachments'
 
 export const ATTACHMENT_ZH = {
   'section': '本次附件',
@@ -73,7 +73,7 @@ export const ATTACHMENT_EN: Record<AttachmentMentionKey, string> = {
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** 「本次附件」 @ source copy. */
-    'mobileNav.attachments': AttachmentMentionKey
+    'dshWebMobileNav.attachments': AttachmentMentionKey
   }
 }
 
