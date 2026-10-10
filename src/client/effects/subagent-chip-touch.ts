@@ -14,10 +14,9 @@ import { installMobileEffect } from './phone-chrome.ts'
  *    other. On touch devices every tap makes the browser synthesize paired
  *    mouseenter/mouseleave from its tracked mouse position, which usually
  *    differs from the tap point: taps did nothing, or the card popped back
- *    open ~200 ms after an outside close (the “点了没反应 / 自弹回” era,
- *    hash ZKlsPq).
+ *    open ~200 ms after an outside close (the “点了没反应 / 自弹回” era).
  *
- * 2. 0.1.0-rc.6 (hash h8S2Va) removed the hover timers and gave the trigger
+ * 2. A later host removed the hover timers and gave the trigger
  *    a native `onClick: () => changeOpen(!open)`. A phone tap now crosses
  *    TWO toggle sources: the browser fires pointerup first (this shim
  *    dispatches the synthetic ArrowDown there, capture phase — BEFORE the
@@ -50,9 +49,10 @@ const CHIP_TRIGGER_SELECTOR =
   '[data-mobile-nav="frame"] button[class*="_trigger"][aria-haspopup="tree"][aria-expanded]:not([class*="_switcherTrigger"])'
 
 /**
- * Lineage root plus its menu. NOTE: `ZKlsPq` (hover-only era) and `h8S2Va`
- * (0.1.0-rc.6) are the dsh-client-ui-subagent CSS-module hashes — audit
- * these selectors when the package upgrades.
+ * Lineage root plus its menu. Defensive dual hash: ZKlsPq is present in
+ * the current host; h8S2Va is retained as a historical fallback.
+ * Hash presence does not identify the hover/click interaction era.
+ * Audit these selectors when the host package upgrades.
  */
 const HOVER_SUBTREE_SELECTOR =
   '[class*="ZKlsPq_root"], [class*="ZKlsPq_menu"], [class*="h8S2Va_root"], [class*="h8S2Va_menu"]'

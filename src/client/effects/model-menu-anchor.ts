@@ -13,10 +13,8 @@ import { installMobileEffect } from './phone-chrome.ts'
  * 本插件早先用 CSS 居中过它，但菜单 portal 到 body 之后那条 `_root > _menu` 子代链断掉，
  * 规则成了**死规则**。CSS 够不到 portal 节点，所以在这里用 JS 重锚。
  *
- * 落位（三轮定稿，2026-09-23）：**菜单在输入框里水平居中** —— 菜单中心 = 输入框中心。
- * 真机：卡片中心 179、菜单宽 246 ⇒ left 56（即 56..302，左右各留约 40px）。
- * 历史对照：宿主原样 12..258（偏左）／居中于触发器 106..352（触发器在右半边 ⇒ 偏右）。
- * 拿不到卡片时退回「居中于触发器 + 视口 GUTTER」。只认模型菜单的哈希锚点，其它菜单不碰。
+ * 落位：菜单能完整放入视口时右缘贴触发器；窄屏越界或触发器不可用时，
+ * 回退为输入框内居中。两种锚点都不可用时保持宿主位置。其它菜单不碰。
  *
  * ## 成本（2026-09-23 优化，店主批准）
  *
@@ -27,8 +25,8 @@ import { installMobileEffect } from './phone-chrome.ts'
  *
  * 现在分两条路径：
  *   · `refresh()` —— **唯一的查询入口**，只在"可能开关菜单"的交互后跑（点到/聚焦/按键在
- *     触发器或菜单上）。查到就把节点记进 `active`。
- *   · `follow()` —— 滚动/改变尺寸只对 `active` 重算位置（读两个 rect，约 0.02ms），
+ *     触发器或菜单上）。查到后缓存菜单、触发器和输入框。
+ *   · `follow()` —— 滚动/改变尺寸只对缓存节点重算位置，
  *     `active === null` 时**直接返回、零查询**。
  *
  * 为什么不能干脆删掉 scroll 监听：实测滚动时输入框卡片会移动（同会话内 365 → 648），
@@ -58,6 +56,8 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
     const timers: number[] = []
     /** 已确认「开着」的菜单节点；null 表示当前没有菜单（滚动路径据此零查询）。 */
     let active: HTMLElement | null = null
+    let activeTrigger: HTMLElement | null = null
+    let activeCard: HTMLElement | null = null
     /**
      * 我们最后写进 inline left 的节点与值。卸载/菜单消失时要把这行还回去 ——
      * 否则宿主之后再渲染同一个菜单会带着我们留下的位置（issue #86）。
@@ -79,24 +79,21 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       return null
     }
 
-    /** 把菜单水平居中在输入框里（拿不到卡片则居中于触发器）。只写 inline left。 */
+    /** Align to the trigger's right edge when it fits; otherwise center on the card. */
     const place = (menu: HTMLElement): void => {
       const menuBox = laidOut(menu)
       if (menuBox === null) return
       const width = menuBox.width
       const viewport = document.documentElement.clientWidth
       const max = Math.max(GUTTER, viewport - width - GUTTER)
-      const card = document.querySelector<HTMLElement>(COMPOSER_CARD)
-      const cardBox = card === null ? null : card.getBoundingClientRect()
-      const trigger = cardBox !== null && cardBox.width > 0 ? null : document.querySelector<HTMLElement>(MODEL_TRIGGER)
-      const triggerBox = trigger === null ? null : trigger.getBoundingClientRect()
-      const center = cardBox !== null && cardBox.width > 0
-        ? cardBox.left + cardBox.width / 2
-        : triggerBox === null ? null : triggerBox.left + triggerBox.width / 2
-      if (center === null) return
-      const left = Math.min(Math.max(center - width / 2, GUTTER), max)
-      const next = `${Math.round(left)}px`
-      // 只在真的不同时才写：避免和宿主来回抢同一帧。
+      const triggerBox = laidOut(activeTrigger)
+      const cardBox = laidOut(activeCard)
+      const flush = triggerBox === null ? null : triggerBox.right - width
+      let left: number
+      if (flush !== null && flush >= GUTTER && flush <= max) left = flush
+      else if (cardBox !== null) left = cardBox.left + (cardBox.width - width) / 2
+      else return
+      const next = `${Math.round(Math.min(Math.max(left, GUTTER), max))}px`
       if (menu.style.left !== next) menu.style.left = next
       placedLeft = { el: menu, value: next }
     }
@@ -104,6 +101,8 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
     /** 交互路径：刷新缓存（会查询）并按新位置落位。 */
     const refresh = (): void => {
       active = findMenu()
+      activeTrigger = active === null ? null : document.querySelector<HTMLElement>(MODEL_TRIGGER)
+      activeCard = active === null ? null : document.querySelector<HTMLElement>(COMPOSER_CARD)
       if (active !== null) place(active)
     }
 
@@ -112,6 +111,8 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       if (active === null) return
       if (laidOut(active) === null) {
         active = null
+        activeTrigger = null
+        activeCard = null
         return
       }
       place(active)
@@ -182,6 +183,8 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       if (placedLeft !== null && placedLeft.el.style.left === placedLeft.value) placedLeft.el.style.left = ''
       placedLeft = null
       active = null
+      activeTrigger = null
+      activeCard = null
     }
   })
 }

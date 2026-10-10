@@ -654,7 +654,8 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 
 ### 谓词复用与豁免
 
-- **共享谓词加豁免前必须逐个核对每个调用方的提问语义（#82，2026-09-22）**：`shouldCloseOnTapInsideDrawer` 被三方复用——click/pointerup 的「点行关抽屉」、`onDrawerPointerDown` 的「长按武装门」。#76/#81 往里加 DSHA 行早退（`[data-dsha-session-select]` → false）后，点行关被修好，长按武装被**静默连带**：DSHA 行 `pressTimer` 永不装填，宿主 ⋯ 行菜单在触屏上的唯一入口（长按）失效——而 `openRowMenu` 是既有「抽屉行菜单」坑位里修了三轮才立住的路径。铁律：给被多方复用的谓词加条件前，先列出全部调用方，逐个问「这条新条件对你的问题意味着什么」；提问语义不同就**拆谓词**，不要用布尔参数糊两个问题。#82 修法＝抽出无豁免的 `isDrawerNavTarget`（modal/抽屉开/行内/非按钮四守卫）作武装门，`shouldCloseOnTapInsideDrawer = !DSHA && base` 留给关抽屉两调用方。意图边界：3624af5 提交原文只说「这些行不参与点行关抽屉」——豁免扩到长按属事故不属设计。回归锚＝`tests/dsha-long-press-gate.test.ts`（源码契约断言：武装门不得路由经豁免谓词；豁免与 marker 字面量只活在关抽屉谓词里）。
+- **共享谓词加豁免前必须逐个核对每个调用方的提问语义（#82，2026-09-22）**：`shouldCloseOnTapInsideDrawer` 被三方复用——click/pointerup 的「点行关抽屉」、`onDrawerPointerDown` 的「长按武装门」。#76/#81 往里加 DSHA 行早退（`[data-dsha-session-select]` → false）后，点行关被修好，长按武装被**静默连带**：DSHA 行 `pressTimer` 永不装填，宿主 ⋯ 行菜单在触屏上的唯一入口（长按）失效——而 `openRowMenu` 是既有「抽屉行菜单」坑位里修了三轮才立住的路径。铁律：给被多方复用的谓词加条件前，先列出全部调用方，逐个问「这条新条件对你的问题意味着什么」；提问语义不同就**拆谓词**，不要用布尔参数糊两个问题。#82 修法＝抽出无豁免的 `isDrawerNavTarget`（modal/抽屉开/行内/非按钮四守卫）作武装门，`shouldCloseOnTapInsideDrawer = !DSHA && base` 留给关抽屉两调用方。意图边界：3624af5 提交原文只说「这些行不参与点行关抽屉」——豁免扩到长按属事故不属设计。回归锚＝`tests/dsha-session-interaction.test.ts`（历史源码契约断言）。
+- **DSHA 单击打开增补**：本代宿主没有 `sessions.open`，移动端在捕获 click 时把正常点行替换为宿主的 `detail=0` 程序化打开；不在 pointerup 提前导航，也不另关抽屉，由 `dsha-session-open` 通知负责收起。拖动、长按、行内菜单与 modal 让位。运行时处理函数回归见 `tests/mobile-navigation-behavior.test.ts`。
 
 ### 第三方模型条
 
@@ -686,6 +687,7 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 - **实测（390×844，headless 真浏览器打真宿主）**：面板开着时 `elementFromPoint`(FAB 中心) 命中面板子节点（`hitInPanel: true`），真实 tap 后 `data-sidebar-collapsed` 仍为 true（抽屉没开）；同一次修复后：FAB `z-index: 55`、命中自身、tap 打开抽屉、Escape 关上。第 1 处 chip 的 A/B 同批跑（见「工作区 chip 再点关闭」）。
 - **修法**：`base.css.ts` 的 mobile「popover band」节加一条同形 gate——`body:has([data-sidebar-right-open][data-sidebar-right-panel="fullscreen"])` 下把本插件 FAB 抬到 **55**（本插件「抽屉之下」带：仍在遮罩 1250 / 抽屉 1300 之下，抽屉开着时照旧被盖住，不回退 09-13 的遮挡事故），并把 `[class*="_overlayLayer"]` 抬到 **1400**（与抽屉 gate 同值；两条 gate 同值时无论哪条胜出结果一样，不会出现「右侧栏开着反而把层压低到抽屉之下」）。**门必须带 `[data-sidebar-right-open]`**：`data-sidebar-right-panel="fullscreen"` 是展示档、面板关着也在（实测 restore 后仍在），只按它会把 band 常驻抬高、FAB 就会浮在打开的抽屉之上。docker 档（层 10）本来就低于 FAB 21，不进这条门。
 - **被否决**：把 FAB 抬到 1400（会浮在打开的抽屉上）；只抬 `_overlayLayer` 不抬 FAB（FAB 是 frame 子节点、不在该层里，实测 `fabChain[0] = pI_x6G_frame`)；降抽屉/遮罩 z（09-13 全黑事故）；按面板逐个打补丁（宿主的 fullscreen 档是通用形态）。回归锚＝`tests/overlay-layer-band.test.ts` 三条新断言（FAB 带值区间、overlayLayer 同值、门必须含 open 属性）。
+- **手机工具栏控件显隐不得依据测量结果反复改变测量对象**：`data-dockkit-split-blocked` 来自工具栏宽度判定，若只在该属性存在时 `display:none` 分栏键，隐藏后空间增大使其可用、恢复后空间不足又禁用，阈值附近会在每次 commit 的测量中形成两态循环。手机断点固定隐藏分栏及包装，保留收起键；平板和桌面保持原样。`tests/mobile-navigation-behavior.test.ts` 锁定规则不得依赖 blocked。
 ### 搬宿主 React 节点
 
 - **禁令：不要把宿主（或第三方 React 组件）渲染的节点搬出它渲染时的父节点**（#104 实锤，2026-09-24 修）。React 卸载该节点时按它自己记录的父容器调 `parent.removeChild(child)`，节点已被搬走就抛 `NotFoundError`。这个异常**不会出现在 uncaught 通道**——它被 `SlotErrorBoundary` 吞掉并把整个槽位渲染成空壳；运行时取证必须 hook `Node.prototype.removeChild` 数「child.parentNode !== this」的未命中（报障者方法，与 uncaught 监听互补）。

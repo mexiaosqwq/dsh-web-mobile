@@ -791,7 +791,9 @@ export function installOverlayInteractions(ctx: ClientContext): void {
      *  onDrawerPointerUp resolves the row's session id at the lift and needs the
      *  down point to tell a tap from a scroll or a swipe, so every touch
      *  pointerdown records it BEFORE any early return. */
+    let touchStartedAt = 0
     const onDrawerPointerDown = (event: PointerEvent): void => {
+      touchStartedAt = performance.now()
       touchDownAt = event.pointerType === 'touch' || event.pointerType === 'pen'
         ? { x: event.clientX, y: event.clientY }
         : null
@@ -811,6 +813,26 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       // here instead — before both the shim and the element handler.
       if (target instanceof Element && target.closest('[data-mobile-nav="backdrop"]') !== null) {
         if (drawerOpen()) toggleSidebar()
+        return
+      }
+      // DSHA detail=0 follows the host's keyboard/programmatic open path.
+      // Replace the real click, rather than opening on pointerup and allowing
+      // the later native click to select again. dsha-session-open owns closing.
+      const dshaRow = target instanceof Element
+        ? target.closest('[role="treeitem"][data-dsha-session-select]') : null
+      if (dshaRow !== null && event.detail > 0 && isDrawerNavTarget(target)) {
+        if (event.defaultPrevented || touchDownAt !== null &&
+          (performance.now() - touchStartedAt >= 500 ||
+           !isTapWithinSlop(touchDownAt,
+             { x: event.clientX, y: event.clientY }, TAP_NAV_SLOP_PX))) return
+        event.preventDefault()
+        event.stopPropagation()
+        disarmNav()
+        disarmCloseOnNav()
+        lastTouchNavAt = performance.now()
+        dshaRow.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, cancelable: true, view: window, detail: 0,
+        }))
         return
       }
       // A touch row-tap owns the close (pointerup or the navigation observer);
