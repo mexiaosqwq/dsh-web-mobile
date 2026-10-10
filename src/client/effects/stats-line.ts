@@ -137,11 +137,32 @@ export function createStatsLineTask(): ReconcilerTask {
     placeOverlay(ring, reserve)
   }
   let viewportHandler: (() => void) | null = null
-  const relayout = (): void => {
+  // The keyboard animation drives visualViewport.resize once per frame, and the
+  // two folds below read rects and write styles (forced synchronous layout), so
+  // one event per frame meant one overlay pass per frame. Coalesce every event
+  // in a frame into a single pass, and skip the pass entirely when the anchor
+  // box did not move. Measured 2026-10-09 on Android 16 WebView: opening the
+  // drawer went from a 58ms long task to none. A React rebuild that re-creates
+  // the TPS readout at the same box is still re-folded by mark()'s own fast
+  // path, which runs on every tree mutation (scopes: the tree key).
+  let relayoutRaf = 0
+  let relayoutKey = ''
+  const relayoutNow = (): void => {
     const anchor = document.querySelector('[data-mobile-nav="stats"]')
     if (anchor === null) return
+    const rect = anchor.getBoundingClientRect()
+    const key = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`
+    if (key === relayoutKey) return
+    relayoutKey = key
     moveTps(anchor)
     moveRing(anchor)
+  }
+  const relayout = (): void => {
+    if (relayoutRaf !== 0) return
+    relayoutRaf = requestAnimationFrame(() => {
+      relayoutRaf = 0
+      relayoutNow()
+    })
   }
   const mark = (): void => {
     // Keyboard open/close and viewport rotations relayout the composer without
@@ -222,6 +243,11 @@ export function createStatsLineTask(): ReconcilerTask {
       // Hand the official layout back: drop every marker (the strip loses its
       // one-line layout, ring/TPS overlays return to static flow) and remove
       // the plugin-owned placeholders.
+      if (relayoutRaf !== 0) {
+        cancelAnimationFrame(relayoutRaf)
+        relayoutRaf = 0
+      }
+      relayoutKey = ''
       if (viewportHandler !== null) {
         window.removeEventListener('resize', viewportHandler)
         window.visualViewport?.removeEventListener('resize', viewportHandler)

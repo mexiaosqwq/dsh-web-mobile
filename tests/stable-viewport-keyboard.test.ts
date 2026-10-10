@@ -33,6 +33,10 @@ test('phone-chrome maintains the keyboard-less viewport height', () => {
   )
   assert.match(PHONE, /addEventListener\('resize', syncStableViewport\)/)
   assert.match(PHONE, /removeEventListener\('resize', syncStableViewport\)/)
+  // 2026-10-09：值没变就不许再写一次 —— 在 :root 上写自定义属性会让整棵文档的
+  // 样式失效，同值重写等于白跑一次文档级样式计算。
+  assert.match(PHONE, /if \(next !== stableValue\)/)
+  assert.match(PHONE, /stableValue = ''/)
 })
 
 test('the two keyboard-facing cards size themselves off that variable', () => {
