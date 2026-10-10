@@ -574,6 +574,7 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 - **CSS 模板字符串注释内禁止反引号**：`src/client/styles/*.css.ts` 的 CSS 是 TypeScript 模板字面量，注释里写 Markdown 反引号会提前终止模板，tsc 报 `TS1005`。引用类名用普通引号或纯文本。
 - **同一族的第二个变种：块注释里禁止出现「星号紧跟斜杠」**（2026-10-07 自伤，同日第二次）。任何块注释里只要写入那个两字符序列（典型来源是 MIME 全通配、正则 `\d*` 加斜杠、路径 glob），注释就在那里**提前闭合**，后面的文字变成代码 ⇒ 一串 `TS1xxx` 解析级联（本次 9 条）+ `client-bundle-smoke` 抛 `SyntaxError: Unexpected token '*'`。**修法是改表述而不是转义**（注释里没有转义）：注释里写「全通配 accept」，字面量只留在代码里。
 - 两条合起来的教训：**`.css.ts` 的注释是「数据」不是「注释」**（模板字符串里那是 CSS，`.ts` 里那是块注释），任何会被编译器/打包器当成结构标记的字符（反引号、「星号斜杠」）都不能随手写。两次都是 `src/client TS1xxx=0` + bundle smoke 这两道门唯一拦住的 —— 别跳过自检直接上机。
+- **连带症状：测试文件一起红，看着像既有回归**（2026-10-10 又踩一次）。凡 `import { LAYOUT_CSS } from '.../layout.css.ts'` 这类测试（`ios-zoom-guard`、`selection-autoscroll-ramp`…），模块语法一坏就整文件挂——同一轮里 `pnpm verify` 报 `TS1005`、`pnpm test:core` 若干条**互不相干**的断言红，根因其实只有一处。处置序：先查 `.css.ts` 的语法、修完重跑测试，不要追那几条红。
 ### has 下限
 
 - CSS relies on `:has()` and therefore requires Chromium 105+; unsupported `:has()` rules can disappear silently in old WebViews. Preserve `prefers-reduced-motion` behavior.
