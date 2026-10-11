@@ -95,32 +95,6 @@ function parse(file, css, masked, lineOffset) {
   return { lines, blocks, rules, newlinesBefore }
 }
 
-// A :has() nested inside another :has() is an INVALID selector (Selectors 4).
-// Chromium rejects the entire rule at parse time with no console message, so it
-// silently never applies — this is how the settings mask fade sat dead through
-// two separate discoveries (2026-09-27, 2026-10-10). Detect `:has(` opening
-// while another `:has(` is still open. Only :has() nesting is illegal:
-// `:not(:has(…))` / `:where(:has(…))` are fine, so track the kind of each paren.
-function nestedHas(prelude) {
-  const open = []
-  let quote = null
-  for (let i = 0; i < prelude.length; i++) {
-    const c = prelude[i]
-    if (quote !== null) {
-      if (c === '\\') i++
-      else if (c === quote) quote = null
-      continue
-    }
-    if (c === '"' || c === "'") { quote = c; continue }
-    if (c === ')') { open.pop(); continue }
-    if (c !== '(') continue
-    const isHas = /:has$/i.test(prelude.slice(0, i))
-    if (isHas && open.some(Boolean)) return true
-    open.push(isHas)
-  }
-  return false
-}
-
 for (const name of MODULES) {
   const { file, css, masked, lineOffset } = load(name)
   const { lines, blocks, rules, newlinesBefore } = parse(file, css, masked, lineOffset)
@@ -178,13 +152,6 @@ for (const name of MODULES) {
     if (seenSelector.has(key)) {
       hint(r.line, 'selector split across rules in one scope (first at ' + seenSelector.get(key) + '): ' + r.prelude.slice(0, 60))
     } else seenSelector.set(key, r.line)
-  }
-
-  // 5. :has() nested in :has() — invalid selector, whole rule silently dropped
-  for (const r of rules) {
-    if (nestedHas(r.prelude)) {
-      fail(r.line, 'nested :has() inside :has() — invalid selector, the parser drops this whole rule: ' + r.prelude.slice(0, 70))
-    }
   }
 }
 

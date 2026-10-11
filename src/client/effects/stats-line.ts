@@ -22,36 +22,6 @@ export function statsAnchorAlive(el: Element | null): boolean {
   return el.closest('[class*="_composerStack"]') !== null
 }
 
-// Which row in the composer stack is the TPS readout ("TPS 89.4 tok/s"), and
-// whether it still needs our marker. Kept pure so the decision is testable
-// without a DOM (the effect maps the real nodes onto this shape).
-//
-// It must NOT treat an already-marked row as "done". The marker is written on
-// the very first fold, so skipping marked rows makes every later pass report
-// "no readout" — which both drops the reading out of the pass key and stops the
-// TPS side from re-folding at all: `maxWidth` then keeps the width measured
-// before the reading (or the slot) changed. Found by the #194 review (three
-// measured leaks: in-place text change, anchor resize, removed placeholder).
-export type TpsCandidate = {
-  textContent: string | null
-  children: { length: number }
-  parentElement: Element | null
-  getAttribute(name: string): string | null
-}
-export type TpsPick = { index: number; mark: boolean }
-export const pickTpsReadout = (candidates: readonly TpsCandidate[]): TpsPick => {
-  for (const [index, el] of candidates.entries()) {
-    if (!/^TPS\s+\d/.test((el.textContent ?? '').trim())) continue
-    // The readout is a bare text node holder; a row with children is a wrapper.
-    if (el.children.length > 0) continue
-    // No parent means the row is mid-teardown — a later candidate may be the
-    // live one (the scan this replaced used to `continue` here too).
-    if (el.parentElement === null) continue
-    return { index, mark: el.getAttribute('data-mobile-nav') !== 'stats-tps' }
-  }
-  return { index: -1, mark: false }
-}
-
 export function createStatsLineTask(): ReconcilerTask {
   // React-owned nodes must never be relocated (issue #104): on unmount React
   // calls parent.removeChild(child) against the parent it rendered the node
@@ -67,7 +37,7 @@ export function createStatsLineTask(): ReconcilerTask {
   // The overlay must resolve against a positioned ancestor. The host rarely
   // positions these containers, so mark the expected one (CSS sets
   // position: relative for the marker, without !important so host styles stay
-  // in charge) and let measureOverlay walk to whichever ancestor actually ends
+  // in charge) and let placeOverlay walk to whichever ancestor actually ends
   // up positioned — the math is self-consistent with any container.
   const ensurePositioned = (el: Element, marker: string): void => {
     if (getComputedStyle(el).position === 'static') el.setAttribute('data-mobile-nav', marker)
@@ -78,27 +48,12 @@ export function createStatsLineTask(): ReconcilerTask {
     }
     return null
   }
-  // An overlay whose geometry has been measured but not yet written. The split
-  // is what lets a pass read every rectangle it needs before it writes any
-  // style: interleaving reads and writes is what forced a synchronous layout
-  // after each write (measured 3 per pass, issue #194).
-  type Measured = { host: Element; left: number; top: number }
-  // The TPS fold after its read phase: the readout element, its measured
-  // overlay (null when no positioned ancestor exists), and the placeholder
-  // width the readout's max-width has to mirror.
-  type TpsFold = { el: Element; measured: Measured | null; width: number }
-  // The TPS fold after its locate phase: the readout, its placeholder, and the
-  // reading text as it stands right now (the text is part of the pass key, so a
-  // changed number always forces a re-fold).
-  type TpsLocated = { el: Element; reserve: Element; live: string }
-  // The ring fold: its readout, the placeholder that reserves its slot, and the
-  // measured overlay (null when no positioned ancestor exists).
-  type RingFold = { ring: Element; reserve: Element; measured: Measured | null }
-  const measureOverlay = (host: Element, reserve: Element): Measured | null => {
+  const placeOverlay = (host: Element, reserve: Element): void => {
     const container = positionedAncestor(host)
-    if (container === null) return null
+    if (container === null) return
     const box = reserve.getBoundingClientRect()
     const base = container.getBoundingClientRect()
+    const left = box.left - base.left - container.clientLeft
     // Center the host on its slot vertically, not top-align it. Measured
     // 2026-09-29 (issue #140 acceptance): the 20px ring top-aligned on its
     // 16px reserve hung its center at y=793 while the neighbouring keys sit
@@ -107,82 +62,61 @@ export function createStatsLineTask(): ReconcilerTask {
     // with the cluster. hostRect is read BEFORE the style write below; its
     // height does not depend on top/left, so the math is stable across flushes.
     const hostRect = host.getBoundingClientRect()
-    return {
-      host,
-      left: box.left - base.left - container.clientLeft,
-      top: box.top - base.top - container.clientTop - (hostRect.height - box.height) / 2,
-    }
-  }
-  const writeOverlay = (measured: Measured): void => {
-    const styled = measured.host as HTMLElement
-    if (styled.style.left !== `${measured.left}px`) styled.style.left = `${measured.left}px`
-    if (styled.style.top !== `${measured.top}px`) styled.style.top = `${measured.top}px`
+    const top = box.top - base.top - container.clientTop - (hostRect.height - box.height) / 2
+    const styled = host as HTMLElement
+    if (styled.style.left !== `${left}px`) styled.style.left = `${left}px`
+    if (styled.style.top !== `${top}px`) styled.style.top = `${top}px`
   }
 
   // The composer root renders the TPS readout ("TPS 89.4 tok/s") as its own
   // row BELOW the status strip; fold it into the strip so every metric sits
   // on one line. Idempotent: the placeholder's text mirrors the readout and
   // the readout itself is overlaid on the placeholder's box.
-  //
-  // Locate half — queries and text only, NO geometry. It runs before the pass
-  // decides whether there is anything to write, so a pass whose key did not
-  // change bails out without reading a single rectangle.
-  const locateTps = (stats: Element): TpsLocated | null => {
+  const moveTps = (stats: Element): void => {
     const stack = stats.closest('[class*="_composerStack"]')
-    if (stack === null) return null
+    if (stack === null) return
     let reserve = stats.querySelector(':scope > [data-mobile-nav="stats-tps-reserve"]')
-    const candidates = [...stack.querySelectorAll('div')]
-    const picked = pickTpsReadout(candidates)
-    if (picked.index < 0) return null
-    const el = candidates[picked.index]
-    if (el === undefined) return null
-    if (reserve === null) {
-      reserve = document.createElement('span')
-      reserve.setAttribute('data-mobile-nav', 'stats-tps-reserve')
-      reserve.setAttribute('aria-hidden', 'true')
-      stats.appendChild(reserve)
+    for (const el of stack.querySelectorAll('div')) {
+      const text = (el.textContent ?? '').trim()
+      if (!/^TPS\s+\d/.test(text)) continue
+      if (el.children.length > 0) continue
+      if (el.getAttribute('data-mobile-nav') === 'stats-tps') continue
+      if (reserve === null) {
+        reserve = document.createElement('span')
+        reserve.setAttribute('data-mobile-nav', 'stats-tps-reserve')
+        reserve.setAttribute('aria-hidden', 'true')
+        stats.appendChild(reserve)
+      }
+      const live = el.textContent ?? ''
+      if (reserve.textContent !== live) reserve.textContent = live
+      el.setAttribute('data-mobile-nav', 'stats-tps')
+      const tpsRow = el.parentElement
+      if (tpsRow === null) continue
+      ensurePositioned(tpsRow, 'stats-tps-row')
+      placeOverlay(el, reserve)
+      // The strip's last child is the flex shrink group: mirror whatever
+      // width the placeholder settled on so the overlay clips with the same
+      // ellipsis instead of overlapping the neighbouring group.
+      const width = reserve.getBoundingClientRect().width
+      const styled = el as HTMLElement
+      if (styled.style.maxWidth !== `${width}px`) styled.style.maxWidth = `${width}px`
+      return
     }
-    const live = el.textContent ?? ''
-    if (reserve.textContent !== live) reserve.textContent = live
-    if (picked.mark) el.setAttribute('data-mobile-nav', 'stats-tps')
-    const tpsRow = el.parentElement
-    if (tpsRow === null) return null
-    ensurePositioned(tpsRow, 'stats-tps-row')
-    return { el, reserve, live }
-  }
-  // Measure half — geometry reads only, no style writes, and no queries either:
-  // it works on whatever locateTps already resolved.
-  const measureTps = (located: TpsLocated): TpsFold => {
-    const { el, reserve } = located
-    const measured = measureOverlay(el, reserve)
-    // The strip's last child is the flex shrink group: mirror whatever width
-    // the placeholder settled on so the overlay clips with the same ellipsis
-    // instead of overlapping the neighbouring group. Measured inside the SAME
-    // read phase as the overlay boxes above — this read used to run after the
-    // left/top write and forced a second synchronous layout.
-    return { el, measured, width: reserve.getBoundingClientRect().width }
-  }
-  // Write half — touches styles only.
-  const writeTps = (fold: TpsFold): void => {
-    if (fold.measured !== null) writeOverlay(fold.measured)
-    const styled = fold.el as HTMLElement
-    const maxWidth = `${fold.width}px`
-    if (styled.style.maxWidth !== maxWidth) styled.style.maxWidth = maxWidth
   }
   // 2026-09-23（店主最终确认）：**环要、百分比数字不要** —— 环显示在输入框行
   // 的右簇（模型/麦克风旁），CSS 用 font-size:0 只留环、隐掉 "45%" 文本；统计条
   // 拿满整宽。与 moveTps 同款 overlay：环留在 React 渲染的 dock 原位，插件自建
   // 占位 span 顶住右簇槽位（16px 环 + 2px 边距，行 gap 补足余量）。
-  const measureRing = (stats: Element): RingFold | null => {
+  const moveRing = (stats: Element): void => {
     const holder = stats.parentElement
     const dock = holder === null ? null : holder.parentElement
-    if (dock === null) return null
+    if (dock === null) return
     const ring = [...dock.children].find(
       (child) => !child.contains(stats) && /\d\s*%/.test(child.textContent ?? ''),
     )
-    if (ring === undefined) return null
+    if (ring === undefined) return
     const row = document.querySelector('[data-composer-card] [class*="_row"] [class*="_trailing"]')
-    if (row === null) return null
+    if (row === null) return
     let reserve = row.querySelector(':scope > [data-mobile-nav="stats-ring-reserve"]')
     const primary = row.querySelector(':scope > [class*="_primary"]')
     if (reserve === null) {
@@ -200,26 +134,7 @@ export function createStatsLineTask(): ReconcilerTask {
       ring.setAttribute('data-mobile-nav', 'stats-ring')
     }
     ensurePositioned(dock, 'stats-ring-dock')
-    return { ring, reserve, measured: measureOverlay(ring, reserve) }
-  }
-  // Slow path only (re-anchoring after React rebuilt the marker): measure and
-  // write each fold on its own. The hot fast path in mark() below does not use
-  // these; its own per-pass bound is documented there.
-  //
-  // Do not carry that bound over to the slow path — it does not hold here, and
-  // this used to claim it did. Each wrapper keeps a write→read boundary of its
-  // own: moveTps mirrors the reading into the placeholder before measuring it
-  // (inherent — the slot width cannot be measured until the text is in it), and
-  // measureRing re-inserts the placeholder before measuring when React shuffled
-  // it. relayoutNow() runs both, so it can force two layouts in one pass. Each
-  // wrapper alone forces at most one.
-  const moveTps = (stats: Element): void => {
-    const located = locateTps(stats)
-    if (located !== null) writeTps(measureTps(located))
-  }
-  const moveRing = (stats: Element): void => {
-    const fold = measureRing(stats)
-    if (fold !== null && fold.measured !== null) writeOverlay(fold.measured)
+    placeOverlay(ring, reserve)
   }
   let viewportHandler: (() => void) | null = null
   // The keyboard animation drives visualViewport.resize once per frame, and the
@@ -239,12 +154,8 @@ export function createStatsLineTask(): ReconcilerTask {
     const key = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`
     if (key === relayoutKey) return
     relayoutKey = key
-    // Same read-before-write ordering as mark()'s fast path.
-    const located = locateTps(anchor)
-    const tps = located === null ? null : measureTps(located)
-    const ring = measureRing(anchor)
-    if (tps !== null) writeTps(tps)
-    if (ring !== null && ring.measured !== null) writeOverlay(ring.measured)
+    moveTps(anchor)
+    moveRing(anchor)
   }
   const relayout = (): void => {
     if (relayoutRaf !== 0) return
@@ -253,15 +164,6 @@ export function createStatsLineTask(): ReconcilerTask {
       relayoutNow()
     })
   }
-  // Candidate C state: the key the last completed fold was keyed on, and the
-  // elements it folded. See the fast path in mark() below.
-  let fastKey = ''
-  let foldedTps: Element | null = null
-  let foldedTpsReserve: Element | null = null
-  let foldedRing: Element | null = null
-  let foldedRingReserve: Element | null = null
-  const stillFolded = (el: Element | null, marker: string): boolean =>
-    el !== null && el.isConnected && el.getAttribute('data-mobile-nav') === marker
   const mark = (): void => {
     // Keyboard open/close and viewport rotations relayout the composer without
     // any DOM mutation, so the overlays need their own re-layout channel.
@@ -276,47 +178,8 @@ export function createStatsLineTask(): ReconcilerTask {
     // readout is re-folded.
     const anchor = document.querySelector('[data-mobile-nav="stats"]')
     if (anchor !== null && statsAnchorAlive(anchor)) {
-      // Read—write separation (candidate B): every rectangle both folds need is
-      // measured BEFORE either fold writes a style. Interleaving them (write
-      // left/top, then read the placeholder width, then read the ring's boxes)
-      // forced a synchronous layout after each write — three per pass. After the
-      // split the only write still followed by a geometry read is locateTps'
-      // placeholder-text mirror, and that one is inherent: the slot width can
-      // only be measured once the reading is in it (true before #194 too). So a
-      // pass with an unchanged reading forces one layout, a changed reading
-      // forces two — down from three, not to zero.
-      //
-      // Skip-when-unchanged (candidate C): when the anchor box AND the TPS
-      // reading are both unchanged there is nothing to write, so the pass skips
-      // the ring query, every geometry read and every style write. The key is
-      // read before anything is written, so it costs no extra layout. The
-      // remembered fold targets are then re-checked for liveness, because React
-      // replaces these readouts on rebuild: a marker left on a disconnected node
-      // must force a fresh fold, which the unconditional fast path used to
-      // provide for free — dropping that check would leave a rebuilt readout
-      // unfolded on screen.
-      const rect = anchor.getBoundingClientRect()
-      const box = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`
-      const located = locateTps(anchor)
-      const key = `${box}|${located === null ? 'none' : located.live}`
-      if (
-        key === fastKey &&
-        stillFolded(foldedTps, 'stats-tps') &&
-        stillFolded(foldedTpsReserve, 'stats-tps-reserve') &&
-        stillFolded(foldedRing, 'stats-ring') &&
-        stillFolded(foldedRingReserve, 'stats-ring-reserve')
-      ) {
-        return
-      }
-      fastKey = key
-      const tps = located === null ? null : measureTps(located)
-      const ring = measureRing(anchor)
-      if (tps !== null) writeTps(tps)
-      if (ring !== null && ring.measured !== null) writeOverlay(ring.measured)
-      foldedTps = located === null ? null : located.el
-      foldedTpsReserve = located === null ? null : located.reserve
-      foldedRing = ring === null ? null : ring.ring
-      foldedRingReserve = ring === null ? null : ring.reserve
+      moveTps(anchor)
+      moveRing(anchor)
       return
     }
     // Stale marker on a node that left the composer stack/phase context:

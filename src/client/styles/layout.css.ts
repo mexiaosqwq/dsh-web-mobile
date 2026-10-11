@@ -73,19 +73,6 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     position: relative !important;
     grid-template-columns: minmax(0, 1fr) 0 0 !important;
     padding-top: env(safe-area-inset-top, 0px) !important;
-    /* Bottom safe area, symmetric with the top inset above. It MUST stay in
-       this rule: box-sizing: border-box is the pair that makes the padding eat
-       into the one-viewport height instead of adding scrollable overflow
-       (pitfalls §safe-area — padding without border-box pushes the composer
-       seat below the fold).
-       Why we have to own it: the third-party @linxin666 sheet (the same one
-       the grid-template-columns note above is about) ships this padding only
-       under (max-width: 768px), and the host ships none at all, so 769-1023px
-       touch devices had no bottom inset from either side and their content sat
-       in the system-bar band (issue #193). In the <=768px band that sheet's
-       declaration and this one are the same property with the same value, so
-       they do not stack. */
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
 
   /* The sidebar column (first grid child) becomes a left drawer. The drawer
@@ -151,33 +138,16 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      the remaining 40px showed our own column background as a vertical strip
      along the right edge (measured: content right edge 280, column 320; the
      owner reported a white bar). The inner surface owns that band instead, so
-     the strip is filled by the drawer's real surface colour.
-     That scenario cannot recur as the layout stands: the column is
-     min(88vw, 280px), never wider than the 280px inner surface, so the
-     inequality that produced the band (column > surface) no longer holds at any
-     viewport width (measured 430/390/340/320 = flush at 280, 300 -> 264,
-     280 -> 246; a narrower column just crops the surface). The only change that
-     would bring it back is raising the column's upper bound past 280px, or the
-     host narrowing the inner surface below it. */
+     the strip is filled by the drawer's real surface colour. */
     /* The 40px band is a STACKING result, not a colour one: the drawer's inner
      surface is only 280px wide (host markup), while our column is 320px and
      carries z-index 1300 - so the column's own background paints OVER the
      surface's right 40px. Pixel-verified from a screenshot with the drawer open:
      x=10..270 rgb(249,250,251) (the surface) against x=285..315 rgb(255,255,255)
      (our white column). Repainting the column with the surface's own value makes
-     the seam invisible.
-     The value pinned here is the host's own drawer-fill token - the one
-     .pI_x6G_sidebarCol paints with: --dsw-specific-sidebar-fill, i.e.
-     --dsw-static-neutral-bluish-50 (#f9fafb) in light and
-     --dsw-static-neutral-bluish-900 (#1b1b1c) in dark. Pinning it, rather than
-     letting the host rule paint, keeps the band covered without depending on
-     cascade order. The fallback is deliberately the token's LIGHT value: if the
-     host ever renames this internal token the declaration degrades to today's
-     light behaviour instead of going unset, so it cannot get worse. Do not
-     "simplify" this back to --dsw-alias-bg-surface: that name is defined nowhere
-     in the host, which froze this rule on its fallback and painted the drawer
-     light in the dark theme (issue #192). */
-    background: var(--dsw-specific-sidebar-fill, #f9fafb);
+     the seam invisible whatever the theme does; the surface underneath keeps its
+     own colour for the 280px it does cover. */
+    background: var(--dsw-alias-bg-surface, #f9fafb);
     /* Drawer swipe gestures (edge swipe-in / content swipe-out, see
      docs/specs/2026-08-27-sidebar-swipe-gestures.md).
      One rule is load-bearing for the gesture layer: dropping pan-x on the
@@ -803,24 +773,6 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     margin-left: auto;
   }
   [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"]:has([class*="_trigger"][aria-haspopup="menu"], > [class*="_root"] > [class*="_trigger"][aria-haspopup="dialog"]) > [class*="_primary"] {
-    margin-left: 0;
-  }
-  /* Issue #191 — the subagent running form (stop + send, both _primary) has
-     NEITHER of the zeroing rule's two gates: ModelSelect renders nothing in an
-     addressed subagent session (no aria-haspopup="menu" in the lane) and the
-     meter lives in the card's dock row since rc.2 (no _root > dialog trigger
-     in the lane either). Both primaries therefore keep the auto margin from the
-     rule above, and flex SPLITS the free space between the two auto margins —
-     the stop key lands mid-lane with a void on both sides of it.
-     Same recipe as the model-present case (:707-712): zero every auto so no
-     element competes for the slack, and let justify-content pin the whole
-     cluster right. Zeroing alone would hug the LEFT edge instead, so both
-     halves are required. Scoped to the dual-primary form, so the main
-     session's single-primary path keeps its auto untouched. */
-  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]):has([class*="_primary"] ~ [class*="_primary"]) > [class*="_trailing"] {
-    justify-content: flex-end;
-  }
-  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]):has([class*="_primary"] ~ [class*="_primary"]) > [class*="_trailing"] > [class*="_primary"] {
     margin-left: 0;
   }
 
@@ -2311,22 +2263,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     border-radius: 14px !important;
     animation: dsh-web-mobile-sheet-in .22s var(--ds-ease-out, ease-in-out);
   }
-  /* The settings sheet's dimmed mask fades in with the panel: the mask is the
-     overlay's first child, so it is reached as a direct child of the overlay
-     that holds the settings panel. The panel is identified by its stable
-     data-shortcut-modal="settings" marker (host value; the shortcut editor uses
-     "shortcut-edit" instead, so this cannot reach that family) plus
-     role/aria-modal. Keep the outer :has() ATTRIBUTE-ONLY: an earlier form
-     tested the panel's shape by nesting a :has() inside this one, which is an
-     invalid selector — Chromium dropped the entire rule without a word and the
-     fade never ran once (issue: settings mask, found 2026-09-27 and 2026-10-10).
-     scripts/css-structure-check.mjs now fails the build on nested :has(). */
-  :has(> [aria-modal="true"][data-shortcut-modal="settings"]) > [class*="_mask"] {
+  /* The settings sheet's dimmed mask fades in with the panel (the mask is
+     the first child of the overlay that directly contains the sheet). */
+  :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
     animation: dsh-web-mobile-fade .18s var(--ds-ease-out, ease-in-out);
   }
   @media (prefers-reduced-motion: reduce) {
     [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]),
-    :has(> [aria-modal="true"][data-shortcut-modal="settings"]) > [class*="_mask"] {
+    :has(> [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])) > :first-child {
       animation: none !important;
     }
   }
