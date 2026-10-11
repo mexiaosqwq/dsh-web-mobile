@@ -6,49 +6,6 @@ import { DESKTOP_QUERY, MOBILE_QUERY } from './effects/phone-chrome.ts'
  * aionui columns, genui cards, captured errors) so a phone-side repro can be
  * diagnosed without guessing. No-op unless the query param is present.
  */
-
-/**
- * Combo id segment identifying this plugin's own bundle inside the host's
- * plugin route (`/plugins/??<id>/client.js,…&rev=<12 hex>`). The leading `?` or
- * `,` is a boundary so a scoped fork (`@someone/dsh-web-mobile`) cannot match.
- */
-const BUNDLE_ID = /[?,]dsh-web-mobile\/client\.js/
-
-/**
- * Revision from a plugin bundle URL, or null when it carries none.
- * The host mints it per build (`dsh-client-modules` HASH_REVISION_LENGTH = 12)
- * and stamps the same value on the URL it actually serves, so it answers
- * "which build is this page running" with no build-time injection.
- */
-export function parseBundleRev(url: string | null | undefined): string | null {
-  if (typeof url !== 'string' || url === '') return null
-  try {
-    const rev = new URL(url, 'http://x').searchParams.get('rev')
-    return rev === null || rev === '' ? null : rev
-  } catch {
-    return null
-  }
-}
-
-/**
- * Revision of the bundle the host served this plugin's code from, read off the
- * head element the host injected for it, or null when that element is absent.
- *
- * The host injects an application-batch combo as
- * `<link rel="preload" as="script" href="/plugins/??…,dsh-web-mobile/client.js,…&rev=…">`
- * and the browser fetches exactly that URL (verified against
- * `performance.getEntriesByType('resource')`), so the `rev` here IS the running
- * build's revision. The bundle id — not "the first rev in head" — selects our
- * row: the only `<script src>` row belongs to the client-modules bootstrap
- * batch and carries a different, unrelated revision.
- */
-export function readBundleRev(): string | null {
-  for (const el of document.head.querySelectorAll<HTMLElement>('script[src], link[rel="preload"]')) {
-    const url = el.getAttribute('src') ?? el.getAttribute('href')
-    if (url !== null && BUNDLE_ID.test(url)) return parseBundleRev(url)
-  }
-  return null
-}
 export function installDebugBadge(ctx: ClientContext): void {
   ctx.effect(() => {
     const params = new URLSearchParams(location.search)
@@ -86,9 +43,8 @@ export function installDebugBadge(ctx: ClientContext): void {
         const b = el.getBoundingClientRect()
         return `${el.getAttribute('data-sidebar-right-panel')} pad ${getComputedStyle(el).paddingTop} rect ${Math.round(b.top)},${Math.round(b.left)} ${Math.round(b.width)}x${Math.round(b.height)}`
       }
-      const rev = readBundleRev()
       return [
-        `build rev ${rev ?? '?'} (diag chips)`,
+        `build 20260919 (diag chips)`,
         `URL ${location.pathname}${location.search}`,
         `W ${innerWidth} x ${innerHeight} dpr ${devicePixelRatio}`,
         `mq≤1023 ${matchMedia(MOBILE_QUERY).matches}  mq≥1024 ${matchMedia(DESKTOP_QUERY).matches}`,
