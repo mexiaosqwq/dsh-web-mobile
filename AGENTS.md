@@ -68,7 +68,7 @@
 - 宿主会话切换卡顿/性能归因 → `docs/audits/2026-09-23-session-switch-jank-handover.md`（归因 + 止血/上游两条路线）+ `docs/upstream/host-jank-feedback.md`（上游反馈通道，tokenizeTimeLimit 更正在此）
 - 0.1.7-rc.1 手机端适配待办 → `docs/audits/2026-09-23-0.1.7-rc.1-adaptation-handover.md`（容器内 chromium 取证通道 + A/B 与真机读数）
 - 手机端会话头部/输入框 0.1.6 适配 → `docs/upstream/2026-09-19-mobile-header-0.1.6-adaptation.md`（16 条，14 已并入 layout 移动块）
-- CSS 结构回归 → `docs/audits/2026-09-15-css-surface-audit.md`（结构检测器已接入 `test:core`，基线 0 fatal / 4 info；缩进/媒体查询/选择器拆分回归会红）
+- CSS 结构回归 → `docs/audits/2026-09-15-css-surface-audit.md`（结构检测器已接入 `test:core`，基线 0 fatal / 5 info；缩进/媒体查询/选择器拆分回归会红）
 - 接手 fork wzxmt-zhc 摘抄专项 → `docs/fork-wzxmt-zhc/README.md`（先读接手协议，动手前重新 fetch fork）
 
 ## Commands
@@ -282,7 +282,7 @@ dsh web
   - **Tablet (768–1023px):** verify the intended centered and width-constrained sheet geometry separately from phone behavior.
   - **Desktop (≥1024px) and narrow desktop windows (mouse pointer, e.g. 900×700 split view):** compare with the plugin disabled; there must be no layout or interaction change at ANY width — the pointer guard keeps mouse-driven windows desktop even below 1024px (headless: do NOT enable touch emulation for these scenes). One exception (v2.4.1): wide touch (≥1024px, pointer coarse, e.g. a tablet in landscape) intentionally gains the injected 「删除会话」 item + confirm dialog (session-delete probe scenes 16a-16d); mouse-driven windows must still show none (scenes 15c/15d).
 - For phone-side debugging, add `?mobile-nav-debug=1` to display live viewport, frame/marker, floating-panel, and captured-JavaScript-error state. The optional `pnpm smoke:cdp` is a targeted smoke probe, not a replacement for real-profile checks.
-- **真机读数通道（2026-09-14）**：`?mobile-nav-debug=1` 除了页面徽章，还会把同一份读数 POST 到本机监听器（默认 `http://127.0.0.1:3199/diag`，`?beacon=<url>` 可覆盖）——「看不到设备屏幕」时用它取证：本机起一个把 body 追加到 `~/tmp/mobile-nav-diag.jsonl` 的小服务即可，页面侧无需人工念数字/截图（截图也读不了，模型无图像输入）。payload 含 `build` 标记、`framePad`（= 解析后的 `env(safe-area-inset-top)`，headless 恒 0）、`rightPanel` 形态/padding/rect、`toggle`/`files`/`header`/`titleCluster` 的 rect、UA 与 visualViewport。no-cors + 文本 body 是简单请求（无预检），没有监听器时静默失败。
+- **真机读数通道（2026-09-14）**：`?mobile-nav-debug=1` 除了页面徽章，还会把同一份读数 POST 到本机监听器（默认 `http://127.0.0.1:3199/diag`，`?beacon=<url>` 可覆盖）——「看不到设备屏幕」时用它取证：本机起一个把 body 追加到 `~/tmp/mobile-nav-diag.jsonl` 的小服务即可，页面侧无需人工念数字/截图（截图也读不了，模型无图像输入）。payload 含 `build` 字段（2026-10-10 起 = 运行时 bundle `rev`，解析不出时为 `?`；**此前是写死的常量串，判版本一律走产物前缀 sha1，别信这个字段**）、`framePad`（= 解析后的 `env(safe-area-inset-top)`，headless 恒 0）、`rightPanel` 形态/padding/rect、`toggle`/`files`/`header`/`titleCluster` 的 rect、UA 与 visualViewport。no-cors + 文本 body 是简单请求（无预检），没有监听器时静默失败。
 - Playwright 验证 DSH Web 移动端布局必须用**全新 browser context**，并通过 `addInitScript` 写入 `localStorage['dsh.sessions.current'] = JSON.stringify({sessionId})`；复用长活 context 会出现「fence-only」假象（见 Pitfalls「bundle 校验」）。点 backdrop 关抽屉时默认点元素中心会被抽屉盖住，改用 `page.mouse.click(x, y)` 点抽屉右侧露出区域。
 - 不要用 Playwright route 拦截插件 `client.js` 并 fulfill 空 body 做 A/B 实验：空响应被缓存后 boot 会报「loaded without registering」并挂起。A/B 用 `git show <commit>:lib/client.js > lib/client.js` 换文件。
 - **认证 token 向用户索要（用户要求，2026-09-21）**：需要认证访问本机 dsh web（浏览器审查、HTTP 取证）时，**先向用户要 token**（重启输出的 `?token=…` URL 即可用），**不要自行跑 `.local-tests/mint-cookie.mjs` 铸 cookie**——mjs 路径依赖签名文件与路径正确，容易卡死；仅在用户明说可用时才作后备。
