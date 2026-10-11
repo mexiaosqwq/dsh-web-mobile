@@ -26,6 +26,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findRuleBlocks } from '../src/client/core/css-rules.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const LAYOUT = readFileSync(join(ROOT, 'src/client/styles/layout.css.ts'), 'utf8')
@@ -133,4 +134,78 @@ test('seat rules never touch the official pill (no trigger predicates dropped)',
     section,
     /\[class\*="_trailing"\]:not\(:has\(\[class\*="_trigger"\]\[aria-haspopup="menu"\]\)\) > \[class\*="_root"\]:has\(> \[class\*="_trigger"\]\[aria-haspopup="dialog"\]\) \{\s*margin-left: auto;/,
   )
+})
+
+test('dual-primary lane welds the stop/send cluster to the right edge (issue #191)', () => {
+  // The subagent running form renders TWO _primary keys (stop + send) in the
+  // trailing lane, and since 0.2.0-rc.2 NEITHER of the zeroing rule's two gates
+  // is present in it: an addressed subagent session renders no ModelSelect (no
+  // aria-haspopup="menu") and the meter lives in the card's dock row (no
+  // _root > dialog trigger). Both primaries then keep the margin-left:auto
+  // written for the single-primary form and flex SPLITS the slack between the
+  // two auto margins — headless 390px: lane 89..384, stop 208.5..242.5, a
+  // 107.5px void before the send key. The repair is the recipe the
+  // model-present case already uses (:707-712): zero every auto, then pin the
+  // lane with justify-content. Zeroing alone would hug the left edge.
+  const blocks = findRuleBlocks(section)
+  const row = '[data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"])'
+  const gate = ':has([class*="_primary"] ~ [class*="_primary"])'
+  const lane = `${row} > [class*="_trailing"]`
+  const laneGated = `${row}${gate} > [class*="_trailing"]`
+  const bySelector = (selector: string) => blocks.find((block) => block.selector === selector)
+
+  const auto = bySelector(`${lane} > [class*="_primary"]`)
+  assert.ok(auto !== undefined, 'single-primary auto rule missing')
+  assert.match(auto.body, /margin-left: auto/)
+
+  const flexEnd = bySelector(laneGated)
+  assert.ok(flexEnd !== undefined, 'issue #191: gated lane justify-content rule missing')
+  assert.match(flexEnd.body, /justify-content: flex-end/)
+
+  const zero = bySelector(`${laneGated} > [class*="_primary"]`)
+  assert.ok(zero !== undefined, 'issue #191: gated primary margin-left rule missing')
+  assert.match(zero.body, /margin-left: 0/)
+
+  // The dual-primary gate is the ONLY difference from the auto rule's selector,
+  // so the zeroing rule is strictly more specific and wins the cascade without
+  // re-ordering the sheet (measured: both primaries go auto -> 0px).
+  assert.equal(zero.selector, auto.selector.replace(row, `${row}${gate}`))
+
+  // Both new rules carry the gate, so a one-primary lane cannot match them: the
+  // main-session path keeps its auto untouched.
+  for (const block of [flexEnd, zero]) {
+    assert.ok(block.selector.includes(gate), `issue #191 rule is ungated: ${block.selector}`)
+  }
+
+  // Nothing may pin the lane right without a gate: the lane's own flex-end
+  // declarations are exactly the model-present one (menu trigger) and this one.
+  // The lane must be the SUBJECT of the rule — the seat rule above also mentions
+  // it (`… > [class*="_trailing"] [data-seat-root]`) but styles the seat inside
+  // the lane, not the lane, so a bare prefix test would over-count.
+  const laneIsSubject = (selector: string): boolean => {
+    const subject = selector.split(' > ').pop() ?? ''
+    return subject.startsWith('[class*="_trailing"]') && !subject.startsWith('[class*="_trailing"] ')
+  }
+  const laneRight = blocks.filter(
+    (block) => block.body.includes('justify-content: flex-end') && laneIsSubject(block.selector),
+  )
+  // A lower bound, not an exact count: the point is that the filter above is
+  // not silently matching nothing (which would make the loop below vacuous),
+  // not that the design may never grow a third lane-level flex-end rule.
+  assert.ok(laneRight.length >= 2, `expected the lane flex-end rules, found ${laneRight.length}`)
+  for (const block of laneRight) {
+    assert.ok(
+      block.selector.includes(gate) || block.selector.includes('[aria-haspopup="menu"]'),
+      `ungated lane flex-end rule: ${block.selector}`,
+    )
+  }
+
+  // Collateral guards: the #140 anti-mistouch gap and the dual-form wrap must
+  // both survive the repair untouched.
+  const gap = bySelector(`${laneGated} > [class*="_primary"]:has(~ [class*="_primary"])`)
+  assert.ok(gap !== undefined, '#140 anti-mistouch rule missing')
+  assert.match(gap.body, /margin-right: 8px/)
+  const wrap = bySelector(`${row}${gate}`)
+  assert.ok(wrap !== undefined, 'dual-form wrap rule missing')
+  assert.match(wrap.body, /flex-wrap: wrap/)
 })
