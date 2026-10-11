@@ -8,22 +8,31 @@ import { COMPAT_CSS } from '../src/client/styles/compat.css.ts'
 // misses the portaled .ofm_scrim / .ofm_toast. These anchors fail if
 // someone re-scopes the block back under either anchor.
 
+// The slice must start at the section COMMENT, not at the first selector:
+// anchoring on '.ofm_aurora {' would leave any prefix added in front of that
+// selector outside the slice, and the whole point of these anchors is to
+// catch a re-scoping back under [data-mobile-nav="frame"] or .ofm_root.
+const HEADER = '/* ---------- dsh-our-free-model: mobile cost ceiling ----------'
+
 const block = () => {
-  const start = COMPAT_CSS.indexOf('.ofm_aurora {')
-  assert.ok(start > -1, 'the our-free-model cost block is missing')
+  const start = COMPAT_CSS.indexOf(HEADER)
+  assert.ok(start > -1, 'the our-free-model cost section header is missing')
   return COMPAT_CSS.slice(start, COMPAT_CSS.indexOf('@media (max-width: 767px)', start))
 }
 
 test('our-free-model cost block is mobile-only', () => {
   // It must live inside the top-level mobile media query, not at top level.
   const top = COMPAT_CSS.indexOf('@media (max-width: 1023px) and (pointer: coarse) {')
-  assert.ok(top > -1 && top < COMPAT_CSS.indexOf('.ofm_aurora {'))
+  assert.ok(top > -1 && top < COMPAT_CSS.indexOf(HEADER))
 })
 
 test('our-free-model cost block is not frame- or root-scoped', () => {
   const b = block()
-  assert.doesNotMatch(b, /\[data-mobile-nav="frame"\]/)
-  assert.doesNotMatch(b, /\.ofm_root /)
+  // Scan only the RULES, not the prose: the comment legitimately names both
+  // anchors while explaining why neither can be used.
+  const rules = b.slice(b.indexOf('*/'))
+  assert.doesNotMatch(rules, /\[data-mobile-nav="frame"\]/)
+  assert.doesNotMatch(rules, /\.ofm_root/)
 })
 
 test('the fixed full-screen aurora is removed', () => {
