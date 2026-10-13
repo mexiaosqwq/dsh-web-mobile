@@ -23,6 +23,11 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
 const PHONE = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
+// P1 拆分（2026-10-12）：toggleDrawer 搬到 drawer-close.ts；createOverlayTask 的
+// 装配（registerReconcileTasks）第四片搬到 reconciler-adapter.ts，
+// 所以三条断言各读各的文件（逐条钉住它真正所在的那一份）。
+const ADAPTER = readFileSync(join(ROOT, 'src/client/effects/reconciler-adapter.ts'), 'utf8')
+const DRAWER_CLOSE = readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
 const MENU = readFileSync(join(ROOT, 'src/client/effects/session-menu.ts'), 'utf8')
 
 const bandStart = BASE.indexOf('popover band above the open drawer')
@@ -67,20 +72,21 @@ test('modal-root raise is gated on OUR BACKDROP, not on the drawer marker', () =
 })
 
 test('every non-gesture closer shares the one late-commit toggle', () => {
-  // phone-chrome owns the shared helper and it must keep the late-commit shape.
-  const helperAt = PHONE.indexOf('export function toggleDrawer(')
-  assert.notEqual(helperAt, -1, 'toggleDrawer helper missing from phone-chrome.ts')
+  // drawer-close.ts owns the shared helper (P1 拆分前在 phone-chrome.ts) and it
+  // must keep the late-commit shape.
+  const helperAt = DRAWER_CLOSE.indexOf('export function toggleDrawer(')
+  assert.notEqual(helperAt, -1, 'toggleDrawer helper missing from drawer-close.ts')
   assert.match(
-    PHONE.slice(helperAt, PHONE.indexOf('\n}', helperAt)),
+    DRAWER_CLOSE.slice(helperAt, DRAWER_CLOSE.indexOf('\n}', helperAt)),
     /if \(!closeDrawerAnimated\(ctx\)\) ctx\.layout\.toggleSidebar\(\)/,
     'toggleDrawer must animate the close and only fall back to a plain toggle',
   )
   // The FAB's opener callback (createOverlayTask) is a closer once the drawer
   // is open: it must not bypass the helper.
-  const overlayAt = PHONE.indexOf('createOverlayTask(t,')
+  const overlayAt = ADAPTER.indexOf('createOverlayTask(t,')
   assert.notEqual(overlayAt, -1, 'createOverlayTask call missing')
   assert.match(
-    PHONE.slice(overlayAt, PHONE.indexOf('\n', overlayAt)),
+    ADAPTER.slice(overlayAt, ADAPTER.indexOf('\n', overlayAt)),
     /toggleDrawer\(ctx\)/,
     'createOverlayTask must receive toggleDrawer, not a raw toggleSidebar',
   )

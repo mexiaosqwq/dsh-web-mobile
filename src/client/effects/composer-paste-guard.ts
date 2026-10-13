@@ -1,5 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * 手机档：多行粘贴只剩首行（输入法上屏之后再粘贴）。

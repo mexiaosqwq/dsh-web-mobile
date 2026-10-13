@@ -33,6 +33,10 @@
  *    never arrives.
  * 4. `mutate` carries the revision read in the same pass, so a fill that races
  *    a user edit in the Models page fails the write instead of clobbering it.
+ * 5. A model that says it takes no custom thinking level lands in the `auto`
+ *    档 and is left ALONE — see {@link AUTO_REASONING_EFFORTS} for why "alone"
+ *    means "write nothing", never "write the string `auto`", and
+ *    {@link reasoningEffortDecision} for the two declarations that say it.
  *
  * The default set is deliberately the three levels an OpenAI-compatible
  * gateway accepts most often; a route needing different vocabulary declares it
@@ -56,6 +60,58 @@ export declare const LLM_PI_AI_ENTRY = "llm-pi-ai";
  * (2026-10-07 ecosystem survey: `docs/handover/2026-10-07-reasoning-defaults-*`.)
  */
 export declare const DEFAULT_REASONING_EFFORTS: Readonly<Record<string, string | null>>;
+/**
+ * The `auto` 档 — the plugin's name for 「不干预」: leave the model's
+ * `reasoningEfforts` ABSENT so the model keeps its own / the installed
+ * catalog's capability, and the composer shows the host's provider-default
+ * choice.
+ *
+ * This is NOT a host value, and must never be written into the profile.
+ * Reasoning levels are a closed enum on the host — `THINKING_LEVELS`
+ * (`@deepseek-ai/dsh-llm-pi-ai:lib/index.js:296-304`) holds exactly
+ * `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` — and it is
+ * used as the `reasoningEfforts` dict KEY type (`:1001`) and as the profile
+ * `reasoning` type (`:1029`). There is **no `auto`**: the `"auto"` at `:1040`
+ * belongs to `transport`, and `:2533`'s `{ auto: false }` is an unrelated
+ * settings call. Handing the enum the string `auto` is refused by the schema —
+ * which is the same class of mistake as the 2026-10-14 user report (a
+ * hand-declared model that rejects a level errors out once the fill writes
+ * one).
+ *
+ * The host's own spelling of "no explicit level" is the ABSENT field:
+ * `resolveModelReasoning` then returns `{ reasoning: base?.reasoning ?? false }`
+ * (`:566-570`), i.e. 「跟着模型自己的默认」, and the composer's effort list shows
+ * the `provider-default` entry (`@deepseek-ai/dsh-client-ui-model-selection:
+ * lib/client.js:565-569`).
+ */
+export declare const AUTO_REASONING_EFFORTS = "auto";
+/**
+ * Decide which 档 one model entry belongs to: `auto` (leave it alone) or
+ * `fill` (give it {@link DEFAULT_REASONING_EFFORTS}).
+ *
+ * `auto` covers exactly the entries this feature must not touch:
+ *
+ * 1. Anything that is not a plain object — rewriting an array element this
+ *    module cannot read is how a stray scalar becomes an object.
+ * 2. An entry that already states its capability, on its own or through a
+ *    lower layer — including the host's own `reasoningEfforts: false`
+ *    (`dsh-llm-pi-ai:lib/index.js:1008`, resolved to `{ reasoning: false }` at
+ *    `:570`), the sanctioned way to declare 「这个模型不参与思考档位」.
+ * 3. An entry whose `supportsReasoningEffort` is `false` in either layer:
+ *    writing levels there hands the composer levels the model refuses, and the
+ *    request path throws `UNSUPPORTED_REASONING_EFFORT`
+ *    (`dsh-llm-pi-ai:lib/index.js:1705-1709`) — the reported failure.
+ *    A model-level `true` in the same layer outranks its route's `false`; a
+ *    layer that says nothing is not evidence of absence, so it never forces
+ *    `auto` on an entry the other layer is willing to fill.
+ *
+ * @param entry - the user-layer model entry (or `modelOverrides` value).
+ * @param resolvedEntry - the same entry in the merged section, when any.
+ * @param userProfile - the user-layer route object (for its route-level `compat`).
+ * @param resolvedProfile - the merged route object (for its route-level `compat`).
+ * @returns `AUTO_REASONING_EFFORTS` to leave the entry untouched, else `'fill'`.
+ */
+export declare function reasoningEffortDecision(entry: unknown, resolvedEntry: unknown, userProfile: unknown, resolvedProfile: unknown): typeof AUTO_REASONING_EFFORTS | 'fill';
 /** One settings path edit, as `settings.mutate` takes them. */
 export interface SettingsPathOp {
     readonly op: 'set';
@@ -70,6 +126,13 @@ export interface ReasoningFillPlan {
     readonly filled: number;
     /** Entries that still lack levels but live below the user's layer. */
     readonly unresolved: number;
+    /**
+     * Entries left at the model's own default by the `auto` 档: they lack levels
+     * and declare no reasoning-effort support, so adding a level set would offer
+     * the composer levels the model refuses. Counted (never written) so the log
+     * can say why a hand-declared model shows no 「推理等级」 control.
+     */
+    readonly auto: number;
 }
 /**
  * Structural slice of the host settings service. Both members are optional:
@@ -88,8 +151,9 @@ export interface SettingsFace {
  *
  * @param resolved - the live merged section (`descriptor.value`).
  * @param user - the profile patch layer (`descriptor.user`).
- * @returns the ordered path ops, the number of models the fill covers, and the
- *   number left unresolved below the user's layer.
+ * @returns the ordered path ops, the number of models the fill covers, the
+ *   number left unresolved below the user's layer, and the number parked in the
+ *   `auto` 档.
  */
 export declare function planReasoningEffortFill(resolved: unknown, user: unknown): ReasoningFillPlan;
 /** Outcome of one fill attempt; `status` is what the caller logs. */
@@ -97,6 +161,8 @@ export interface ReasoningFillOutcome {
     readonly status: 'filled' | 'nothing-to-do' | 'unavailable' | 'failed';
     readonly filled: number;
     readonly unresolved: number;
+    /** Entries parked in the `auto` 档 (see {@link ReasoningFillPlan.auto}). */
+    readonly auto: number;
     /** Why an attempt could not land (empty when it did) — logged, never thrown. */
     readonly reason: string;
 }

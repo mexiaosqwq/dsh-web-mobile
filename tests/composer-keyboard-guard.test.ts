@@ -117,6 +117,7 @@ test('a hot swap puts the conversation scroll back where it was (2026-10-07 店�
     'disposer 必须先记滚动位置再删样式表')
   assert.match(source, /restoreConversationScroll\(\)\n\s*return \(\) => \{/, 'apply 路径要尝试回位')
   // 只在「被弹到 0」时回填：宿主自己滚到底/滚到新消息时不抢。
-  assert.match(source, /element\.scrollTop === 0\) element\.scrollTop = top/, '只回填被弹到顶的那种')
-  assert.match(source, /top > 0 && element\.scrollTop === 0/, '没有存档或本来就在顶部时不动作')
+  assert.match(source, /element\.scrollTop === 0\)\s*element\.scrollTop = saved\.top/, '只回填被弹到顶的那种')
+  assert.match(source, /if \(element\.scrollTop > 0\)/, '仅记录非零滚动位置')
+  assert.match(source, /saved\.url === location\.href/, '不得跨页面恢复旧滚动位置')
 })

@@ -14,7 +14,10 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+// P1 拆分（2026-10-12）：installOverlayInteractions 整块搬到 drawer-close.ts，
+// 本文件钉的四环全在那块里；仍读两半，负向断言（includes === false）保持原有覆盖面积。
 const CHROME = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
+  + readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
 const LAYOUT_CSS = readFileSync(join(ROOT, 'src/client/styles/layout.css.ts'), 'utf8')
 
 // Same extraction as dsha-long-press-gate.test.ts: a top-level const arrow body

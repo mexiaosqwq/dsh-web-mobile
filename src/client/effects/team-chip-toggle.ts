@@ -1,5 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect } from './phone-chrome.ts'
+import { TOUCH_QUERY, installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * 团队 chip「再点关闭」的接管（2026-09-23，对账 0.1.7-rc.1）。
@@ -37,6 +37,13 @@ import { installMobileEffect } from './phone-chrome.ts'
  *
  * 开态读 aria-expanded 而不是「点在不在面板里」：pointerdown 阶段 React 尚未重渲染，
  * 读到的是这一击之前的真实状态（与 workspace-chip-toggle 同一条判据）。
+ *
+ * 门控为什么是 TOUCH_QUERY 而不是 MOBILE_QUERY（2026-10-11，用户报障「平板模式下再点
+ * 收不起来」）：宽视口（平板 / 折叠屏展开 / DSHA 平板模式）下 `max-width: 1023px` 恒不命中
+ * ⇒ 原先 MOBILE_QUERY 门控时本效果**根本没安装**；而宽触屏同样没有 hover 兜底，用户只剩
+ * 「点面板外」或 Escape 一条路。这与 v2.4.1「删除会话三件套」同构（session-menu 走
+ * TOUCH_QUERY：该特性在桌面没有等价物，宽触屏也该有）。门控取 (pointer: coarse) ⇒
+ * 鼠标驱动的窗口（含窄桌面窗口）在任意宽度都不命中，桌面仍是零介入。
  */
 
 /** 团队 chip 根：宿主 agent-team 实验插件的稳定标记。 */
@@ -83,5 +90,5 @@ export function installTeamChipToggle(ctx: ClientContext): void {
       document.removeEventListener('pointerdown', onPointerDownCapture, true)
       document.removeEventListener('click', onClickCapture, true)
     }
-  })
+  }, TOUCH_QUERY)
 }

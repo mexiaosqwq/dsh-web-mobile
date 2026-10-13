@@ -1,5 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * Touch support for the lineage-count chip ("N 个子代理") that

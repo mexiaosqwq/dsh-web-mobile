@@ -25,6 +25,12 @@ export interface PanelExit {
     panelOpen: () => boolean;
     /** The system-back route, for the shared reconciler. */
     task: ReconcilerTask;
+    /**
+     * Release every handle this instance owns: the main-timeline timer/frame
+     * callback, the exit marker (only when this instance still owns it) and the
+     * frozen snapshot. Must run from the owning `ctx.effect` disposer.
+     */
+    dispose: () => void;
 }
 /**
  * Leave the panel: freeze the panel into a plugin-owned snapshot that slides back

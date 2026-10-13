@@ -108,3 +108,52 @@ test('the inject list actually covers what the entry reaches for', () => {
   }
   assert.equal(inject.has('workspaces'), false, 'inject must not demand a service the entry never reads')
 })
+
+// 上游删依赖/改包名时，"值导入一个可为缺席的 peer" 会在 entry factory 执行期直接抛，
+// 整个插件激活失败（0.2.1 预览通道删包导致同类事故的机制）。规则：**任何值导入的
+// `@deepseek-ai/*` 包都必须是「必需 peer」**；声明成 optional 却值导入 = 自相矛盾。
+const PEER_DEBT = new Map<string, string>([
+  // 待决（见 续航计划 §5）：改成必需 peer，或把导入改为受守护的懒加载 / 去掉该依赖。
+  ['@deepseek-ai/dsh-client-ui-primitives', 'optional 却值导入，2 处（core/icon-compat.ts、components/file-share-controls.tsx）'],
+])
+
+test('值导入的 @deepseek-ai/* 必须是必需 peer（optional peer 不得值导入）', () => {
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+    peerDependencies?: Record<string, string>
+    peerDependenciesMeta?: Record<string, { optional?: boolean }>
+  }
+  const peers = pkg.peerDependencies ?? {}
+  const optional = pkg.peerDependenciesMeta ?? {}
+  const files: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (/\.tsx?$/.test(entry.name)) files.push(full)
+    }
+  }
+  walk(join(ROOT, 'src/client'))
+  const violations = new Set<string>()
+  for (const file of files) {
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      if (!/^import\s/.test(line) || /^import\s+type\s/.test(line)) continue
+      const match = line.match(/from '(@deepseek-ai\/[^']+)'/)
+      if (match === null) continue
+      const name = match[1]
+      if (peers[name] === undefined) violations.add(`${name} 未在 peerDependencies 里声明（值导入）`)
+      else if (optional[name]?.optional === true && !PEER_DEBT.has(name)) {
+        violations.add(`${name} 是 optional peer 却被值导入 → 宿主缺它时整个 entry 抛错`)
+      }
+    }
+  }
+  assert.deepEqual([...violations], [])
+})
+
+test('peer 债务台账不得过期：已解决（不再值导入或已改必需）就必须删掉', () => {
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+    peerDependenciesMeta?: Record<string, { optional?: boolean }>
+  }
+  const optional = pkg.peerDependenciesMeta ?? {}
+  const stale = [...PEER_DEBT.keys()].filter((name) => optional[name]?.optional !== true)
+  assert.deepEqual(stale, [], 'PEER_DEBT 里的包已不是 optional peer，请从台账删除')
+})

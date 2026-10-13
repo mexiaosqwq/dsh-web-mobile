@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { TAP_CLOSE_NAV_SELECTOR } from '../src/client/effects/phone-chrome.ts'
+import { TAP_CLOSE_NAV_SELECTOR } from '../src/client/effects/drawer-close.ts'
 
 interface FakeNode {
   tag: string

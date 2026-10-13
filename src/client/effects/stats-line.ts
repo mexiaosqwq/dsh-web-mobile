@@ -39,9 +39,13 @@ export type TpsCandidate = {
   getAttribute(name: string): string | null
 }
 export type TpsPick = { index: number; mark: boolean }
+/** 读数文本的形状，**只此一份**：候选按 trim 后的起点锚定（pickTpsReadout），
+ *  预筛只问「栈内有没有这种形状」（无需锚定，见 resolveTpsForKey）。 */
+const TPS_TEXT_AT_START = /^TPS\s+\d/
+const TPS_TEXT_ANYWHERE = /TPS\s+\d/
 export const pickTpsReadout = (candidates: readonly TpsCandidate[]): TpsPick => {
   for (const [index, el] of candidates.entries()) {
-    if (!/^TPS\s+\d/.test((el.textContent ?? '').trim())) continue
+    if (!TPS_TEXT_AT_START.test((el.textContent ?? '').trim())) continue
     // The readout is a bare text node holder; a row with children is a wrapper.
     if (el.children.length > 0) continue
     // No parent means the row is mid-teardown — a later candidate may be the
@@ -50,6 +54,69 @@ export const pickTpsReadout = (candidates: readonly TpsCandidate[]): TpsPick => 
     return { index, mark: el.getAttribute('data-mobile-nav') !== 'stats-tps' }
   }
   return { index: -1, mark: false }
+}
+
+/** TPS 折叠的定位结果（原在 createStatsLineTask 内部；2026-10-13 提到模块级，
+ *  因为快路径的纯核 resolveTpsForKey 也要用这个形状）。 */
+export interface TpsLocated {
+  readonly el: Element
+  readonly reserve: Element
+  readonly live: string
+}
+
+/**
+ * 快路径上解析 TPS 那一段（2026-10-13，纯函数 + 注入 ⇒ 可数）。三级，能短路就短路：
+ *
+ *   ① 记得住的读数节点（上一趟折过的那个）仍活着 ⇒ **零查询**：直接拿它和它的实时文本。
+ *      旧版每趟都在 key 比较**之前**跑 locateTps，而 locateTps 的第 134 行是
+ *      `stack.querySelectorAll('div')` —— 把整个 composer 栈的 div 全materialize 出来，
+ *      再对每个候选读一次 textContent（各自还要走整棵子树）。那是本效果仅存的每帧查询。
+ *   ② 否则先用栈内文本做一次**零查询预筛**：文本里没有「TPS <数字>」⇒ 栈内不可能有读数
+ *      （pickTpsReadout 只认这种形状、且要求节点是裸文本持有者）⇒ 判定缺席。
+ *   ③ 预筛命中才做那条全栈查询（locate），把读数真正找出来。
+ *
+ * 返回 null = 本趟缺席（key 里写 'none'，并且「上一趟也缺席」成为一个**可跳过**的稳定态 ——
+ * 旧版缺席时四个 stillFolded 恒 false，于是永不 skip、每帧白折一遍）。
+ * @param remembered - 上一趟折过的读数（节点都还活着时），否则 null。
+ * @param rememberedText - 那个节点的实时文本（只在 remembered 非 null 时被读）。
+ * @param stackText - 栈内文本的读取器（只在需要预筛时才调用，零查询）。
+ * @param locate - 唯一的查询步骤（全栈 div 查询）。
+ * @returns 该用的读数，或 null 表示缺席。
+ */
+export function resolveTpsForKey(
+  remembered: TpsLocated | null,
+  rememberedText: string,
+  stackText: () => string,
+  locate: () => TpsLocated | null,
+): TpsLocated | null {
+  if (remembered !== null) return { el: remembered.el, reserve: remembered.reserve, live: rememberedText }
+  if (!TPS_TEXT_ANYWHERE.test(stackText())) return null
+  return locate()
+}
+
+/**
+ * TPS 两个槽（读数 + 它的占位）是否已经在「本趟不需要再折」的定态（2026-10-13 抽出为纯函数，
+ * 因为它正是「缺席即永不 skip」的修复点）。
+ *
+ * 关键：key 本趟已经**现读**了「在不在 + 读数文本」（见 resolveTpsForKey），所以
+ *   · 本趟缺席时该问的是「上一趟也缺席吗」—— 是，则定态成立、这一趟可以跳；
+ *   · 不能问「折过的读数节点还活着吗」：缺席时它必然是 null，旧版因此恒 false ⇒ 永不 skip ⇒
+ *     每帧白折一遍（含 measure/write 那串强制同步布局）。
+ * 本趟在、或上一趟在而这一趟不在（读数刚消失）都要真折，所以那两种情形仍按 liveness 判。
+ * 环形那两个槽没有 presence 位（环缺席时 key 里没有它的盒子），不适用这条规则，保持原判据。
+ * @param absentNow - 本趟是否缺席（key 里那一段是 'none'）。
+ * @param absentBefore - 上一趟是否缺席（两个槽都是 null）。
+ * @param tpsAlive - 上一趟折过的读数节点是否仍活着且带标记。
+ * @param reserveAlive - 上一趟折过的占位 span 是否仍活着且带标记。
+ * @returns 定态成立 ⇒ 允许这一趟跳过。
+ */
+export function tpsSlotsSettled(
+  absentNow: boolean,
+  absentBefore: boolean,
+  tpsAlive: boolean,
+  reserveAlive: boolean,
+): boolean {
+  return absentNow ? absentBefore : tpsAlive && reserveAlive
 }
 
 export function createStatsLineTask(): ReconcilerTask {
@@ -89,8 +156,8 @@ export function createStatsLineTask(): ReconcilerTask {
   type TpsFold = { el: Element; measured: Measured | null; width: number }
   // The TPS fold after its locate phase: the readout, its placeholder, and the
   // reading text as it stands right now (the text is part of the pass key, so a
-  // changed number always forces a re-fold).
-  type TpsLocated = { el: Element; reserve: Element; live: string }
+  // changed number always forces a re-fold). The shape itself is lifted to
+  // module scope (`TpsLocated`) because the fast path's pure core needs it too.
   // The ring fold: its readout, the placeholder that reserves its slot, and the
   // measured overlay (null when no positioned ancestor exists).
   type RingFold = { ring: Element; reserve: Element; measured: Measured | null }
@@ -124,9 +191,12 @@ export function createStatsLineTask(): ReconcilerTask {
   // on one line. Idempotent: the placeholder's text mirrors the readout and
   // the readout itself is overlaid on the placeholder's box.
   //
-  // Locate half — queries and text only, NO geometry. It runs before the pass
-  // decides whether there is anything to write, so a pass whose key did not
-  // change bails out without reading a single rectangle.
+  // Locate half — queries and text only, NO geometry. It runs only when the pass
+  // has already decided there may be something to write: the pass key's cheap
+  // parts (anchor box + ring reserve box) are computed first, and the TPS part
+  // goes through the three-tier short circuit in resolveTpsForKey (remembered
+  // readout / zero-query pre-filter / real query). So a pass whose key did not
+  // change reads no rectangle here and, in the common case, runs no query either.
   const locateTps = (stats: Element): TpsLocated | null => {
     const stack = stats.closest('[class*="_composerStack"]')
     if (stack === null) return null
@@ -173,13 +243,16 @@ export function createStatsLineTask(): ReconcilerTask {
   // 的右簇（模型/麦克风旁），CSS 用 font-size:0 只留环、隐掉 "45%" 文本；统计条
   // 拿满整宽。与 moveTps 同款 overlay：环留在 React 渲染的 dock 原位，插件自建
   // 占位 span 顶住右簇槽位（16px 环 + 2px 边距，行 gap 补足余量）。
+  // 环读数的选取判据：dock 里第一个「不含统计条 + 文本带百分比」的子节点。
+  // 单独提出来是要让快路径的身份校验与 measureRing 用**同一条**判据 —— 两处漂移就会漏掉
+  // 被 React 换掉的那个环（见 ringIdentitySettled）。
+  const isRingCandidate = (child: Element, stats: Element): boolean =>
+    !child.contains(stats) && /\d\s*%/.test(child.textContent ?? '')
   const measureRing = (stats: Element): RingFold | null => {
     const holder = stats.parentElement
     const dock = holder === null ? null : holder.parentElement
     if (dock === null) return null
-    const ring = [...dock.children].find(
-      (child) => !child.contains(stats) && /\d\s*%/.test(child.textContent ?? ''),
-    )
+    const ring = [...dock.children].find((child) => isRingCandidate(child, stats))
     if (ring === undefined) return null
     const row = document.querySelector('[data-composer-card] [class*="_row"] [class*="_trailing"]')
     if (row === null) return null
@@ -283,6 +356,23 @@ export function createStatsLineTask(): ReconcilerTask {
   let foldedRingReserve: Element | null = null
   const stillFolded = (el: Element | null, marker: string): boolean =>
     el !== null && el.isConnected && el.getAttribute('data-mobile-nav') === marker
+  /**
+   * 环形读数是否还是上一趟折过的**同一个节点**（零查询：只扫 dock 的 children，与
+   * measureRing 共用 isRingCandidate）。
+   *
+   * 为什么 liveness 不够（#194 的坑）：React 换掉环时旧节点**可能仍然连着**、marker 也还在，
+   * stillFolded 完全看不出来 —— 而新节点没有我们的 inline left/top，不重折就会停在错位置。
+   * 旧版是靠「TPS 缺席 ⇒ 永不 skip」这条副作用顺带兜住的（那份每帧空转正是 2026-10-13 要
+   * 修掉的东西），所以「缺席也能 skip」之后必须自己验一次身份；顺带把 TPS 在场时的同一个
+   * 漏洞也堵上（那时旧版同样看不出来，只是没人碰过）。
+   */
+  const ringIdentitySettled = (stats: Element): boolean => {
+    const holder = stats.parentElement
+    const dock = holder === null ? null : holder.parentElement
+    // 认不出 dock（宿主结构变了）：宁可不 skip。
+    if (dock === null) return false
+    return [...dock.children].find((child) => isRingCandidate(child, stats)) === foldedRing
+  }
   const mark = (): void => {
     // Keyboard open/close and viewport rotations relayout the composer without
     // any DOM mutation, so the overlays need their own re-layout channel.
@@ -316,26 +406,64 @@ export function createStatsLineTask(): ReconcilerTask {
       // must force a fresh fold, which the unconditional fast path used to
       // provide for free — dropping that check would leave a rebuilt readout
       // unfolded on screen.
+      //
+      // 2026-10-13 两处修正（都在下面就地注明）：
+      //   ① TPS 那一段的解析改成三级短路 —— 旧版在 key 比较**之前**无条件跑 locateTps，
+      //      而它是本效果仅存的每帧全栈查询；
+      //   ② TPS 缺席不再让跳过判定恒 false（旧版缺席时每帧白折一遍）。
+      // 环形的两个 liveness 门一个字没动（#194 的三条实测泄漏靠它们兜）。
       const rect = anchor.getBoundingClientRect()
       const box = `${Math.round(rect.left)}:${Math.round(rect.top)}:${Math.round(rect.width)}:${Math.round(rect.height)}`
-      const located = locateTps(anchor)
+      // 2026-10-13（本效果仅存的每帧查询）：TPS 那一段改成三级短路解析 —— 记得住的读数
+      // 节点还活着就零查询读它的文本；否则先用栈内文本做零查询预筛；只有预筛命中才做
+      // locateTps 里那条 `stack.querySelectorAll('div')`（详见 resolveTpsForKey）。
+      const tpsAlive = stillFolded(foldedTps, 'stats-tps')
+      const tpsReserveAlive = stillFolded(foldedTpsReserve, 'stats-tps-reserve')
+      const rememberedTps = tpsAlive && tpsReserveAlive && foldedTps !== null && foldedTpsReserve !== null
+        ? { el: foldedTps, reserve: foldedTpsReserve, live: '' }
+        : null
+      const tpsStack = anchor.closest('[class*="_composerStack"]')
+      const located = resolveTpsForKey(
+        rememberedTps,
+        foldedTps?.textContent ?? '',
+        () => tpsStack?.textContent ?? '',
+        () => locateTps(anchor),
+      )
       const key = `${box}|${located === null ? 'none' : located.live}|${ringReserveBoxKey(foldedRingReserve)}`
+      // 2026-10-13：TPS 两个槽的 liveness 门改成「与 key 里那一段一致」—— key 本趟已经
+      // **现读**了「在不在 + 读数文本」，所以「本趟缺席且上一趟也缺席」是一个稳定态、
+      // 不该再 veto（旧版这两个 stillFolded 在缺席时恒 false ⇒ 永不 skip、每帧白折一遍）。
+      // 判据本身抽成纯函数 tpsSlotsSettled，好让这条修复被测试直接钉住。
+      // 环形那两个槽没有 presence 位（环缺席时 key 里没有它的盒子），保持原样：缺席时
+      // 宁可不 skip，也不能漏掉「环新出现」的那一趟。
+      const tpsSettled = tpsSlotsSettled(
+        located === null,
+        foldedTps === null && foldedTpsReserve === null,
+        stillFolded(foldedTps, 'stats-tps'),
+        stillFolded(foldedTpsReserve, 'stats-tps-reserve'),
+      )
       if (
         key === fastKey &&
-        stillFolded(foldedTps, 'stats-tps') &&
-        stillFolded(foldedTpsReserve, 'stats-tps-reserve') &&
+        tpsSettled &&
         stillFolded(foldedRing, 'stats-ring') &&
+        // 身份校验放在最后：它只在前四条都过（= 真要跳过了）时才需要跑，而它要扫一遍 dock
+        // 的 children。零查询，但不该在流式那种「key 每趟都变」的路上白跑。
+        ringIdentitySettled(anchor) &&
         stillFolded(foldedRingReserve, 'stats-ring-reserve')
       ) {
         return
       }
       fastKey = key
-      const tps = located === null ? null : measureTps(located)
+      // 真折这一趟：合成路径（el 就是上一趟折过的那个节点）按老路径再解析一次，把镜像文本 /
+      // 标记 / 占位定位这些副作用做到位 —— 这一趟的开销与旧版完全相同（旧版每趟都解析）；
+      // 预筛真查到的那种直接复用，不重复查询。
+      const foldTps = located !== null && located.el === foldedTps ? locateTps(anchor) : located
+      const tps = foldTps === null ? null : measureTps(foldTps)
       const ring = measureRing(anchor)
       if (tps !== null) writeTps(tps)
       if (ring !== null && ring.measured !== null) writeOverlay(ring.measured)
-      foldedTps = located === null ? null : located.el
-      foldedTpsReserve = located === null ? null : located.reserve
+      foldedTps = foldTps === null ? null : foldTps.el
+      foldedTpsReserve = foldTps === null ? null : foldTps.reserve
       foldedRing = ring === null ? null : ring.ring
       foldedRingReserve = ring === null ? null : ring.reserve
       // Re-key with the reserve we just folded: the key above was built before the

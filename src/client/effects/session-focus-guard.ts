@@ -1,7 +1,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { currentSessionIdOf } from '../core/sessions-compat.ts'
 import { SHADOW_MARKER } from './composer-keyboard-guard.ts'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * Mobile guard: entering a session must not raise the soft keyboard by itself.

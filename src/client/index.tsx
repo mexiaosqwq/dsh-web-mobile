@@ -5,7 +5,10 @@ import { ComposerFileButton } from './components/ComposerFileButton.tsx'
 import { openFilesPanel } from './components/open-files-panel.ts'
 import { MOBILE_CSS } from './styles/index.ts'
 
-import { installFrameController, installOverlayInteractions, installPhoneChrome, installReconciler, installSelectionChromeYield, registerReconcileTasks, MOBILE_QUERY } from './effects/phone-chrome.ts'
+import { installFrameController, installPhoneChrome } from './effects/phone-chrome.ts'
+import { installReconciler, registerReconcileTasks } from './effects/reconciler-adapter.ts'
+import { installSelectionChromeYield } from './effects/selection-chrome.ts'
+import { installOverlayInteractions } from './effects/drawer-close.ts'
 import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installSessionMenuDelete } from './effects/session-menu.ts'
@@ -18,6 +21,7 @@ import { installModelMenuAnchor } from './effects/model-menu-anchor.ts'
 import { installShortcutModalKeyboardGuard } from './effects/shortcut-modal-keyboard-guard.ts'
 import { installModelMenuKeyboardGuard } from './effects/model-menu-keyboard-guard.ts'
 import { installPluginCardTap } from './effects/plugin-card-tap.ts'
+import { installInstalledListRows } from './effects/installed-list.ts'
 import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
 import { installReasoningDefaults } from './effects/reasoning-defaults.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
@@ -26,7 +30,6 @@ import { installComposerFilePicker } from './effects/composer-file-picker.ts'
 import { installAttachmentMention } from './effects/attachment-mention.ts'
 import { installFileShare } from './effects/file-share.ts'
 import { createPanelExit, installPanelRowExit } from './effects/panel-exit.ts'
-import { createRafScheduler } from './core/raf-scheduler.ts'
 import { installDebugBadge } from './debug.ts'
 import { NS, en, zh } from './i18n/locales.ts'
 import type { MobileNavKey } from './i18n/locales.ts'
@@ -61,50 +64,35 @@ type DownloadSessionId = Parameters<ClientContext['sessionLogDownload']['downloa
  */
 const SWAP_RESTORE_MS = 10_000
 
-/** Scroll offsets captured right before our stylesheet is torn down by a hot swap. */
-let scrollsBeforeSwap: number[] | null = null
-/** Wall clock of that capture, so a stale stash can never move the user's view. */
-let scrollSavedAt = 0
+type SavedScroll = { top: number; savedAt: number; url: string }
+const scrollWindow = window as Window & { __dshaMobileScrollState?: WeakMap<HTMLElement, SavedScroll> }
+const scrollState = scrollWindow.__dshaMobileScrollState instanceof WeakMap
+  ? scrollWindow.__dshaMobileScrollState
+  : (scrollWindow.__dshaMobileScrollState = new WeakMap<HTMLElement, SavedScroll>())
 
-/** The host's conversation scrollers (`_scrollBody` is the `overflow-y:auto` box). */
 function conversationScrollers(): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>('[data-mobile-nav="frame"] [class*="scrollBody"]')]
 }
 
-/**
- * Remember where the conversation was before a hot swap tears our stylesheet down.
- *
- * The host's `client-modules.replace()` (tearDown → import → refresh) removes this
- * plugin's `<style>` for a beat; without it the long-conversation
- * `content-visibility` rules vanish, the whole conversation re-lays out, and
- * Chromium re-anchors the scroller at the top — the owner's 2026-10-07 report
- * 「聊到一半突然闪到最上面」. Captured only when something is actually scrolled.
- */
 function rememberConversationScroll(): void {
-  const tops = conversationScrollers().map((element) => element.scrollTop)
-  scrollsBeforeSwap = tops.some((top) => top > 0) ? tops : null
-  scrollSavedAt = Date.now()
+  for (const element of conversationScrollers()) {
+    if (element.scrollTop > 0)
+      scrollState.set(element, { top: element.scrollTop, savedAt: Date.now(), url: location.href })
+    else scrollState.delete(element)
+  }
 }
 
-/**
- * Put the conversation back where {@link rememberConversationScroll} found it.
- *
- * Deliberately narrow: only a fresh stash is used, and only for a scroller that is
- * now at 0 — that is exactly the "yanked to the top" symptom. A scroller the host
- * moved on purpose (auto-scroll to the newest message) is left alone, and a normal
- * page load has no stash at all, so this is a no-op outside hot swaps.
- */
 function restoreConversationScroll(): void {
-  const tops = scrollsBeforeSwap
-  const savedAt = scrollSavedAt
-  scrollsBeforeSwap = null
-  if (tops === null || Date.now() - savedAt > SWAP_RESTORE_MS) return
-  requestAnimationFrame(() => {
-    conversationScrollers().forEach((element, index) => {
-      const top = tops[index]
-      if (top !== undefined && top > 0 && element.scrollTop === 0) element.scrollTop = top
+  for (const element of conversationScrollers()) {
+    const saved = scrollState.get(element)
+    scrollState.delete(element)
+    if (!saved || Date.now() - saved.savedAt > SWAP_RESTORE_MS || saved.url !== location.href) continue
+    requestAnimationFrame(() => {
+      if (element.isConnected && saved.url === location.href &&
+        Date.now() - saved.savedAt <= SWAP_RESTORE_MS && element.scrollTop === 0)
+        element.scrollTop = saved.top
     })
-  })
+  }
 }
 
 /**
@@ -147,105 +135,8 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'dsh-web-mobile: styles')
 
-  // Hard-fix the installed-plugins list text layout: the host market UI
-  // injects its own CSS after this plugin's stylesheet, so CSS overrides can
-  // be beaten. Inline !important styles win over every external rule. Keep
-  // the selector on outer rows only; irowActions/irowTrailing are nested
-  // flex containers and must retain the market's own action geometry.
-  ctx.effect(() => {
-    const mq = window.matchMedia(MOBILE_QUERY)
-    const rowSelector = '[class*="irow"]:not([class*="irowActions"]):not([class*="irowTrailing"])'
-    const set = (el: HTMLElement, props: Record<string, string>): void => {
-      for (const [key, value] of Object.entries(props)) {
-        el.style.setProperty(key, value, 'important')
-      }
-    }
-    const unset = (el: HTMLElement, props: readonly string[]): void => {
-      for (const key of props) el.style.removeProperty(key)
-    }
-    const rowProps = ['flex-wrap', 'align-items', 'gap'] as const
-    const firstProps = ['flex', 'max-width', 'min-width'] as const
-    const textProps = ['white-space', 'overflow', 'text-overflow', 'max-width'] as const
-    const clear = (): void => {
-      document.querySelectorAll<HTMLElement>(rowSelector).forEach((row) => {
-        unset(row, rowProps)
-        const first = row.children[0] as HTMLElement | undefined
-        if (first) unset(first, firstProps)
-        row.querySelectorAll<HTMLElement>(':scope > button, :scope > [class*="owner"], :scope > [class*="grow"]').forEach((el) => {
-          unset(el, ['order'])
-        })
-        const spec = row.querySelector<HTMLElement>('[class*="spec"]')
-        const nm = row.querySelector<HTMLElement>('[class*="nm"]')
-        if (spec) unset(spec, textProps)
-        if (nm) unset(nm, textProps)
-      })
-    }
-    const apply = (): void => {
-      // The market rows only exist while the market UI is mounted (inside a
-      // settings dialog). Skip the full-document class-substring scan on every
-      // streamed mutation frame with no dialog open; dshmarket keeps the
-      // data-dsh-market-root marker (1.20.x), [role="dialog"] covers the
-      // settings dialog generically so a marker change degrades to cost, not
-      // to a silently dead effect.
-      if (document.querySelector('[data-dsh-market-root], [role="dialog"]') === null) return
-      document.querySelectorAll<HTMLElement>(rowSelector).forEach((row) => {
-        set(row, {
-          'flex-wrap': 'wrap',
-          'align-items': 'center',
-          'gap': '4px 10px',
-        })
-        const first = row.children[0] as HTMLElement | undefined
-        if (first) {
-          set(first, {
-            'flex': '1 1 100%',
-            'max-width': '100%',
-            'min-width': '0',
-          })
-        }
-        const spec = row.querySelector<HTMLElement>('[class*="spec"]')
-        const nm = row.querySelector<HTMLElement>('[class*="nm"]')
-        if (spec) {
-          set(spec, {
-            'white-space': 'nowrap',
-            'overflow': 'hidden',
-            'text-overflow': 'ellipsis',
-            'max-width': '100%',
-          })
-        }
-        if (nm) {
-          set(nm, {
-            'white-space': 'nowrap',
-            'overflow': 'hidden',
-            'text-overflow': 'ellipsis',
-            'max-width': '100%',
-          })
-        }
-      })
-    }
-    const arm = (): void => {
-      clear()
-      if (mq.matches) apply()
-    }
-    arm()
-    // Streaming floods this observer with document-wide childList batches;
-    // coalesce to one apply per frame and re-check the breakpoint at flush
-    // time so a queued callback never writes mobile styles on desktop.
-    const scheduler = createRafScheduler(
-      (cb) => window.requestAnimationFrame(cb),
-      (id) => window.cancelAnimationFrame(id),
-    )
-    const mo = new MutationObserver(() => {
-      if (mq.matches) scheduler.schedule(() => { if (mq.matches) apply() })
-    })
-    mo.observe(document.documentElement, { childList: true, subtree: true })
-    mq.addEventListener('change', arm)
-    return () => {
-      scheduler.cancel()
-      mo.disconnect()
-      mq.removeEventListener('change', arm)
-      clear()
-    }
-  }, 'dsh-web-mobile: installed-list-inline-styles')
+  // Market「installed」列表行的内联样式：实现与全部注释见 effects/installed-list.ts。
+  installInstalledListRows(ctx)
 
 
   // Leaving a sidebar panel. The host's panels replace the main area and ship
@@ -261,6 +152,8 @@ export function apply(ctx: ClientContext): void {
       installFrameController(),
       installReconciler(ctx),
       registerReconcileTasks(ctx, panelExit),
+      // Last: stop the tasks before releasing the exit instance they drive.
+      () => panelExit.dispose(),
     ]
     return () => {
       for (const stop of stops) stop()

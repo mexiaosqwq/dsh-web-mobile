@@ -22,7 +22,9 @@
 // Reuses the CDP infrastructure pattern from scripts/cdp-probe.mjs (spawn
 // headless chromium + native WebSocket CDP + polling waitFor + fresh
 // user-data-dir). Exits 0 only when every required check passes.
+import { prepareHostScenario } from './lib/probe-host-scenario.mjs'
 import { spawn } from 'node:child_process'
+import { REQUEST_DEADLINE_MS, createCleanup } from './lib/probe-cdp-lifecycle.mjs'
 import { once } from 'node:events'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import net from 'node:net'
@@ -98,13 +100,46 @@ function sleep(ms, signal) {
 }
 
 async function waitFor(label, timeoutMs, signal, probe) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const value = await probe()
-    if (value) return value
-    await sleep(100, signal)
+  // C13：总 deadline + 预先 abort + 可取消 sleep。
+  // ① 预先已 abort：直接以 signal.reason 结束（否则 guard 先 reject 而 loop 已 fulfilled undefined，
+  //    Promise.race 可能把"预先 abort"当成功）。
+  if (signal !== undefined && signal.aborted) throw (signal.reason ?? new Error('aborted'))
+  let stopped = false
+  let guardTimer = null
+  let onAbort = null
+  let cancelSleep = null
+  const stop = () => {
+    if (stopped) return
+    stopped = true
+    if (guardTimer !== null) { clearTimeout(guardTimer); guardTimer = null }
+    if (onAbort !== null && signal !== undefined) { signal.removeEventListener('abort', onAbort); onAbort = null }
+    // ② 还要取消当前 100ms sleep，避免超时后遗留 timer（复用共享 waitFor 的 cancelSleep 语义）
+    if (cancelSleep !== null) { const cancel = cancelSleep; cancelSleep = null; cancel() }
   }
-  throw new TimeoutError(label, timeoutMs)
+  const guard = new Promise((_, reject) => {
+    const fail = () => { stop(); reject(new TimeoutError(label, timeoutMs)) }
+    guardTimer = setTimeout(fail, timeoutMs)
+    if (signal !== undefined) {
+      // ③ abort 传 signal.reason（不再构造 TimeoutError）
+      onAbort = () => { stop(); reject(signal.reason ?? new Error('aborted')) }
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
+  })
+  const loop = (async () => {
+    for (;;) {
+      if (stopped) return undefined
+      const value = await probe()
+      if (stopped) return undefined
+      if (value) return value
+      await new Promise((resolve) => {
+        let done = false
+        const finish = () => { if (done) return; done = true; clearTimeout(timer); cancelSleep = null; resolve() }
+        const timer = setTimeout(finish, 100)
+        cancelSleep = () => { if (done) return; done = true; clearTimeout(timer); resolve() }
+      })
+    }
+  })()
+  try { return await Promise.race([loop, guard]) } finally { stop() }
 }
 
 function allocatePort() {
@@ -132,6 +167,7 @@ function createCdpClient(ws, signal) {
       const request = pending.get(message.id)
       if (!request) return
       pending.delete(message.id)
+      clearTimeout(request.timer)
       message.error ? request.reject(new Error(JSON.stringify(message.error))) : request.resolve(message.result)
       return
     }
@@ -139,11 +175,28 @@ function createCdpClient(ws, signal) {
   }
   ws.onerror = () => rejectPending(new Error('CDP WebSocket error'))
   ws.onclose = () => rejectPending(new Error('CDP WebSocket closed'))
-  const send = (method, params = {}) => new Promise((resolve, reject) => {
+  const send = (method, params = {}) => new Promise((_resolve, _reject) => {
+    // C13：每请求 deadline（结算即清定时器），与其他探针同一判据。
+    // 任一拒绝路径（aborted / 非 OPEN / deadline / ws.send 同步抛错）都必须
+    // pending.delete + clearTimeout，否则留下脏表项与迟到响应误关联。
+    let timer = null
+    const resolve = (value) => { clearTimeout(timer); _resolve(value) }
+    const reject = (error) => { clearTimeout(timer); _reject(error) }
     if (signal.aborted) return reject(signal.reason || new Error('aborted'))
     const id = ++nextId
-    pending.set(id, { resolve, reject })
-    ws.send(JSON.stringify({ id, method, params }))
+    // 门在 pending.set 之前：非 OPEN 立即拒绝，且不得留下表项（id 已声明，无 TDZ）
+    if (ws.readyState !== 1) return reject(new Error('socket not open (readyState=' + ws.readyState + ')'))
+    timer = setTimeout(() => {
+      pending.delete(id)
+      clearTimeout(timer)
+      reject(new Error('request deadline ' + REQUEST_DEADLINE_MS + 'ms exceeded'))
+    }, REQUEST_DEADLINE_MS)
+    pending.set(id, { resolve, reject, timer })
+    try { ws.send(JSON.stringify({ id, method, params })) } catch (error) {
+      pending.delete(id)
+      clearTimeout(timer)
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
   })
   const evaluate = async (expression) => {
     const response = await send('Runtime.evaluate', {
@@ -386,11 +439,7 @@ async function main() {
     // makes the gesture layer inert by design (checklist item 3). Remove the
     // modal ROOT (not just [aria-modal=true], which leaves the mask behind)
     // so the gesture checks run against a clean page.
-    await client.evaluate(`(() => {
-      const root = document.querySelector('[class*="_root_15u5s"]')
-      if (root !== null && root.parentElement === document.body) root.remove()
-      for (const m of document.querySelectorAll('[aria-modal="true"]')) m.remove()
-    })()`)
+    await prepareHostScenario(expression => client.evaluate(expression), { timeoutMs: config.timeoutMs })
     await sleep(500, signal)
 
     // Drawer touch-action (key CSS line) + the root overscroll gate + the
@@ -749,7 +798,19 @@ async function main() {
     // backdrop covers it). The critical assertion is the drawer stayed open
     // (no second toggle) — already covered by waitDrawer above. Record the
     // FAB state as informational.
-    pass('swipe.post-gesture-stable', 'drawer stayed open after synthetic click window')
+    // C13 同域：不再凭"上面的 waitDrawer 已覆盖"直接 pass —— 沉降 500ms 后**重新读取**
+    // 真实 drawer 状态再断言（合成 click 窗口期可能刚好翻转）。读状态用 client.evaluate 内联，
+    // 不引入未确认的辅助函数名。
+    await sleep(500, signal)
+    const settledOpen = await client.evaluate(`(() => {
+      const frame = document.querySelector('[data-mobile-nav="frame"]')
+      return frame === null ? null : !frame.hasAttribute('data-sidebar-collapsed')
+    })()`)
+    if (settledOpen === true) {
+      pass('swipe.post-gesture-stable', 'settled 500ms after synthetic click window: drawer open=true')
+    } else {
+      fail('swipe.post-gesture-stable', `settled 500ms: drawer open=${settledOpen}（合成 click 窗口后未保持打开）`)
+    }
 
     // Close via content swipe again to a stable closed state.
     await touchSwipe(client, 120, 300, 280, 300, 140, signal)
@@ -839,10 +900,11 @@ async function main() {
     } catch (error) {
       console.error('teardown: stop chromium failed:', error.message)
     }
-    try {
-      if (profileDir) await rm(profileDir, { recursive: true, force: true })
-    } catch (error) {
-      console.error('teardown: remove profile failed:', error.message)
+    // C13：profile 回收统一走 createCleanup（精确 PID + 目录旁证）；任一为 false **必须判 FAIL**。
+    const cleanupEvidence = await createCleanup({ child: chrome, profileDir, rm })()
+    console.log('CLEANUP ' + JSON.stringify(cleanupEvidence))
+    if (cleanupEvidence.exited !== true || cleanupEvidence.removed !== true) {
+      fail('cleanup', `exited=${cleanupEvidence.exited} removed=${cleanupEvidence.removed}`)
     }
     process.removeListener('SIGINT', onSignal)
     process.removeListener('SIGTERM', onSignal)

@@ -17,26 +17,28 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const LAYOUT = readFileSync(join(ROOT, 'src/client/styles/layout.css.ts'), 'utf8')
-const PHONE = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
+// P1 拆分第五片（2026-10-12）：本文件钉的 STABLE_VIEWPORT_VAR / syncStableViewport
+// 那一块整个搬进 viewport-meta.ts（phone-chrome.ts 已不再持有它），故只读那一份。
+const VIEWPORT = readFileSync(join(ROOT, 'src/client/effects/viewport-meta.ts'), 'utf8')
 const VAR = 'var(--dsh-web-mobile-vh, 100dvh)'
 
 test('phone-chrome maintains the keyboard-less viewport height', () => {
-  assert.match(PHONE, /export const STABLE_VIEWPORT_VAR = '--dsh-web-mobile-vh'/)
-  assert.match(PHONE, /setProperty\(STABLE_VIEWPORT_VAR/)
-  assert.match(PHONE, /removeProperty\(STABLE_VIEWPORT_VAR\)/)
-  const at = PHONE.indexOf('const syncStableViewport')
+  assert.match(VIEWPORT, /export const STABLE_VIEWPORT_VAR = '--dsh-web-mobile-vh'/)
+  assert.match(VIEWPORT, /setProperty\(STABLE_VIEWPORT_VAR/)
+  assert.match(VIEWPORT, /removeProperty\(STABLE_VIEWPORT_VAR\)/)
+  const at = VIEWPORT.indexOf('const syncStableViewport')
   assert.notEqual(at, -1, 'syncStableViewport missing')
   // Monotonic height + width-change rule: the keyboard only changes height.
   assert.match(
-    PHONE.slice(at, PHONE.indexOf('\n    }', at)),
+    VIEWPORT.slice(at, VIEWPORT.indexOf('\n    }', at)),
     /stableVh === 0 \|\| height > stableVh \|\| width !== stableWidth/,
   )
-  assert.match(PHONE, /addEventListener\('resize', syncStableViewport\)/)
-  assert.match(PHONE, /removeEventListener\('resize', syncStableViewport\)/)
+  assert.match(VIEWPORT, /addEventListener\('resize', syncStableViewport\)/)
+  assert.match(VIEWPORT, /removeEventListener\('resize', syncStableViewport\)/)
   // 2026-10-09：值没变就不许再写一次 —— 在 :root 上写自定义属性会让整棵文档的
   // 样式失效，同值重写等于白跑一次文档级样式计算。
-  assert.match(PHONE, /if \(next !== stableValue\)/)
-  assert.match(PHONE, /stableValue = ''/)
+  assert.match(VIEWPORT, /if \(next !== stableValue\)/)
+  assert.match(VIEWPORT, /stableValue = ''/)
 })
 
 test('the two keyboard-facing cards size themselves off that variable', () => {

@@ -24,6 +24,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import net from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { createVerdict } from '../lib/probe-verdict.mjs'
 
 const URL = process.env.DSH_PROBE_URL || 'http://127.0.0.1:3080/'
 const CHROME = process.env.DSH_PROBE_CHROME || 'google-chrome'
@@ -35,6 +36,9 @@ const START_ZONE_RATIO = 0.45
 const FLOATING_WIDGET_MAX_PX = 200
 const VIEWPORT_W = 390
 
+// C11：结论收口（同 cdp-swipe-failures.mjs）。此前本探针只有过程内 SUMMARY、
+// **没有 verdict、也没有退出码** —— 断言红了照样 exit 0，绿色退出被当成通过。
+const verdict = createVerdict('draggable-conflict-probe')
 const results = []
 const pass = (name, detail = '') => record('PASS', name, detail)
 const fail = (name, detail = '') => record('FAIL', name, detail)
@@ -42,6 +46,11 @@ const skip = (name, detail = '') => record('SKIP', name, detail)
 function record(status, name, detail = '') {
   results.push({ status, name, detail })
   console.log(`${status} ${name}${detail ? ` ${detail}` : ''}`)
+  // 每条断言同步进 verdict：只要有一条 FAIL，退出码就是 1（SKIP 不改变退出码，
+  // 但不能用来声称完整验收通过）。
+  if (status === 'PASS') verdict.pass(name, detail)
+  else if (status === 'FAIL') verdict.fail(name, detail)
+  else verdict.skip(name, detail)
 }
 function check(name, condition, detail = '') {
   if (condition) pass(name, detail)
@@ -62,6 +71,16 @@ function allocatePort() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function main() {
+  // 故意失败自证（隔离夹具，不需要宿主/浏览器）：PROBE_SELFTEST=1 ⇒ 注入一条合成 FAIL，
+  // 必须 exit 1；PROBE_SELFTEST=clean ⇒ 只有一条合成 PASS，exit 0。
+  // 走的与真实断言完全同一条 check/record → verdict → exitCode 路径。
+  if (process.env.PROBE_SELFTEST === '1' || process.env.PROBE_SELFTEST === 'clean') {
+    check('selftest.synthetic-pass', true, 'synthetic pass')
+    if (process.env.PROBE_SELFTEST === '1') {
+      check('selftest.deliberate-failure', false, 'synthetic deliberate failure（预期让退出码非零）')
+    }
+    return
+  }
   const port = await allocatePort()
   const profileDir = await mkdtemp(join(homedir(), '.cache', 'dsh-nav-pet-'))
   const chrome = spawn(CHROME, [
@@ -87,7 +106,7 @@ async function run(port) {
     } catch { /* retry */ }
     await sleep(250)
   }
-  if (!wsUrl) { console.error('chrome 未就绪'); process.exit(1) }
+  if (!wsUrl) throw new Error('chrome 未就绪')
 
   const ws = new WebSocket(wsUrl)
   let id = 0
@@ -130,7 +149,7 @@ async function run(port) {
     if (await evalv(`!!document.querySelector(${JSON.stringify(FRAME_SELECTOR)})`)) { ready = true; break }
     await sleep(500)
   }
-  if (!ready) { console.error('插件 frame 未就绪'); process.exit(1) }
+  if (!ready) throw new Error('插件 frame 未就绪')
   await sleep(1500)
 
   // 移除宿主 "Internal Testing Notice" 模态（含 mask+aria-modal），否则其
@@ -417,7 +436,19 @@ async function run(port) {
     }
   }
 
-  // 汇总
+  // 汇总不在这里打：收口统一走 finishLifecycle，正文与致命错误两条路都会打，
+  // 这样「探针结尾崩了」不会把已经记下的 FAIL 一起吞掉（本仓出过这个事故）。
+}
+
+/**
+ * C11：单一收口出口。断言失败必须影响退出码，且**结尾崩溃**时前面记下的 FAIL
+ * 仍要报出来 —— 所以正常返回与抛错都走这里，汇总与 verdict 两条路都打。
+ */
+function finishLifecycle(error) {
+  if (error) {
+    console.error(error)
+    verdict.fail('fatal', error instanceof Error ? error.message : String(error))
+  }
   const count = (s) => results.filter((r) => r.status === s).length
   console.log(`\nSUMMARY pass=${count('PASS')} fail=${count('FAIL')} skip=${count('SKIP')}`)
   const failed = results.filter((r) => r.status === 'FAIL')
@@ -425,8 +456,13 @@ async function run(port) {
     console.log('FAILED:')
     for (const f of failed) console.log(`  - ${f.name} ${f.detail}`)
   }
-  console.log('\n判读：pet.unmarked.no-arm / yield.* 的 FAIL = 让位体系回归；')
+  console.log('判读：pet.unmarked.no-arm / yield.* 的 FAIL = 让位体系回归；')
   console.log('zone.* 的 FAIL = 手势机制本身回归。')
+  console.log(verdict.summary())
+  process.exit(verdict.exitCode())
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().then(
+  () => finishLifecycle(null),
+  (error) => finishLifecycle(error),
+)

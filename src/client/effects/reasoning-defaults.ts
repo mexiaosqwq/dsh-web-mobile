@@ -27,13 +27,16 @@
  *    wire spellings survive.
  * 3. Mobile-only (`installMobileEffect`): the plugin's desktop contract is a
  *    complete no-op, and desktop installs keep the host half.
+ * 4. A model that declares no reasoning-effort support lands in the `auto` 档
+ *    and is left at its own default; see {@link AUTO_REASONING_EFFORTS} and
+ *    {@link reasoningEffortDecision}.
  *
  * The remote is read lazily rather than injected: making `remote.settings` a
  * required fiber dependency would keep this whole plugin dormant on host
  * generations that do not provide it.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /** Loader entry id whose config owns `llm-pi-ai.providers`. */
 export const LLM_PI_AI_ENTRY = 'llm-pi-ai'
@@ -53,6 +56,25 @@ export const DEFAULT_REASONING_EFFORTS: Readonly<Record<string, string | null>> 
   max: 'max',
 })
 
+/**
+ * The `auto` 档: the plugin's name for 「不干预」 — leave the model's
+ * `reasoningEfforts` ABSENT so it keeps its own / the catalog's capability and
+ * the composer shows the host's provider-default choice.
+ *
+ * NOT a host value; never write this string into the profile. The host's level
+ * enum is closed — `THINKING_LEVELS`, `@deepseek-ai/dsh-llm-pi-ai:lib/index.js:
+ * 296-304` = `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`,
+ * used as the `reasoningEfforts` dict KEY type (`:1001`) and the profile
+ * `reasoning` type (`:1029`) — and it has no `auto` (the `"auto"` at `:1040` is
+ * `transport`'s). Hard-writing the string is refused by the schema; the host's
+ * own word for 「不写档位」 is the absent field (`resolveModelReasoning`,
+ * `:566-570`). `src/reasoning-effort.ts` carries the full evidence trail — the
+ * two halves cannot share a module (see the header above), so this constant and
+ * {@link reasoningEffortDecision} are duplicated there on purpose and held in
+ * step by `tests/reasoning-defaults-parity.test.ts`.
+ */
+export const AUTO_REASONING_EFFORTS = 'auto'
+
 /** One settings path edit, as the settings remote takes them. */
 export interface SettingsPathOp {
   readonly op: 'set'
@@ -64,6 +86,8 @@ export interface SettingsPathOp {
 export interface ReasoningFillPlan {
   readonly ops: SettingsPathOp[]
   readonly filled: number
+  /** Entries parked in the `auto` 档 (see {@link AUTO_REASONING_EFFORTS}). */
+  readonly auto: number
 }
 
 /** Structural slice of the `remote.settings` face these calls return. */
@@ -125,18 +149,67 @@ function hasLevels(entry: unknown): boolean {
 }
 
 /**
+ * One layer's answer to "does this model take a reasoning-effort parameter?".
+ *
+ * `compat.supportsReasoningEffort` is a host schema field a route AND a model
+ * entry may set (`@deepseek-ai/dsh-llm-pi-ai:lib/index.js:966`, offered for the
+ * completion protocols at `:382`); pi-ai uses it as the gate that decides
+ * whether the effort reaches the wire at all
+ * (`@earendil-works/pi-ai:dist/api/openai-completions.js:622,712`). Within one
+ * layer the model's own switch wins over its route's (`dsh-llm-pi-ai:lib/
+ * index.js:617-625` merges route first, then model). Identical to the host
+ * twin's private helper; kept in step by the parity table.
+ */
+function layerTakesReasoningEffort(modelCompat: unknown, routeCompat: unknown): boolean | undefined {
+  const model = isRecord(modelCompat) ? modelCompat.supportsReasoningEffort : undefined
+  if (typeof model === 'boolean') return model
+  const route = isRecord(routeCompat) ? routeCompat.supportsReasoningEffort : undefined
+  return typeof route === 'boolean' ? route : undefined
+}
+
+/**
+ * Decide which 档 one model entry belongs to: `auto` (leave it alone) or `fill`.
+ *
+ * `auto` covers exactly the entries this feature must not touch: a non-object
+ * entry; an entry that already states its capability on its own or through a
+ * lower layer (the host's `reasoningEfforts: false`, `dsh-llm-pi-ai:lib/
+ * index.js:1008` → `{ reasoning: false }` at `:570`, is its sanctioned spelling
+ * of 「不参与思考档位」); and an entry whose `supportsReasoningEffort` is `false`
+ * in either layer — filling that one offers the composer levels the model
+ * refuses, and the request path throws `UNSUPPORTED_REASONING_EFFORT`
+ * (`:1705-1709`). A layer that says nothing never forces `auto`.
+ *
+ * Same rules as the host twin (`src/reasoning-effort.ts`), which documents the
+ * full evidence trail; the two are held in step by
+ * `tests/reasoning-defaults-parity.test.ts`.
+ */
+export function reasoningEffortDecision(
+  entry: unknown,
+  resolvedEntry: unknown,
+  userProfile: unknown,
+  resolvedProfile: unknown,
+): typeof AUTO_REASONING_EFFORTS | 'fill' {
+  if (!isRecord(entry)) return AUTO_REASONING_EFFORTS
+  if (hasLevels(entry) || hasLevels(resolvedEntry)) return AUTO_REASONING_EFFORTS
+  const user = layerTakesReasoningEffort(entry.compat, isRecord(userProfile) ? userProfile.compat : undefined)
+  const resolved = layerTakesReasoningEffort(
+    isRecord(resolvedEntry) ? resolvedEntry.compat : undefined,
+    isRecord(resolvedProfile) ? resolvedProfile.compat : undefined,
+  )
+  if (user === false || resolved === false) return AUTO_REASONING_EFFORTS
+  return 'fill'
+}
+
+/**
  * Plan the default-level fill for one `llm-pi-ai` section. Neither argument is
  * mutated. `resolved` decides where a level set is missing, `user` supplies what
  * may be written.
- *
- * @param resolved - the live merged section (`section.value`).
- * @param user - the user layer (`section.user`).
- * @returns ordered path ops plus how many models they cover.
  */
 export function planReasoningEffortFill(resolved: unknown, user: unknown): ReasoningFillPlan {
   const ops: SettingsPathOp[] = []
   let filled = 0
-  if (!isRecord(user) || !isRecord(user.providers)) return { ops, filled }
+  let auto = 0
+  if (!isRecord(user) || !isRecord(user.providers)) return { ops, filled, auto }
   const resolvedProviders = isRecord(resolved) && isRecord(resolved.providers) ? resolved.providers : {}
 
   for (const [route, userProfile] of Object.entries(user.providers)) {
@@ -151,12 +224,20 @@ export function planReasoningEffortFill(resolved: unknown, user: unknown): Reaso
       const models: unknown[] = []
       for (const [index, entry] of userModels.entries()) {
         const resolvedEntry = resolvedModels[index]
-        if (isRecord(entry) && entry.reasoningEfforts === undefined && !hasLevels(resolvedEntry)) {
+        const decision = reasoningEffortDecision(entry, resolvedEntry, userProfile, resolvedProfile)
+        if (decision === 'fill' && isRecord(entry)) {
           models.push({ ...entry, reasoningEfforts: { ...DEFAULT_REASONING_EFFORTS } })
           changed += 1
           continue
         }
         models.push(entry)
+        // Count only what the `auto` 档 saves from a write: an entry that lacks
+        // levels everywhere AND says it takes none. A declared set was never a
+        // candidate, and a non-object entry is not a model at all — the host
+        // half books those under `unresolved`, which this half does not track,
+        // so both halves must agree on NOT counting them here
+        // (`tests/reasoning-defaults-parity.test.ts` compares this number).
+        if (isRecord(entry) && !hasLevels(entry) && !hasLevels(resolvedEntry)) auto += 1
       }
       if (changed > 0) {
         ops.push({ op: 'set', path: ['providers', route, 'models'], value: models })
@@ -174,8 +255,12 @@ export function planReasoningEffortFill(resolved: unknown, user: unknown): Reaso
         ? resolvedProfile.modelOverrides
         : undefined
     for (const [id, entry] of Object.entries(userProfile.modelOverrides)) {
-      if (!isRecord(entry) || entry.reasoningEfforts !== undefined) continue
-      if (hasLevels(resolvedOverrides?.[id])) continue
+      const resolvedOverride = resolvedOverrides?.[id]
+      if (reasoningEffortDecision(entry, resolvedOverride, userProfile, resolvedProfile) !== 'fill') {
+        // Record-only, exactly like the host twin's override branch.
+        if (isRecord(entry) && !hasLevels(entry) && !hasLevels(resolvedOverride)) auto += 1
+        continue
+      }
       ops.push({
         op: 'set',
         path: ['providers', route, 'modelOverrides', id, 'reasoningEfforts'],
@@ -185,7 +270,7 @@ export function planReasoningEffortFill(resolved: unknown, user: unknown): Reaso
     }
   }
 
-  return { ops, filled }
+  return { ops, filled, auto }
 }
 
 /** Structural slice of the client context this installer drives. */
@@ -228,24 +313,26 @@ function remoteEventsOf(ctx: ReasoningDefaultsContext): RemoteEventFace | undefi
  * Install the browser-half fill: one attempt at install, one short retry (the
  * remote may not have answered the first describe yet), a slow sweep for edits
  * nobody re-describes, and an immediate pass on the `llm-pi-ai` document event.
- *
- * @param ctx - the client plugin context.
  */
 export function installReasoningDefaults(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: reasoning level defaults', () => {
     const context = ctx as unknown as ReasoningDefaultsContext
     let running = false
+    // Set by the disposer (plugin unload, or the breakpoint dropping back to
+    // desktop): every step below re-checks it, so a resuming await stays zero-write.
+    let disposed = false
     const warn = (message: string): void => {
       context.logger?.warn?.(message)
     }
     const fill = (): void => {
-      if (running) return
+      if (disposed || running) return
       const remote = settingsRemoteOf(context)
       if (remote === undefined) return
       running = true
       void (async () => {
         try {
           const described = await withTimeout(remote.describe(), REMOTE_TIMEOUT_MS)
+          if (disposed) return
           if (described?.ok !== true) return
           const namespaces = isRecord(described.value) ? described.value.namespaces : undefined
           if (!Array.isArray(namespaces)) return
@@ -254,6 +341,7 @@ export function installReasoningDefaults(ctx: ClientContext): void {
           const plan = planReasoningEffortFill(section.value, section.user)
           if (plan.ops.length === 0) return
           const revision = typeof section.revision === 'number' ? section.revision : undefined
+          if (disposed) return
           const response = await withTimeout(remote.mutate(LLM_PI_AI_ENTRY, plan.ops, revision), REMOTE_TIMEOUT_MS)
           if (response?.ok !== true) {
             warn('dsh-web-mobile: the host refused the reasoning-level fill')
@@ -283,6 +371,7 @@ export function installReasoningDefaults(ctx: ClientContext): void {
       warn(`dsh-web-mobile: reasoning-level document event unavailable: ${error instanceof Error ? error.message : String(error)}`)
     }
     return () => {
+      disposed = true
       clearTimeout(retry)
       clearInterval(sweep)
       if (typeof off === 'function') off()

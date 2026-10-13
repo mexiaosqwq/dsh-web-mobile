@@ -2,7 +2,7 @@
 
 ## Project
 
-- Single-package, client-only plugin for the DSH (DeepSeek Harness) Web UI. It adapts the web UI on **touch-primary devices with a viewport below 1024px** (overlay drawer, full-width conversation, adapted settings/explorer/preview sheets, status-bar safe areas, composer row, stats line). The activation query is `MOBILE_QUERY = '(max-width: 1023px) and (pointer: coarse)'` (phone-chrome.ts): width alone cannot distinguish a phone from a narrow desktop window — split views and OS display scaling push a PC's CSS viewport below 1024px too (2026-08-30 PC leak). A mouse-driven window (`pointer: fine`) or pointer-less one stays desktop at **every** width; the desktop hide block in misc.css.ts is the exact complement of MOBILE_QUERY as a comma list and hides the slot-rendered controls outside the mobile branch. ONE deliberate exception (v2.4.1): the session-delete trio (menu item + confirm/error dialog) arms on `TOUCH_QUERY = '(pointer: coarse)'` at EVERY width, so a large tablet in landscape keeps the desktop layout but still gets the 「删除会话」 item.
+- Single-package, client-only plugin for the DSH (DeepSeek Harness) Web UI. It adapts the web UI on **touch-primary devices with a viewport below 1024px** (overlay drawer, full-width conversation, adapted settings/explorer/preview sheets, status-bar safe areas, composer row, stats line). The activation query is `MOBILE_QUERY = '(max-width: 1023px) and (pointer: coarse)'` (platform/breakpoints.ts): width alone cannot distinguish a phone from a narrow desktop window — split views and OS display scaling push a PC's CSS viewport below 1024px too (2026-08-30 PC leak). A mouse-driven window (`pointer: fine`) or pointer-less one stays desktop at **every** width; the desktop hide block in misc.css.ts is the exact complement of MOBILE_QUERY as a comma list and hides the slot-rendered controls outside the mobile branch. ONE deliberate exception (v2.4.1): the session-delete trio (menu item + confirm/error dialog) arms on `TOUCH_QUERY = '(pointer: coarse)'` at EVERY width, so a large tablet in landscape keeps the desktop layout but still gets the 「删除会话」 item.
 - Names differ by boundary: README/GitHub project = `dsh-web-mobile`; npm package = `dsh-web-mobile`（2026-08-30 由 dsh-mobile-nav 改名而来，旧名连同 2.2.0/2.3.0 已整包 unpublish，npm 上不再存在）; patch row id = `dsh-web-mobile`（DOM 标记 `data-mobile-nav` 与 `?mobile-nav-debug=1` 参数刻意保留旧词根，见 Pitfalls）。
 - 已被 [DSHA](https://github.com/qiannianhuanxiang/DSHA)（Android 启动器）内置为移动端适配（README 已致谢 @qiannianhuanxiang，commit ffb61b5）——DSHA 用户装 APK 即用。
 - No monorepo, no application server, no workspace layer.
@@ -24,12 +24,13 @@
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts · prototype-focus-shadow.ts（两个键盘守卫共享的一个 focus 影子，#84）
-  │     ├─ effects/          ← 27 个效果模块：phone-chrome · sidebar-swipe ·
+  │     ├─ platform/         ← 跨效果共享的浏览器基础设施（无特性语义；effects/components 只许依赖它，不许互相要）：frame.ts（getFrame/findFrame + 记忆化）· breakpoints.ts（MOBILE_QUERY/DESKTOP_QUERY/TOUCH_QUERY + installMobileEffect）· device.ts（detectIosWebKit）
+  │     ├─ effects/          ← 33 个效果模块：phone-chrome · drawer-close · header-metrics · selection-chrome · reconciler-adapter · viewport-meta · sidebar-swipe ·
   │     │                       gesture-guard · subagent-chip-touch · composer-keyboard-guard ·
   │     │                       composer-keyboard-lift · composer-paste-guard ·
   │     │                       composer-file-picker ·
   │     │                       attachment-mention · file-share ·
-  │     │                       shortcut-modal-keyboard-guard · model-menu-keyboard-guard · plugin-card-tap · session-focus-guard ·
+  │     │                       shortcut-modal-keyboard-guard · model-menu-keyboard-guard · plugin-card-tap · installed-list · session-focus-guard ·
   │     │                       composer-plus-toggle · workspace-chip-toggle · team-chip-toggle · reasoning-defaults ·
   │     │                       model-menu-anchor ·
   │     │                       file-viewer-compat · aionui-compat · stats-line ·
@@ -44,8 +45,9 @@
   │  ├─ cdp-probe.mjs        ← 主探针 14 项核心断言（+6 集成，EXPECTED_FAILURES 基线）
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  ├─ css-structure-check.mjs ← CSS 结构检测器（已接入 test:core）
+  │  ├─ patch-registry-check.mjs ← 补丁登记门禁：@patch 四要素（for/why/until/test）+ 表↔码双向一致（已接入 test:core，2026-10-13）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 55 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 59 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
   │  ├─ audits/ · maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json + host-jank-feedback.md）· fork-wzxmt-zhc/
@@ -68,6 +70,7 @@
 - 宿主会话切换卡顿/性能归因 → `docs/audits/2026-09-23-session-switch-jank-handover.md`（归因 + 止血/上游两条路线）+ `docs/upstream/host-jank-feedback.md`（上游反馈通道，tokenizeTimeLimit 更正在此）
 - 0.1.7-rc.1 手机端适配待办 → `docs/audits/2026-09-23-0.1.7-rc.1-adaptation-handover.md`（容器内 chromium 取证通道 + A/B 与真机读数）
 - 手机端会话头部/输入框 0.1.6 适配 → `docs/upstream/2026-09-19-mobile-header-0.1.6-adaptation.md`（16 条，14 已并入 layout 移动块）
+- 新增或修改兼容补丁 → `docs/maintenance/patch-registry.md`（每个补丁必须在源码用 @patch 块自报 for/why/until/test；表由 `node scripts/patch-registry-check.mjs --write` 生成，手改即红）
 - CSS 结构回归 → `docs/audits/2026-09-15-css-surface-audit.md`（结构检测器已接入 `test:core`，基线 0 fatal / 5 info；缩进/媒体查询/选择器拆分回归会红）
 - 接手 fork wzxmt-zhc 摘抄专项 → `docs/fork-wzxmt-zhc/README.md`（先读接手协议，动手前重新 fetch fork）
 
@@ -121,8 +124,14 @@ dsh web
   - `src/client/effects/phone-chrome.ts` is the thin browser adapter: one `MutationObserver` on `document.documentElement` maps records to dirty keys (`attributeName`, or `'*'` for tree changes), feeds `core.note()`, and drives activation/deactivation via `installMobileEffect`.
   - Tasks only run while the mobile breakpoint is active, coalesced to one pass per animation frame. `stats-line` must stay `scopes: ['*']` because TPS updates are childList/characterData text mutations.
   - Registered tasks: `frame-marker`, `header-metrics`, `preview-fullscreen-toggle`, `preview-close-sync`, `sheet-rise-replay`, `file-viewer-open-marker`, `stats-line`, `overlay-backdrop-fab`, `panel-back-exit`.
+- `src/client/platform/` holds the browser-infrastructure primitives every effect shares — `frame.ts` (`getFrame`/`findFrame` + the memoized marker lookup), `breakpoints.ts` (`MOBILE_QUERY`/`DESKTOP_QUERY`/`TOUCH_QUERY`, `installMobileEffect`), `device.ts` (`detectIosWebKit`). It has no feature semantics and no DOM-marker ownership. **Dependency direction is `index.tsx → effects → platform → core`**; `components/` may use `platform/` + `core/` but never `effects/`, and `effects/` never imports another effect for infrastructure — `tests/architecture.test.ts` enforces precisely that (runtime cycles, layer direction, `core/` DOM purity, line budget, module-level state, entry inline queries) against a debt ledger that may only shrink. `test:core` runs it, so a new cycle or a new oversize file is red CI, not a review comment.
 - Effects:
-  - `phone-chrome.ts` — status bar/theme-color/viewport meta, the iOS focus-zoom marker (`detectIosWebKit` → `html[data-mobile-nav-ios]`), drawer close interactions (Escape + navigation taps), and the overlay backdrop/FAB via reconciler tasks.
+  - `phone-chrome.ts` — status bar/theme-color（`<meta name="theme-color">` 跟随 `body[data-ds-dark-theme]`）、the lazy dismiss-shadow, and the frame-marker reconciler task（viewport meta / iOS marker / 稳定视口高度第五片搬进 `viewport-meta.ts`，reconciler 实例与任务注册面第四片搬进 `reconciler-adapter.ts`）. 2026-10-12 起五片逐字搬出后只剩这三件事。
+  - `drawer-close.ts` — 抽屉关闭的三条监听路（Escape / 遮罩与导航目标的捕获 click / DSHA 的 `dsha-session-open`）与所有非手势关闭共用的那一个 `toggleDrawer`（晚提交关闭）。P1 拆分第一块，2026-10-12 由 phone-chrome.ts 逐字搬出。
+  - `header-metrics.ts` — 顶栏高度 → CSS 变量 `--mobile-nav-header-h` 的 reconciler 任务（`scopes:['*']`）。P1 拆分第二片，2026-10-12 由 phone-chrome.ts 逐字搬出；形状沿用本仓既有的 task 工厂模式（导出 `createHeaderMetricsTask()`）。
+  - `selection-chrome.ts` — 会话内非折叠选区存在期间给 `<html>` 挂 `data-mobile-nav-selecting`，CSS 借此把顶栏移出命中测试（原生手柄拖拽的选区终点否则会命中顶栏、Blink 顺 DOM 往后找到流首项并 reveal，视口瞬移）。P1 拆分第三片，2026-10-12 由 phone-chrome.ts 逐字搬出。
+  - `reconciler-adapter.ts` — 那一个全树 `MutationObserver`（记录 → 脏键 → `core.note()`）、任务注册面 `addReconcilerTask`，以及本插件注册的全部 reconciler 任务（`registerReconcileTasks`：`createOverlayTask` 收 `toggleDrawer`，故它 import drawer-close.ts）。P1 拆分第四片，2026-10-12 由 phone-chrome.ts 逐字搬出。
+  - `viewport-meta.ts` — viewport meta 所有权（宿主改写 / 换节点 / 晚注入都重申 `width=device-width, initial-scale=1, viewport-fit=cover`；dispose 只在仍是我们写的串时交还宿主原值）、不含键盘的视口高度 `--dsh-web-mobile-vh`（单调规则 + 同值不重写），以及 iOS 的 `html[data-mobile-nav-ios]` 标记。P1 拆分第五片，2026-10-12 由 phone-chrome.ts 逐字搬出。**形状（2026-10-12 修正后）**：本模块**不自起 effect**，只导出三个**返回 disposer 的普通函数**（`preserveViewportMeta()` / `syncStableViewportHeight()` / `applyIosMarker(isIosWebKit)`）；调用方是 phone-chrome 里**唯一那个** status-bar `installMobileEffect`，它按 876 行原始版的顺序武装（viewport meta → iOS 标记 → 稳定视口高度）并**逐位**合成清理（稳定视口 → theme observer → 恢复 meta → 摘 themeMeta → 摘 iOS 标记）。⚠️ **禁止**再把这几个函数改成各自 `installMobileEffect` 的 installer：那会让外层 effect 每次重新武装都往 ctx 上再注册三个子 effect 且外层收不到（实测孤例，非本仓范式）。
   - `sidebar-swipe.ts` + `gesture-guard.ts` — drawer swipe gestures：开=8px 锁轴**提前提交**（inline `-101%` 百分比基线跟随 + arm 帧 `content-visibility:hidden` 拆挂载）；关=**晚提交**（inline 280ms 滑到自身宽×110% px 槽位后翻 marker，防 React 中途换子树）；遮罩经 `fadeOverlayOut` 渐隐；右缘 files 手势与抽屉手势同层双族路由（判定矩阵与已踩坑见 Pitfalls「files 手势」）；`gesture-guard.ts` supplies the host-yield consume marks + stroke axis lock.
   - `aionui-compat.ts` — dsh-web-ui explorer/preview markers and sheet rise animation.
   - `stats-line.ts` — marks the official status row; the context ring and TPS readout stay where React rendered them and are overlaid on plugin-owned placeholder slots（#104：宿主 React 节点禁搬，见 Pitfalls「搬宿主 React 节点」）.
@@ -188,7 +197,7 @@ dsh web
 
 - Keep the host/client split intact: the host half owns exactly three host-side jobs — response compression, the session-delete endpoint, and the reasoning-level fill for hand-declared `llm-pi-ai` models (`src/reasoning-effort.ts`). Anything browser-facing belongs in `src/client/`.
 - Use stable `data-*` markers and structural selectors before hashed classes. For unavoidable hashed classes use substring matching (`[class*=_frag]`), never attribute-suffix (`[class$=…]`) — the class attribute often carries extra tokens or trailing spaces, and a suffix test runs against the whole attribute value, so it silently misses (verified in the full-codebase migration). Scope the selector to its owning region and guard prefix-overlapping fragments with `:not`; for tree rows use `[class*="_treeRow"]` and exclude `[class*="_treeArrowEmpty"]` when distinguishing directories from files.
-- Put every long-lived style tag, listener, timer, or `MutationObserver` inside `ctx.effect(() => { ...; return disposer }, label)`. Re-arm width-sensitive effects on `matchMedia(MOBILE_QUERY)` changes via `installMobileEffect` so wide→narrow transitions work; import the constant from phone-chrome.ts instead of hardcoding query strings.
+- Put every long-lived style tag, listener, timer, or `MutationObserver` inside `ctx.effect(() => { ...; return disposer }, label)`. Re-arm width-sensitive effects on `matchMedia(MOBILE_QUERY)` changes via `installMobileEffect` so wide→narrow transitions work; import the constant from `platform/breakpoints.ts` instead of hardcoding query strings.
 - Treat DOM markers as the cross-module state contract: `data-mobile-nav="frame"`, `data-sidebar-collapsed`, `data-aionui-explorer-open`, `data-aionui-preview-open`, `data-mobile-preview-full`, `data-mobile-nav="stats"`, `data-mobile-nav="stats-ring"` + overlay 体系五标记（`stats-ring-reserve` / `stats-tps-reserve` / `stats-tps` / `stats-ring-dock` / `stats-tps-row`，#104）， `data-file-viewer-open` (frame-level gate for the dsh-file-viewer compat layout, keyed on `.dsfv-panel`), `data-mobile-nav="session-delete"` (menu-item probe key), `delete-dialog-backdrop` + `delete-dialog` (confirmation dialog), and `data-mobile-nav-ios` (on `<html>`, iOS-only CSS gate).
 - Use idempotent `ensure()`/reparent logic when injecting nodes into third-party React-owned DOM. Clean up moved nodes, observers, attributes, and listeners on disposal.
 - Obtain DSH services through the declared fiber `inject` list and slot `inject` props; use React state for local mirrors and `data-*` markers for cross-effect state.
@@ -276,7 +285,7 @@ dsh web
 
 ## Testing & QA
 
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（55 个测试文件，glob 覆盖 `tests/` 全部）. `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
+- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（59 个测试文件，glob 覆盖 `tests/` 全部）. 其中 `test:core` 另含两道结构门：`css-structure-check.mjs`（CSS 结构）与 `patch-registry-check.mjs`（兼容补丁四要素与登记表一致性，2026-10-13 接入）——两者都由 `tests/css-structure.test.ts` 驱动，且都带变异用例（缺字段/指向不存在的测试必须红），不做摆设门。 `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
 - There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the bundle smoke (`node scripts/client-bundle-smoke.mjs`) and the lib freshness gate `git diff --exit-code lib`.
 - After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
   - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.
@@ -302,6 +311,8 @@ dsh web
 - **知识去向（用户偏好，2026-09-18 拍板）**：零碎的规矩 / 要求 / 偏好 → **写进本文件对应节**，不要只存进记忆（记忆跨会话，但它不能替代仓库文档，而本文件是每个会话都必然读到的那份）；需要推导 / 证据 / 大段流程 / 实测数字的内容 → `docs/`（坑位 → `pitfalls.md`，设计 → `specs/`，审计 → `audits/`，调试考古 → `debug/`，上游契约 → `upstream/`）。记忆只留「跨会话需要主动回忆的教训」，且不得成为某条规矩的唯一存放处。
 - **同一 worktree 有并发写者时**：别人可能把你**未提交**的工作区改动一起提交走（症状：`git status` 突然变空、`git diff --exit-code HEAD -- lib` 返回 0 却不是你的提交）。别据此重做改动或补空提交——先 `git show HEAD:<file>` 确认内容已在；提交只 `git add` 自己点名的路径，**绝不 `git add -A`**。
 - **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：本仓有高频并发的另一制作人（提交与合并是两个账号），本地 `main` 可能落后几十个提交而毫无提示——`git log main` 看着「没有」的修复，其实早已随别人的 PR 落地（2026-10-10 实测：本地 `main` 落后 30 个提交、自认「未上 main」的多行粘贴修复实际已在）。判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`（纯本地，不动远端）。**反方向同样成立且更阴**：本地 `main` 也可能**领先**，领先的提交里夹着「本地合并的、GitHub 上仍 OPEN 的 PR」（2026-10-11 实测：PR #201 在 GitHub 是 OPEN，本地 `main` 却已有一条纯本地的 `Merge pull request #201`，从未推送）。**开新分支一律从 `origin/main` 起**（`git checkout -b <branch> origin/main`），别从本地 `main` 起——否则未合并 PR 的内容会被无声带进新 PR（实测代价：PR #203 首版 9 个提交，其中 7 个是 #201 的，只能 force-push 重做）。
+- **监督者不要在写者运行期间改它范围内的文件（2026-10-12 实测，方向危险但本次无害）**：派出去的写者仍在跑验证时，监督者改了 `tests/architecture.test.ts` 的一条台账（6 → 5，方向是收紧）。写者随后把该改动判定为「**外部并发写者**」并写进回执、选择不回改——处置是对的，但它只差一步就可能把我的修正**覆盖回去**，或据此怀疑自己的验证结果。判据：**「最近 3 分钟有文件改动」= 写者还在干活，不是已停**（本次就是据此误判的）。要改它范围内的东西，必须**等它产出完工回执之后**再动；一次性 `subagent` 不可寻址（`send_message` 报 `active teammate not found`），所以**约束必须一次写进首次任务书**，事后没有补救通道。
+- **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：本仓有高频并发的另一制作人（提交与合并是两个账号），本地 `main` 可能落后几十个提交而毫无提示——`git log main` 看着「没有」的修复，其实早已随别人的 PR 落地（2026-10-10 实测：本地 `main` 落后 30 个提交、自认「未上 main」的多行粘贴修复实际已在）。判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`（纯本地，不动远端）。
 - **文档写法（用户偏好，每次写文档都适用）**：变更条目只描述结果、不写过程；功能不列举特点细节；README「更新内容」条目按 v3.0.0 段样式写结果导向一句话，机制与根因细节只进 Release notes（2026-10-03 用户裁定）；计数条目（探针 / 测试 / spec 篇数）在 README 与 AGENTS.md 两处必须同步——`tests/` 文件数由 `tests/docs-consistency.test.ts` 在 `test:core` 里强制（新增测试文件的提交必须同改 AGENTS.md 树行与 Testing 节两处，否则计数门直接红）；README「未发布」段参数定稿前先对源码常量核对。
 - Keep it accurate and concise; remove stale entries as the codebase changes (e.g. removed features, renamed files, new scripts).
 - Verify claims against source before writing them; do not preserve guidance that no longer matches the current tree.

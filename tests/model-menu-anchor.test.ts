@@ -50,6 +50,65 @@ test('菜单能放入视口时贴触发器右缘，越界时回退卡片居中',
   assert.ok(!SRC.slice(start, end).includes('querySelector'), 'place() 只能读取缓存锚点')
 })
 
+// 2026-10-13 第二轮：同一帧里的三处重复工作（店主批准的第二轮优化）。
+//
+// 起因是逐行读码数出来的，不是感觉：
+//   1. `findMenu()` 为了判「菜单可见」对菜单读一次 rect，`place()` 紧接着对**同一个**
+//      节点又读一次 —— 同一帧同一个元素白读一遍。
+//   2. `schedule()` 的 `if (raf !== 0) return` 是「先到者胜」：同帧内后到的
+//      `refresh()`（交互，会查询并落位）会被已排队的 `follow()`（滚动，只用缓存）
+//      整份吃掉，那次交互当帧不落位。
+//   3. dispose 把 inline left 一律置成空串 —— 宿主自己那行位置会被一起抹掉，
+//      而不是「还回原值」。issue #86 的原始诉求就是「还回去」。
+test('rAF 槽是合并语义：一帧一次、后到者覆盖先到者，请求不丢', () => {
+  const start = SRC.indexOf('const schedule = ')
+  const end = SRC.indexOf('const scheduleRefresh = ', start)
+  assert.ok(start > 0 && end > start, 'schedule() 未找到')
+  const body = SRC.slice(start, end)
+  const assign = body.indexOf('pending = run')
+  const guard = body.indexOf('if (raf !== 0) return')
+  assert.ok(assign > 0, 'schedule() 必须把请求写进槽位')
+  assert.ok(guard > assign, '槽位赋值必须早于 raf 早退，否则后到的请求会像旧版一样被丢掉')
+  assert.match(body, /const job = pending/, 'rAF 回调要消费槽位')
+  assert.match(body, /pending = null/, '消费后必须清空，避免陈旧意图在下一帧重放')
+})
+
+test('同一帧同一元素只读一次 rect：全文件只有一处在读', () => {
+  // 只数代码：文件头与函数注释里会引用这个 API 名，注释不该被算成读点。
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  const reads = code.match(/getBoundingClientRect\(\)/g) ?? []
+  assert.equal(reads.length, 1, 'rect 必须集中在 laidOut() 一处读取')
+
+  const laid = SRC.slice(SRC.indexOf('const laidOut = '), SRC.indexOf('const findMenu = '))
+  assert.match(laid, /frameRects\?\.get\(el\)/, 'laidOut 必须先查帧内缓存')
+  assert.match(laid, /frameRects\?\.set\(el, result\)/, '读到的结果要存回缓存供同帧复用')
+  // 缓存的生命周期必须严格等于一帧：帧首重建、帧尾丢弃，跨帧不许留陈旧布局。
+  assert.match(SRC, /let frameRects: Map<Element, DOMRect \| null> \| null = null/)
+  assert.match(SRC, /frameRects = new Map\(\)/)
+  assert.match(SRC, /frameRects = null/)
+  // 复用之所以成立：findMenu() 认下的那个菜单节点，原样交给 place()。
+  const refresh = SRC.slice(SRC.indexOf('const refresh = '), SRC.indexOf('const follow = '))
+  assert.match(refresh, /active = findMenu\(\)/)
+  assert.match(refresh, /place\(active\)/)
+})
+
+test('收尾按原值还原 inline left，不再一律置空', () => {
+  assert.match(
+    SRC,
+    /placedLeft: \{ el: HTMLElement; value: string; original: string \} \| null = null/,
+    '槽位要带上原值',
+  )
+  assert.match(SRC, /original: menu\.style\.left/, '第一次接管时必须先记下宿主那行原值')
+  assert.match(SRC, /placed\.el\.style\.left = placed\.original/, '还原的是原值')
+  assert.match(SRC, /placed\.el\.style\.left === placed\.value/, '只有值仍是我们写的才还，别抹掉宿主后写的')
+  assert.doesNotMatch(SRC, /style\.left = ''/, '不许再置空串（那是「清空」，不是「还回去」）')
+
+  const dispose = SRC.slice(SRC.indexOf('return () => {'))
+  assert.match(dispose, /releasePlacement\(\)/, 'dispose 必须把位置还回去')
+  const follow = SRC.slice(SRC.indexOf('const follow = '), SRC.indexOf('const schedule = '))
+  assert.match(follow, /releasePlacement\(\)/, '菜单已消失时也要还回去')
+})
+
 // 手机档「推理等级」面板收窄的选择器契约（2026-10-11）。
 //
 // 真机量到的两套 DOM（dsh-client-ui-model-selection 0.2.0-rc.2，393×844，真实宿主包）：

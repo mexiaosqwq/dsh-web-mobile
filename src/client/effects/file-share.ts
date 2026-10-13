@@ -22,7 +22,7 @@
  * wide→narrow transition registers them.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 import { FILE_SHARE_NS, fileShareEn, fileShareZh } from '../components/file-share-locale.ts'
 import { FilePreviewShareButton, FilesRowShare } from '../components/file-share-controls.tsx'
 import type { FileShareInject } from '../components/file-share-controls.tsx'

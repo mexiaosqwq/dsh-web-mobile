@@ -20,7 +20,10 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FOOTER = readFileSync(join(ROOT, 'src/client/components/MobileDrawerFooter.tsx'), 'utf8')
 const MENU = readFileSync(join(ROOT, 'src/client/effects/session-menu.ts'), 'utf8')
+// P1 拆分（2026-10-12）：两处 currentSessionIdOf/sessionsCanOpen 读取随
+// installOverlayInteractions 搬到 drawer-close.ts；仍读两半，负向断言保持原有覆盖面积。
 const CHROME = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
+  + readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
 
 test('currentSessionIdOf reads the rc.2 current field first', () => {
   assert.equal(currentSessionIdOf({ current: 's1', byId: {} }), 's1')

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_REASONING_EFFORTS, LLM_PI_AI_ENTRY, planReasoningEffortFill } from '../src/client/effects/reasoning-defaults.ts'
+import { DEFAULT_REASONING_EFFORTS, LLM_PI_AI_ENTRY, installReasoningDefaults, planReasoningEffortFill } from '../src/client/effects/reasoning-defaults.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -46,6 +46,30 @@ test('the browser twin skips models whose levels come from a lower layer', () =>
   const user = { providers: { o: profile({ models: [{ id: 'm' }] }) } }
   const resolved = { providers: { o: profile({ models: [{ id: 'm', reasoningEfforts: { high: 'high' } }] }) } }
   assert.deepEqual(planReasoningEffortFill(resolved, user).ops, [])
+})
+
+test('the browser twin leaves a model that refuses custom levels at its own default (auto 档)', () => {
+  // 用户反馈的关键场景，走浏览器半区：夹具里这个手写模型与可补齐的模型形状完全
+  // 相同，只是模型级 compat 声明了它不吃 reasoning effort。补齐后它不得带
+  // reasoningEfforts —— 宿主没有 `auto` 档位值可写（`THINKING_LEVELS` 闭枚举），
+  // 正确做法就是**不写**，宿主 UI 于是给它显示 provider 默认项。
+  const user = {
+    providers: {
+      o: profile({
+        models: [
+          { id: 'fixture-refuses-effort', name: 'Fixture Refuses Effort', compat: { supportsReasoningEffort: false } },
+          { id: 'gpt-6-astra', name: 'GPT-6 Astra' },
+        ],
+      }),
+    },
+  }
+  const plan = planReasoningEffortFill(user, user)
+  assert.equal(plan.filled, 1)
+  assert.equal(plan.auto, 1)
+  const models = (plan.ops[0]?.value ?? []) as Record<string, unknown>[]
+  assert.equal(models.length, 2)
+  assert.equal('reasoningEfforts' in models[0]!, false, '不接受自定义档位的模型不得被写入具体档位')
+  assert.deepEqual(models[1]?.reasoningEfforts, { ...DEFAULT_REASONING_EFFORTS })
 })
 
 test('the namespace constant matches the host entry id', () => {
@@ -102,4 +126,99 @@ test('remote settings calls are bounded so one silent carrier cannot wedge the f
   assert.match(source, /withTimeout\(remote\.describe\(\), REMOTE_TIMEOUT_MS\)/)
   assert.match(source, /withTimeout\(remote\.mutate\(LLM_PI_AI_ENTRY, plan\.ops, revision\), REMOTE_TIMEOUT_MS\)/)
   assert.match(source, /reject\(new Error\(`settings remote did not answer within \$\{ms\}ms`\)\)/)
+})
+
+// ---------------------------------------------------------------------------
+// Behavior: the fill is asynchronous (`describe` -> plan -> `mutate`), so its
+// disposer can run BETWEEN the two calls — plugin unload, or the mobile
+// breakpoint dropping back to desktop. Every audit above is a string/data
+// check and cannot see that window, so the guard is executed here against a
+// describe that is deliberately still in flight when the disposer fires.
+// ---------------------------------------------------------------------------
+
+/** The installer, widened so the minimal fake context can be passed in. */
+const install = installReasoningDefaults as unknown as (ctx: unknown) => void
+
+/** Fake `remote.settings` whose `mutate` records every call it receives. */
+function settingsFixture(describe: () => Promise<unknown>): { settings: Record<string, unknown>; mutateCalls: unknown[][] } {
+  const mutateCalls: unknown[][] = []
+  const settings = {
+    describe,
+    mutate: (...args: unknown[]) => {
+      mutateCalls.push(args)
+      return Promise.resolve({ ok: true, value: { revision: 8 } })
+    },
+  }
+  return { settings, mutateCalls }
+}
+
+/**
+ * Minimal client context: `effect` arms the installer on the spot (exactly what
+ * the real `installMobileEffect` does on a narrow viewport) and keeps the
+ * disposer it returns; `get` answers the effect's two lazy service lookups.
+ */
+function armedEffect(settings: Record<string, unknown>): { ctx: unknown; dispose: () => void } {
+  let disposer: (() => void) | undefined
+  const ctx = {
+    effect: (installEffect: () => (() => void) | undefined) => { disposer = installEffect() },
+    get: (service: string) => (service === 'remote.settings' ? settings : undefined),
+    logger: { warn: () => {} },
+  }
+  return { ctx, dispose: () => disposer?.() }
+}
+
+/** Let every already-queued microtask/timer callback of the fill run. */
+async function settle(): Promise<void> {
+  for (let tick = 0; tick < 4; tick += 1) await new Promise((resolve) => setImmediate(resolve))
+}
+
+test('a dispose while describe is in flight makes the fill zero-write (2026-10-11)', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window
+  // `installMobileEffect` arms through `window.matchMedia`; one narrow viewport
+  // is all this case needs.
+  ;(globalThis as { window?: unknown }).window = {
+    matchMedia: () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }),
+  }
+  // A payload that HAS something to fill, so a mutating implementation really
+  // reaches `mutate` (an empty plan would pass this test vacuously).
+  const payload = {
+    ok: true,
+    value: {
+      namespaces: [
+        {
+          ns: LLM_PI_AI_ENTRY,
+          revision: 7,
+          value: { providers: { o: profile({ models: [{ id: 'm' }] }) } },
+          user: { providers: { o: profile({ models: [{ id: 'm' }] }) } },
+        },
+      ],
+    },
+  }
+  try {
+    // Control: the same fixture DOES mutate when nothing disposes it, so the
+    // zero-call assertion below cannot pass by accident.
+    const control = settingsFixture(() => Promise.resolve(payload))
+    const controlEffect = armedEffect(control.settings)
+    install(controlEffect.ctx)
+    await settle()
+    assert.equal(control.mutateCalls.length, 1, 'control: an undisposed fill writes once')
+    controlEffect.dispose()
+
+    // The defect: the disposer fires while `describe` is still unanswered; the
+    // await resumes afterwards and must NOT send its mutate.
+    let releaseDescribe: (value: unknown) => void = () => {}
+    let describeCalls = 0
+    const inFlight = new Promise((resolve) => { releaseDescribe = resolve })
+    const disposedCase = settingsFixture(() => { describeCalls += 1; return inFlight })
+    const disposedEffect = armedEffect(disposedCase.settings)
+    install(disposedEffect.ctx)
+    await settle()
+    assert.equal(describeCalls, 1, 'the fill must be parked on the in-flight describe')
+    disposedEffect.dispose()
+    releaseDescribe(payload)
+    await settle()
+    assert.deepEqual(disposedCase.mutateCalls, [], 'dispose 后 describe resolve 不得再写宿主设置（零 mutate）')
+  } finally {
+    ;(globalThis as { window?: unknown }).window = previousWindow
+  }
 })

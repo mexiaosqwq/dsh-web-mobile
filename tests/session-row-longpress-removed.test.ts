@@ -6,7 +6,7 @@
 // ⋯ → 「重命名」也因长按在真机上难以可靠复现而收手，店主决定不再折腾。
 //
 // 本文件钉住三件事，防止这条链路被顺手加回来：
-//   1) phone-chrome.ts 里不再有长按计时器 / 进度标记 / dblclick 重放 / press 监听；
+//   1) phone-chrome.ts / drawer-close.ts 里不再有长按计时器 / 进度标记 / dblclick 重放 / press 监听；
 //   2) 真实 dblclick 仍被吞掉（否则「双击 = 打开」会连带弹出宿主的改名框）；
 //   3) ⋯ 菜单在触屏常显 —— 重命名仍有一步可达的入口。
 import { test } from 'node:test'
@@ -16,7 +16,10 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+// P1 拆分（2026-10-12）：installOverlayInteractions 整块搬到 drawer-close.ts，
+// 本文件钉的指针/dblclick 环全在那块里；仍读两半，负向断言保持原有覆盖面积。
 const CHROME = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
+  + readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
 const BASE = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
 const LAYOUT = readFileSync(join(ROOT, 'src/client/styles/layout.css.ts'), 'utf8')
 
@@ -34,7 +37,7 @@ test('长按机制已下线：没有计时器、进度标记、事件重放与 p
     'onDrawerPointerCancel',
     'onDrawerContextMenu',
   ]) {
-    assert.equal(CHROME.includes(needle), false, `${needle} 仍在 phone-chrome.ts 里`)
+    assert.equal(CHROME.includes(needle), false, `${needle} 仍在 phone-chrome.ts / drawer-close.ts 里`)
   }
   // 只留下「触摸起点」记录：pointerdown 不再武装任何手势、不再起计时器。
   const down = CHROME.slice(

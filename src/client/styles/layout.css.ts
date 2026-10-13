@@ -840,6 +840,33 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"]:not(:has([class*="_trigger"][aria-haspopup="menu"])) > [class*="_root"]:has(> [class*="_trigger"][aria-haspopup="dialog"]) {
     margin-left: auto;
   }
+
+  /* --- rc.2+ 的第二个失效面：子代理 composer 里环锚点回不到发送键左边（2026-10-12）---
+     上面那条「无模型胶囊时由 ContextMeter 当吸收器」的兜底，在 **0.1.7-rc.2+** 上
+     再也匹配不到：宿主已经把 ContextMeter 从 trailing 车道搬进卡片下方的 dock 行
+     （实测路径 … > [class*="_card"] > [class*="_root"] > [class*="_dock"] > span.JObwrW_root），
+     它不再是车道的子元素，「:has(> [class*=\"_trigger\"][aria-haspopup=\"dialog\"])」落空。
+     后果（headless 393×844 实测，主/子两视图同机对比）：子代理会话里模型胶囊整个不渲染，
+     「standardControls」塌成 0×0 且 margin-left:0，于是车道里唯一带 auto 的是发送键自己，
+     插件注入的环锚点 span[data-mobile-nav=\"stats-ring-reserve\"]（普通流内元素）被留在
+     车道左缘 —— 环 x=127，而主会话同一元素 x=310、发送键在 333：**188px 空档**，
+     用户看到的就是「上下文表跑到左边去了」。
+     修法与 #191 同源（同一根因族：rc.2 把 meter 搬走后，车道里的 auto 归属没人接管）：
+     没有模型胶囊时让**环锚点**顶替 meter 当吸收器，并把发送键的 auto 清零 ——
+     不清零的话两个 auto 会平分空隙，环同样回不到键边。
+     门控与上面那条兜底完全一致（车道里没有 aria-haspopup="menu"），所以主会话
+     （模型胶囊在场）零改动。 */
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"]:not(:has([class*="_trigger"][aria-haspopup="menu"])) > [data-mobile-nav="stats-ring-reserve"] {
+    /* !important 不可省：compat 层有一条 [data-mobile-nav="stats-ring-reserve"]
+       { margin: 0 2px 0 0 !important }。两条都 important 时先比特异性 —— 本选择器
+       远高于那条裸属性选择器，加 !important 就能赢；不加则被它压成 margin-left:0。
+       2026-10-12 受控实验实测：不加 → 环仍停在 x=127、发送键反被拉到 150（188px 空档
+       只是从「环与键之间」搬到「键的右侧」）；加 → 环 310 / 键 333，正是期望值。 */
+    margin-left: auto !important;
+  }
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"]:not(:has([class*="_trigger"][aria-haspopup="menu"])) > [class*="_primary"] {
+    margin-left: 0;
+  }
   [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"] {
     flex: none;
     margin-left: auto;
@@ -1386,6 +1413,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     top: 12px !important;
     z-index: 2 !important;
   }
+  /* 手机档（≤767 + coarse）：文件夹按钮右移 4px（原 8px），为标题行右簇再腾出空间。
+     与左侧 ☰ 的 8px 不再对称，是用户明确接受的取舍（2026-10-12 用户规格）。
+     平板档这一档没被要求动，所以留在这条手机档作用域里；共用档保持本批之前的值。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="files"] {
+      right: 4px !important;
+    }
+  }
   [data-mobile-nav="frame"] [data-phase] header [class*="_headerActions"] {
     display: flex !important;
     align-items: center;
@@ -1615,6 +1650,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      plus 2px of breathing room, so restore that instead of narrowing the
      opener: 46px clears the 36px box at right:8 by 2px at every width. */
   [data-mobile-nav="frame"] [data-phase] header [class*="wSkVaW_titleCluster"] {
+    /* 本批之前的值。2026-10-12/13 那串「46 → 40 → 36 → 32 → 26 → 34」的实验
+       **只针对手机档**（后台任务圆点搬进标题行后与预设 chip 的间距），已整串
+       搬进下面那条手机档作用域；共用档（= 平板档）保持本批之前的 46px 不动。 */
     padding-right: 46px !important;
   }
   /* Header crowding on narrow phones.
@@ -1660,6 +1698,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       display: none !important;
     }
   }
+
+  /* --- 顶栏状态 chip 座位契约：**暂缓**（2026-10-12 受控实验后整块撤回）---
+     用户规格：「子智能体 chip 固定不变，后台任务 chip 出现在它左侧、间隔 2px」。
+     首版用 flex 容器 + order + gap 实现，**受控实验证明该机制不成立**：
+     子智能体 chip（ZKlsPq_root）在 alpha.2 代宿主上被插件自己钉成 position:absolute，
+     绝对定位元素脱离文档流，flex 的 order 与容器 gap 都决定不了它的落点 ——
+     注入一颗合成 jobs chip 后该 chip 实测从 x=292 跳到 x=174（视觉间距 −211px），
+     三个目标点无一达成；容器 computed gap 也仍是宿主自己的 4px。
+     真实 jobs chip 无法在受控环境构造（宿主在后台任务数为 0 时整颗不渲染），
+     故本条**已整块撤回**，等拿到「真机带后台任务的截图 + 视觉稿」后按绝对定位口径重做。
+     撤回是安全的：本组只在两颗 chip 同时在场时匹配，撤掉后单 chip 形态回到既有那批
+     规则的管辖（受控实验：单 chip 的 rect 与撤前逐像素一致，规则匹配数=0）。 */
 
   /* --- Header popovers on mobile (dsh-client-ui-jobs / dsh-client-ui-subagent) --- */
   /* Both entries sit in the session header and both anchor their panel to the
@@ -1811,6 +1861,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        @container(width<=480px) 藏掉标签、只剩 14px 图标（对账见 §6），
        这一行不再需要 6px 的呼吸量；收成 4px 让「模式 / 团队 / 文件夹」
        看起来是一组。 */
+    /* 本批之前的值。2026-10-12 的「标题这一行三个之间放宽到 6px」只针对手机档
+       （后台任务圆点搬进标题行后与预设 chip 的间距），已搬进手机档作用域。 */
     gap: 0 4px !important;
     justify-content: flex-start !important;
     align-items: center !important;
@@ -1845,6 +1897,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     min-width: 0 !important;
     /* 6 个汉字上限：6×14px + 左右 padding 16px = 100px。再长就在本段内横滑，
        这样标题永远不会顶到右侧的预设。 */
+    /* 本批之前的值（100px 横滑窗 + 硬切）。2026-10-12 的「缩到 80px 再改省略号、
+       最后取消硬顶改 max-width: 100%」只针对手机档（子智能体 chip 进标题行后
+       要让出约 100px），已整串搬进手机档作用域；共用档（= 平板档）保持不动。 */
     max-width: 100px !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
@@ -1864,10 +1919,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_crumbs"] [class*="_crumbSeg"] > button {
     flex: 0 1 auto !important;
     min-width: 0 !important;
-    max-width: 100px !important;
-    overflow-x: auto !important;
+    max-width: 80px !important;
+    overflow-x: hidden !important;
     overflow-y: hidden !important;
-    text-overflow: clip !important;
+    text-overflow: ellipsis !important;
     white-space: nowrap !important;
     text-align: left !important;
     touch-action: pan-x !important;
@@ -1910,6 +1965,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     justify-content: flex-end !important;
     /* 与 titleCluster 同步收到 4px（2026-09-23）：动作行里的 chip（任务 /
        谱系 / 团队）之间也只留 4px。 */
+    /* 本批之前的值。2026-10-12 的「动作行内各 chip 之间放宽到 6px」只针对手机档，
+       已搬进手机档作用域。 */
     gap: 4px !important;
     overflow-x: auto !important;
     scrollbar-width: none;
@@ -1946,14 +2003,26 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding-right: 6px !important;
   }
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="files"] {
-    width: 36px !important;
-    height: 36px !important;
-    flex: 0 0 36px !important;
     /* Keep the 36px seat the reference phone UI shows (opener box 316..352 at
        360px, icon 326..342): it is the geometry the lane's 46px reservation
        above is tuned against. Mirror the toggle's centre (top:6px for a 28px
-       control -> centre y=20) by lifting the taller box to top:2px. */
+       control -> centre y=20) by lifting the taller box to top:2px.
+       本批之前的值；2026-10-12 的「座位 36→30 + top 2→5」只针对手机档，见手机档作用域。 */
+    width: 36px !important;
+    height: 36px !important;
+    flex: 0 0 36px !important;
     top: 2px !important;
+  }
+  /* 手机档（≤767 + coarse）：2026-10-12 用户规格 —— 座位 36 → 30px（原来比左侧 ☰
+     的 28px 胖一圈，用户指出"外部灰色胶囊"偏大）。top 由 2 改 5，保持图标中心仍在
+     y=20，与 ☰ 同一水平线。平板档没被要求动，仍是 36px / top:2。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="files"] {
+      width: 30px !important;
+      height: 30px !important;
+      flex: 0 0 30px !important;
+      top: 5px !important;
+    }
   }
   /* 新宿主把「右侧栏入口」放进了 titleRow 的 headerCorner。手机上市宿右侧栏
      就是 Files 面板，所以它和插件的文件按钮是同一个面板的两个入口；而它带
@@ -2006,9 +2075,17 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        预留才是"整整 118px"。 */
     box-sizing: border-box !important;
   }
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([class*="QsffPG_root"]) [role="tablist"] {
-    padding-right: 118px !important;
-  }
+  /* 2026-10-12（受控实测后删除）：原「jobs 在场 ⇒ tablist 右侧预留 118px」规则
+     被证明是**惰性的** —— 同一 DOM 上切 8px ↔ 118px，tablist 的 rect、clientWidth 与
+     注入元素的 x **差量全为 0**。原因：本表 box-sizing 为 border-box，padding 落在声明
+     宽度之内、不缩小 flex 容器的 content box；而 tablist 是 overflow-x 为 auto 的滚动容器，
+     子元素可以排进 padding 区 ⇒ 预留区挡不住任何视觉重叠，只让 scrollWidth 多 110px，
+     并在溢出后造成整行左移 8px（临界从 159 抬到 167）。
+     实测临界（393×844，合成"第三方 chip"）：无 jobs 时 >159px 压到谱系 chip；
+     有 jobs（74px 文案态）时 >83px 压到 jobs chip；标签行溢出要到 260px 才发生。
+     要真正预留，border-box 下 padding 做不到，须用 margin-right 或
+     width: calc(100% - Npx)（该替代方案未实测，属推断）；而 83px 这个上限的根源是
+     jobs 的定位公式（左缘 = 谱系左缘 − 2 − jobs 宽），要腾更多得动定位而不是 padding。 */
    /* Agent Team chip（VoX2oq_root，data-team-action）被 rc 代 pin 规则钉死
       （flex 0 0 auto + order 2，实测 98.7px），动作行里唯一可缩的模式 chip
       被压到 56.2px（390px 实测「创造模式」只剩「创造…」）。模式 chip 是
@@ -2039,10 +2116,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       left: 3px !important;
     }
   }
+  /* @patch
+     id: header-chip-seat
+     for: 宿主 3.0.6 的 headerActions / titleCluster 槽位（两颗状态 chip 的座位）
+     why: 槽位树由宿主 React 管理，本插件不能插入自有节点，只能靠 CSS 改排位
+     until: 上游在标题行提供稳定的 actions/title 槽标记，或把两颗 chip 分到独立容器
+     test: tests/a2-header-gating.test.ts
+  */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerActions"] [class*="QsffPG_root"] {
+    /* 本批之前的值：后台任务 chip 坐在标签行右端（贴 header 底边 + 下内边距 9px
+       = 与标签文字齐平）。2026-10-12 的「搬进标题行」只针对手机档，见手机档作用域。 */
     position: absolute !important;
     right: 8px !important;
-    /* 和子代理 chip 同一套：贴 header 底边 + 下内边距 9px = 与标签文字齐平。 */
     bottom: 0 !important;
     height: 25px !important;
     min-height: 25px !important;
@@ -2065,6 +2150,21 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding: 0 2px 9px !important;
     line-height: 16px !important;
     align-items: center !important;
+  }
+  /* 手机档（≤767 + coarse）：2026-10-12 第三批·B 方案 —— 后台任务 chip **进标题行**
+     （static + order 9，排在智能体预设 chip 之后），按钮去掉贴底用的 9px 下内边距。
+     为什么只搬一颗：受控实测两颗状态 chip 同搬 ⇒ 标题触 72px 地板后右簇仍溢出 10px
+     （带文案态直接盖住文件夹按钮），所以子智能体 chip 回标签行、这颗进标题行。
+     平板档没被要求动，仍是本批之前的「标签行右端」形态。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerActions"] [class*="QsffPG_root"] {
+      position: static !important;
+      order: 9 !important;
+      margin: 0 0 0 2px !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="QsffPG_root"] > button {
+      padding: 0 2px !important;
+    }
   }
   /* 头部弹层定位（jobs 任务列表 / subagent 谱系 / 预设菜单都会命中的同一族）：
      插件老规则是「弹层左缘 = chip 左缘 + 8px」，那条规则成立的年代 chip 都
@@ -2140,13 +2240,16 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      实测 84.6..264 盖住轨迹/记忆两 tab；headless 中任务已结束但
      QsffPG_root 仍在 DOM，:has 命中幽灵元素）；聚合态不受影响，让位语义
      原样保留。 */
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([class*="QsffPG_root"]) [class*="ZKlsPq_root"]:not([class*="_switcherRoot"]) {
-    right: 126px !important;
-  }
+  /* 2026-10-12：原「后台任务在场 ⇒ 谱系 chip 让位到 right:126px」规则已删除。
+     用户规格是主次对调（谱系 chip 固定不动、后台任务 chip 让到它左侧），
+     让位一旦保留就会把谱系 chip 推走 —— 与规格直接冲突。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"] > button {
     height: 25px !important;
     min-height: 25px !important;
     line-height: 16px !important;
+    /* 原 9px 下内边距是「贴 header 底边、与标签文字齐平」用的；搬进标题行后要改贴
+       预设 chip 的竖直中心（与后台任务 chip 搬上去时同一处理）。 */
+    /* 2026-10-12 用户规格：右侧内边距 4 → 2px，让 chip 的文字/箭头更靠近右缘。 */
     padding: 0 4px 9px !important;
     align-items: center !important;
   }
@@ -2165,10 +2268,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     right: 8px !important;
     margin: 0 !important;
   }
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([role="tablist"] button:nth-of-type(3)):has([class*="QsffPG_root"]) [class*="ZKlsPq_root"]:not([class*="_switcherRoot"]),
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([role="tablist"] > button:nth-child(3)):has([class*="QsffPG_root"]) [class*="ZKlsPq_root"]:not([class*="_switcherRoot"]) {
-    right: 126px !important;
-  }
+  /* 2026-10-12：≥3 标签版的让位规则（原 right:126px）已一并删除 —— 同 Y1，
+     主次对调后谱系 chip 不再为后台任务 chip 让位。 */
   /* 真机反馈：「标题下面多了一条灰色滑条」。第 4/5 条为了让长标题能左右拖着看，
      把面包屑做成了横向滚动容器 —— 实测 button.wSkVaW_crumb: overflow-x:auto、
      scrollWidth − clientWidth = 88；像素实测那条灰条是 x=40.0~89.5、高 7.8、
@@ -2227,9 +2328,26 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      findHorizontalScroller/后续实测定去留（数值 48/8/180 均可调）。菜单
      position:fixed 独立定位层，不受本条影响（取证已证）。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"][class*="_switcherRoot"] {
+    /* 同上，进标题行流程。变体实测宽 180px，而标题行右簇只有约 229px 可用
+       （= 可用 305 − 标题地板 72 − 间隙 4），减去预设 chip 95 与间距后只剩约 124px，
+       所以这里封顶，超出部分由内部 span 的 ellipsis 收掉（见本文件 ZKlsPq span 规则）。 */
+    /* 换位后同样回标签行；标题行才需要的 124px 封顶随之撤掉。 */
+    /* 2026-10-12 用户要求：**位置定死，不被其他插件移动**。
+       绝对定位元素的落点由「四边偏移 + 包含块 + transform」三者决定，所以三处都钉：
+       ① 四边写全（含 bottom: auto），别的插件只改一条也推不动；
+       ② 包含块锁死在 header（见下面把 _titleCluster/_headerActions 钉成 static 的那条）；
+       ③ transform/margin 归零并加 !important，防被 translate / 外边距挪走；
+       ④ z-index 提固定值，防止标签行后来者把它盖住。
+       ⚠ 本块只钉「不被别的插件移动」——落点本身仍是本批之前那套（绝对定位贴
+       标签行右缘）；手机档的形态差异由手机档作用域表达。 */
+    position: absolute !important;
     left: auto !important;
     right: 8px !important;
     top: 48px !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    transform: none !important;
+    z-index: 3 !important;
   }
   /* 聚合 chip 右锚（用户拍板 2026-09-19：中置的子代理元素应右靠）：与
      switcher 同款右靠 + 基线（top:48 → 25 高中心 60.5 ≈ tab 中心 60；
@@ -2243,10 +2361,34 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      tab/QsffPG 重叠，属无害惰性，彻底解（JS 可见性标记）留 effects
      车道。聚合 max-width min(32vw,116) 沿用基础规则不动；数值 48/8 可
      调。 */
+  /* @patch
+     id: lineage-chip-pinned
+     for: 宿主 ZKlsPq 子智能体 chip 的绝对定位落点（含包含块）
+     why: 别的插件只要给任一祖先加 position:relative，包含块被抢、chip 就会挪位；四边偏移加 transform 是唯一能钉死的手段
+     until: 宿主为该 chip 提供非绝对定位的稳定槽（届时四边偏移与祖先 static 都可删）
+     test: tests/a2-header-gating.test.ts
+  */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"]:not([class*="_switcherRoot"]) {
+    /* 2026-10-12 用户规格（第三批·B 方案）：把**子智能体 chip 从标签行搬进标题行**，
+       坐在「智能体预设 chip」与「文件夹按钮」之间 —— 即原先后台任务圆点占的那个位置；
+       后台任务圆点同时回到标签行（见 QsffPG 规则）。
+       原来它是 absolute + right:8px + top:48px（相对 header，视觉上落在标签行 y=42..67）。
+       进流程后 left/right/top 全部失效，由 order 排在预设 chip 之后。 */
+    /* 2026-10-12 换位后回标签行：绝对定位贴右缘、top:48（原形态）。 */
+    /* 2026-10-12 用户要求：**位置定死，不被其他插件移动**。
+       绝对定位元素的落点由「四边偏移 + 包含块 + transform」三者决定，所以三处都钉：
+       ① 四边写全（含 bottom: auto），别的插件只改一条也推不动；
+       ② 包含块锁死在 header（见下面把 _titleCluster/_headerActions 钉成 static 的那条）；
+       ③ transform/margin 归零并加 !important，防被 translate / 外边距挪走；
+       ④ z-index 提固定值，防止标签行后来者把它盖住。 */
+    position: absolute !important;
     left: auto !important;
     right: 8px !important;
     top: 48px !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    transform: none !important;
+    z-index: 3 !important;
   }
   /* 手机档（≤767 + coarse）：上面两条的 top:48 是按"标题行 40 + 页签行 36"的老几何
      推的（25 高中心 60.5 ≈ tab 中心 60）。本插件的手机档把页签行压到 26px 之后，
@@ -2274,6 +2416,74 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       同为 (0,4,1) !important 且书写在后，同特异性后到先得把 separator
       顶回 display:block（实测 390px separator [269.1,·,5.5,25] 实绘可见）。
       加 :not 把 separator 从本条管辖范围摘掉，隐藏权交还 rc 代那条。 */
+  /* 2026-10-12 用户规格：给智能体预设 chip 套一层**不可见的胶囊**。
+     动机：公共车道里预设 chip 与子智能体 chip 会贴在一起（间距已被收到 0），
+     不套这层就分不清是两个控件。
+     做法：外壳用 ::before 画一个透明底的圆角胶囊（「灰色层、不显现」——形状与圆角
+     就位，底色透明；将来要显灰只需把 background 换成变量），实际间隔由 margin-right
+     给出（几 px，用户明确要求「不至于为 0」）。
+     用 ::before 而不是给本体加 padding：本 chip 的图标是 position:absolute 贴左缘的，
+     给本体加左内边距会让文字右移而图标不动，两者会叠上。 */
+  /* @patch
+     id: preset-invisible-capsule
+     for: 宿主 SVAs4q_label 智能体预设 chip 的外包裹层
+     why: 该 chip 的图标是 position:absolute 贴左缘，给本体加内边距会让文字与图标叠上；只能加一层绝对定位外壳
+     until: 宿主给预设 chip 自身加上左右内边距（本外壳与 margin 一并删）
+     test: tests/a2-header-gating.test.ts
+  */
+  /* 智能体预设 chip（SVAs4q_label）：**本批之前这里没有任何本插件的规则** ——
+     宿主的 max-width 180px + ellipsis 边界照旧，外层不加包裹层。
+     2026-10-12 的「不可见胶囊 + 可收缩 + 超长省略号」是一组只针对手机档的改动，
+     见下面的手机档作用域（平板档继续走宿主原样）。 */
+  /* 手机档（≤767 + coarse）：2026-10-12 用户规格 —— 给智能体预设 chip 套一层
+     **不可见的胶囊**。动机：公共车道里预设 chip 与子智能体 chip 会贴在一起
+     （间距已被收到 0），不套这层就分不清是两个控件。做法：外壳用 ::before 画一个
+     透明底的圆角胶囊（「灰色层、不显现」——形状与圆角就位，底色透明），实际间隔由
+     margin-right 给出（几 px，用户明确要求「不至于为 0」）。用 ::before 而不是给
+     本体加 padding：本 chip 的图标是 position:absolute 贴左缘的，给本体加左内边距
+     会让文字右移而图标不动，两者会叠上。
+     另加「长名字防护」：宿主自带的 min-width:auto（= 内容宽）会让长名字把同级挤出去、
+     先压垮标题的 72px 地板再让整簇溢出；这里补可收缩 + min-width:0 + 省略号。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="SVAs4q_label"] {
+      position: relative !important;
+      /* 先归零（去掉与宿主自带 2px 右内边距的重复），用户看过之后要求
+         「外包裹层的 px 抬一丢丢」⇒ 占回 2px。现在的构成 = 宿主自带右内边距 2 + 本 margin 2
+         + 容器 gap 0 + 团队 chip 左内边距 2 = 6px（改前是 11px，大头那 7px 已收掉）。 */
+      margin-right: 2px !important;
+      flex: 0 1 auto !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-radius: 999px !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="SVAs4q_label"]::before {
+      content: '' !important;
+      position: absolute !important;
+      /* 用户要求「外包裹层的 px 抬一丢丢」：左右各 4 → 5px，上下也包 1px。 */
+      inset: -1px -5px !important;
+      border-radius: 999px !important;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+    /* 2026-10-12 用户反馈「预设与团队之间距离太多」：实测大头来自**团队 chip 自己**的
+       左内边距（宿主 .VoX2oq_trigger 是 padding: 3px 7px）。7 → 2px 收掉 5px，
+       与上面预设的 margin 归零合起来，这段总间距从 11px 降到 4px（视觉上才看得出来）。
+       代价：该按钮左侧命中区窄 5px（高度仍由 min-height: 28px 保证）—— 用户若觉得难点，
+       把 2px 往上调即可，值就是唯一旋钮。 */
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-team-action][class*="_root"] > button,
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="VoX2oq_trigger"] {
+      padding-left: 2px !important;
+    }
+  }
+  /* 2026-10-12：把子智能体 chip 与 header 之间的两个祖先钉成 static ——
+       绝对定位元素认「最近的已定位祖先」作包含块，别的插件只要给它们其中任何一个
+       加上 position:relative，chip 就会以那个元素为基准重新落点（相对位移）。
+       二者今天本来就不是定位元素，钉成 static 对现有布局零影响，只是把包含块锁死在 header。 */
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) > [class*="_titleCluster"],
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] > [class*="_headerActions"] {
+    position: static !important;
+  }
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"] span:not([class*="_separator"]) {
     display: block !important;
     overflow: hidden !important;
@@ -2815,10 +3025,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   @keyframes dsh-web-mobile-panel-in {
     from { opacity: .55; transform: translateX(100%); }
   }
-  /* Deliberately NOT reusing dsh-web-mobile-fade: the exit cleanup listens on
-     animationend BY NAME, and that keyframe also runs on the backdrop and the
-     dialogs, which are frame descendants too — reusing it would end the
-     transition early. */
+  /* Deliberately NOT reusing dsh-web-mobile-fade. The reason is the GHOST tail,
+     not the whole exit: since 2026-10-12 the reveal side compares Animation
+     objects (panel-exit.ts finishMain reads event.animationName only for the
+     ghost), and the ghost cleanup still listens on animationend BY NAME
+     (panel-exit.ts ghostEnd). dsh-web-mobile-fade also runs on the backdrop and
+     the dialogs, which are frame descendants too — reusing it would end the
+     ghost early. Comment corrected 2026-10-13 (was claiming the whole exit
+     listens by name; the code had moved on). */
   @keyframes dsh-web-mobile-panel-reveal {
     from { opacity: 0; transform: translateX(-14px); }
   }
@@ -3027,6 +3241,55 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     position: absolute;
     inset: -4px;
   }
+  /* ===== 手机档作用域补充（2026-10-13）=====
+     下面四组是本批（2026-10-12/13）顶栏改动里「共用档已还原成本批之前的值、
+     手机档需要另一个值」的那部分。它们与本文件里其它 @media (max-width: 767px)
+     and (pointer: coarse) 嵌套块同权限 —— 同层 + 同特异性 + 书写在后，覆盖共用档。 */
+  /* ① 标题簇右侧预留：共用 46px（给右端文件夹按钮）→ 手机档 34px。
+     34 是 2026-10-12/13 那串「46 → 40 → 36 → 32 → 26 → 34」的终值，每一档的动机：
+       46 → 40：后台任务圆点搬进标题行后偏左、与预设 chip 显得拥挤，收 6px 整簇右移；
+       40 → 36：文件夹按钮盒子从 x=349 起、36px 宽，36 让整簇右缘正好贴到它的左沿
+                （视觉上离图标仍余 10px 内边距），是**安全上限**，再往下会压进命中区；
+       36 → 32：与「文件夹按钮右移 4px」**配对** —— 只移按钮不缩本值，两者之间会凭空
+                多出 4px（用户要的是整组右移，不是拉开）；
+       32 → 26：与「文件夹座位 36→30」**配对** —— 座位窄 6px 后其左沿右移 6px；
+       26 → 34：用户反馈圆点离文件夹太近（0px），左下 8px 后按钮盒内还有 7px 内边距到
+                图标，视觉距离约 15px。代价：整簇左移 8px，标题窗口相应窄 8px。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header [class*="wSkVaW_titleCluster"] {
+      padding-right: 34px !important;
+    }
+  }
+  /* ② 标题行三个（标题 / 预设 / 后台任务）之间的间距：共用 4px → 手机档 6px
+     （2026-10-12 用户要求；本条管「标题 ↔ 右侧 chip 簇」）。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] {
+      gap: 0 6px !important;
+    }
+  }
+  /* ③ 标题本体：共用 100px 横滑窗 + clip（截断处是硬切，像被裁掉）→ 手机档
+     可扩展 + 省略号（2026-10-12 用户规格）。第一轮收 80px 硬顶，第二轮取消硬顶改
+     100%：硬顶的问题是「关掉团队 chip 后腾出的空间标题吃不到」；改成 100% 后由 flex
+     决定 —— 右侧各 chip 是 flex 0 0 auto（不收缩，先拿够自己的地方），标题再吃掉
+     剩下的，不够时由本条 ellipsis 收尾，既有 72px 地板（在 _crumbs 上）仍兜底。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_crumbs"] [class*="_crumbCurrent"] {
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+      text-overflow: ellipsis !important;
+      /* 共用档保留本批之前的 pan-x（那时标题是横滑窗，横滑要先被浏览器认领，
+         免得左缘抽屉手势抢走这一笔）；手机档改成不横滑的省略号窗口 ⇒ 横滑认领
+         随之撤掉，否则手势层的判定与实际可滚动性对不上。
+         写成 pan-y pinch-zoom（而不是 auto）与全库其余的 touch-action 声明同形，
+         tests/ios-zoom-guard.test.ts 会逐条检查「非 pan-x 的值必须含 pinch-zoom」。 */
+      touch-action: pan-y pinch-zoom !important;
+    }
+  }
+  /* ④ 动作行内各 chip 之间：共用 4px → 手机档 6px（2026-10-12 用户要求）。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerActions"] {
+      gap: 6px !important;
+    }
+  }
 }
-
 `

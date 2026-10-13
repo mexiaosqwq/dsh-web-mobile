@@ -153,9 +153,17 @@ function downloadFile(file: File): void {
 /** The live platform seams for deliverFile. */
 function platformDeps(): Parameters<typeof deliverFile<File>>[1] {
   const nav = navigator as Navigator & Partial<Pick<Navigator, 'canShare' | 'share'>>
+  const bridge = (window as Window & { DSHA?: {
+    canShareFile?: (file: File) => boolean
+    shareFile?: (file: File) => Promise<void>
+  } }).DSHA
   return {
-    canShare: typeof nav.canShare === 'function' ? data => nav.canShare!(data) : undefined,
-    share: typeof nav.share === 'function' ? data => nav.share!(data) : undefined,
+    canShare: typeof bridge?.canShareFile === 'function'
+      ? data => data.files.length === 1 && bridge.canShareFile!(data.files[0]!)
+      : typeof nav.canShare === 'function' ? data => nav.canShare!(data) : undefined,
+    share: typeof bridge?.shareFile === 'function'
+      ? data => bridge.shareFile!(data.files[0]!)
+      : typeof nav.share === 'function' ? data => nav.share!(data) : undefined,
     download: downloadFile,
   }
 }

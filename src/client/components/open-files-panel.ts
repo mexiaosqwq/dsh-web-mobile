@@ -1,4 +1,4 @@
-import { getFrame } from '../effects/phone-chrome.ts'
+import { getFrame } from '../platform/frame.ts'
 
 /** The host's own right-sidebar opener (ui-sidebar-right: ExpandButton). */
 export const HOST_FILES_OPENER = '[data-sidebar-right-expand]'

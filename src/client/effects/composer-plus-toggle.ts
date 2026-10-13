@@ -1,5 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * 加号「再点关闭」的接管（2026-09-23 二轮修订，推翻上一轮的根因判断）。

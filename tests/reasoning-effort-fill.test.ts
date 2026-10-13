@@ -101,6 +101,137 @@ test('leaves a model whose level set comes from a lower layer alone', () => {
   assert.deepEqual(plan.ops, [])
 })
 
+// ---------------------------------------------------------------------------
+// The `auto` 档 (2026-10-14 用户反馈：某些模型不能自定义思考强度、设了会报错).
+//
+// 宿主没有 `auto` 这个档位值——`THINKING_LEVELS` 是闭枚举
+// (`@deepseek-ai/dsh-llm-pi-ai:lib/index.js:296-304` = off/minimal/low/medium/
+// high/xhigh/max，用作 `reasoningEfforts` 的键类型 `:1001` 与 profile 的
+// `reasoning` 类型 `:1029`)，硬塞字符串会被 schema 拒绝。宿主自己的「不写档位」
+// 拼法就是**字段缺席**。所以 auto 档 = 不写入：让模型保持自身默认。
+// 判据是 `compat.supportsReasoningEffort: false`（模型级或路由级，模型级赢，
+// `:966` / `:382` / `:617-625`；pi-ai 据此根本不把 effort 发上线
+// `@earendil-works/pi-ai:dist/api/openai-completions.js:622,712`），以及宿主
+// 自己的 `reasoningEfforts: false`（`:1008` → `{ reasoning: false }` `:570`）。
+// ---------------------------------------------------------------------------
+
+test('a model that declares no reasoning-effort support is never given a level set (auto 档)', () => {
+  // 用户反馈里的关键场景：这个模型不接受自定义思考强度。补齐前它和普通手写模型
+  // 长得一模一样（都有 id/name、都没有 reasoningEfforts），唯一区别就是模型级
+  // 的 compat 开关。补齐后它必须**仍然没有** reasoningEfforts。
+  const user = {
+    providers: {
+      a: profile({
+        models: [
+          { id: 'strict-gateway', name: 'Strict Gateway', compat: { supportsReasoningEffort: false } },
+        ],
+      }),
+    },
+  }
+  const plan = planReasoningEffortFill(user, user)
+  assert.deepEqual(plan.ops, [], '不得写入任何具体档位')
+  assert.equal(plan.filled, 0)
+  assert.equal(plan.auto, 1, '该模型计入 auto 档')
+})
+
+test('a route-level supportsReasoningEffort: false parks every model of that route in the auto 档', () => {
+  const user = {
+    providers: {
+      a: profile({
+        compat: { supportsReasoningEffort: false },
+        models: [{ id: 'one' }, { id: 'two' }],
+      }),
+    },
+  }
+  const plan = planReasoningEffortFill(user, user)
+  assert.deepEqual(plan.ops, [])
+  assert.equal(plan.auto, 2)
+})
+
+test('a model-level `true` outranks its route\'s `false`, so the model is still filled', () => {
+  // 宿主合并路由 compat 在前、模型 compat 在后（`dsh-llm-pi-ai:lib/index.js:
+  // 617-625`），所以「整条路由默认不支持、这一个模型支持」是合法配置。
+  const user = {
+    providers: {
+      a: profile({
+        compat: { supportsReasoningEffort: false },
+        models: [{ id: 'special', compat: { supportsReasoningEffort: true } }, { id: 'plain' }],
+      }),
+    },
+  }
+  const plan = planReasoningEffortFill(user, user)
+  assert.equal(plan.filled, 1)
+  assert.equal(plan.auto, 1)
+  assert.deepEqual(plan.ops, [
+    {
+      op: 'set',
+      path: ['providers', 'a', 'models'],
+      value: [
+        { id: 'special', compat: { supportsReasoningEffort: true }, reasoningEfforts: { ...DEFAULT_REASONING_EFFORTS } },
+        { id: 'plain' },
+      ],
+    },
+  ])
+})
+
+test('the host\'s own `reasoningEfforts: false` is the same 不干预 verdict, and survives untouched', () => {
+  // `false` 是宿主官方拼法（`dsh-llm-pi-ai:lib/index.js:1008`，解析成
+  // `{ reasoning: false }` `:570`），意思是「这个模型不参与思考档位」。它已经
+  // 声明了能力，所以既不该被写入，也不算 auto 档的「本来要写但忍住了」计数。
+  const user = {
+    providers: { a: profile({ models: [{ id: 'm', reasoningEfforts: false }] }) },
+  }
+  const plan = planReasoningEffortFill(user, user)
+  assert.deepEqual(plan.ops, [])
+  assert.equal(plan.filled, 0)
+  assert.equal(plan.auto, 0, '它本来就声明了能力，不是 auto 档救下来的条目')
+})
+
+test('a lower layer\'s `reasoningEfforts: false` also keeps the model at its own default', () => {
+  const user = { providers: { a: profile({ models: [{ id: 'm' }] }) } }
+  const resolved = { providers: { a: profile({ models: [{ id: 'm', reasoningEfforts: false }] }) } }
+  assert.deepEqual(planReasoningEffortFill(resolved, user).ops, [])
+})
+
+test('modelOverrides honour the same switch instead of taking a reasoningEfforts path', () => {
+  const user = {
+    providers: {
+      catalog: profile({
+        modelOverrides: {
+          quiet: { contextWindow: 262144, compat: { supportsReasoningEffort: false } },
+          plain: { contextWindow: 262144 },
+        },
+      }),
+    },
+  }
+  const plan = planReasoningEffortFill(user, user)
+  assert.deepEqual(plan.ops, [
+    {
+      op: 'set',
+      path: ['providers', 'catalog', 'modelOverrides', 'plain', 'reasoningEfforts'],
+      value: { ...DEFAULT_REASONING_EFFORTS },
+    },
+  ])
+  assert.equal(plan.filled, 1)
+  assert.equal(plan.auto, 1)
+})
+
+test('the store face reports the auto 档 without writing anything', async () => {
+  const user = {
+    providers: {
+      a: profile({
+        models: [{ id: 'strict', compat: { supportsReasoningEffort: false } }],
+      }),
+    },
+  }
+  const { face, calls } = recordingSettings(user, user)
+  const outcome = await fillReasoningEffortDefaults(face)
+  assert.equal(outcome.status, 'nothing-to-do')
+  assert.equal(outcome.filled, 0)
+  assert.equal(outcome.auto, 1)
+  assert.deepEqual(calls, [], 'auto 档不得触发 mutate')
+})
+
 test('counts resolved models past the user-layer array instead of materializing them', () => {
   const user = { providers: { a: profile({ models: [{ id: 'mine' }] }) } }
   const resolved = {

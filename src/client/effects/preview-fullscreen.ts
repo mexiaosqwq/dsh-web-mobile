@@ -1,7 +1,7 @@
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { NS } from '../i18n/locales.ts'
-import { getFrame } from './phone-chrome.ts'
+import { getFrame } from '../platform/frame.ts'
 
 export function createPreviewFullscreenTask(t: TranslateNS<typeof NS>): ReconcilerTask {
   let button: HTMLButtonElement | null = null

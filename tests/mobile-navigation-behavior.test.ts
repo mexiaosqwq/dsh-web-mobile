@@ -11,8 +11,15 @@ import { isTapWithinSlop } from '../src/client/effects/session-row-fiber.ts'
 import { LAYOUT_CSS } from '../src/client/styles/layout.css.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const source = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
-const tree = ts.createSourceFile('phone.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+const source = readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
+const tree = ts.createSourceFile('drawer-close.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+// The frame lookup moved to the platform layer (architecture P1); the memo test
+// below pins that file, not phone-chrome.
+const frameTree = ts.createSourceFile(
+  'frame.ts',
+  readFileSync(join(ROOT, 'src/client/platform/frame.ts'), 'utf8'),
+  ts.ScriptTarget.Latest, true, ts.ScriptKind.TS,
+)
 const handler = tree.statements.find(node => ts.isFunctionDeclaration(node)
   && node.name?.text === 'installOverlayInteractions')
 assert.ok(handler)
@@ -141,8 +148,12 @@ function modelFixture({ viewport, menuWidth, triggerRight, cardLeft, cardWidth }
   const timers = new Map()
   let next = 1
   let queries = 0
+  let menuRects = 0
   let cleanup
-  const menu = { style: { left: 'original' }, getBoundingClientRect: () => ({ width: menuWidth, height: 100 }) }
+  const menu = {
+    style: { left: 'original' },
+    getBoundingClientRect: () => { menuRects += 1; return { width: menuWidth, height: 100 } },
+  }
   const trigger = {
     getBoundingClientRect: () => ({ left: triggerRight - 30, right: triggerRight, width: 30, height: 28 }),
     closest: selector => selector.includes('trigger') ? trigger : null,
@@ -181,7 +192,7 @@ function modelFixture({ viewport, menuWidth, triggerRight, cardLeft, cardWidth }
   }
   return {
     menu, listeners, frames, timers,
-    queries: () => queries, dispose: () => cleanup(),
+    queries: () => queries, menuRects: () => menuRects, dispose: () => cleanup(),
     open: () => { listeners.get('d:click')({ target: trigger }); flush() },
     scroll: () => { listeners.get('d:scroll')({}); flush() },
   }
@@ -197,17 +208,31 @@ test('a narrow model menu falls back to the composer center', () => {
   fixture.open()
   assert.equal(fixture.menu.style.left, '19px')
 })
+// 失效断言（2026-10-13 更正）：这里原本断言 dispose 后 `style.left === ''`。
+// 夹具把宿主的原值种成字符串 'original'，所以旧断言钉住的其实是**旧行为**——
+// 「我们一律把它清空」。清空不是还回去：宿主自己写过的那行 inline left 会被我们抹掉，
+// issue #86 的原始诉求恰恰是「还回去」。条目①改成按原值还原后，正确期望是 'original'。
 test('scrolling reuses cached anchors and disposal releases listeners and placement', () => {
   const fixture = modelFixture(WIDE)
   fixture.open()
   const before = fixture.queries()
   fixture.scroll()
   assert.equal(fixture.queries(), before)
+  const rectsBefore = fixture.menuRects()
+  fixture.scroll()
+  assert.equal(fixture.menuRects() - rectsBefore, 1, '一趟 follow 只读菜单盒一次（旧版 laidOut 判定 + place 各读一次 = 2）')
   fixture.dispose()
-  assert.equal(fixture.menu.style.left, '')
+  assert.equal(fixture.menu.style.left, 'original', '收尾还原宿主原值，不是清空')
   assert.equal(fixture.listeners.size, 0)
   assert.equal(fixture.frames.size, 0)
   assert.equal(fixture.timers.size, 0)
+})
+// 同一帧里同一个元素只读一次：open() 的两趟落位（交互那一帧 + 收尾计时器那一帧）
+// 新版各读菜单盒 1 次 = 2 次；旧版每趟 findMenu 与 place 各读一次 = 4 次。
+test('one rect read per element per frame', () => {
+  const fixture = modelFixture(WIDE)
+  fixture.open()
+  assert.equal(fixture.menuRects(), 2, '两趟落位帧，菜单盒每帧只读一次')
 })
 test('phone panel chrome ignores split eligibility and preserves collapse', () => {
   const css = LAYOUT_CSS.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -228,4 +253,53 @@ test('subagent hash correction retains both selector families', () => {
   for (const selector of ['ZKlsPq_root', 'ZKlsPq_menu', 'h8S2Va_root', 'h8S2Va_menu']) {
     assert.ok(text.includes(`[class*="${selector}"]`))
   }
+})
+
+// 流式期间每个 `*` 任务每帧都会重新解析 frame；缓存必须命中，但节点断开或
+// 标记易主后必须立刻回到「真查询」，否则会把样式挂到已经不存在的列上。
+test('getFrame memoizes the frame marker but re-queries once it is stale', () => {
+  const cacheDecl = frameTree.statements.find(node => ts.isVariableStatement(node)
+    && node.declarationList.declarations.some(d => d.name.getText(frameTree) === 'frameCache'))
+  const findFrameFn = frameTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'findFrame')
+  const getFrameFn = frameTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'getFrame')
+  assert.ok(cacheDecl && findFrameFn && getFrameFn, 'frame lookup must live in platform/frame.ts')
+
+  const js = compile([
+    cacheDecl.getText(frameTree).replace('export ', ''),
+    findFrameFn.getText(frameTree).replace('export ', ''),
+    getFrameFn.getText(frameTree).replace('export ', ''),
+    'exports.getFrame = getFrame',
+  ].join('\n'))
+
+  let queries = 0
+  const frame = {
+    isConnected: true,
+    marked: true,
+    getAttribute: (key: string) => (key === 'data-mobile-nav' && frame.marked ? 'frame' : null),
+  }
+  const doc = {
+    querySelector: (selector: string) => {
+      queries += 1
+      if (!selector.includes('data-mobile-nav')) return null
+      return frame.marked ? frame : null
+    },
+  }
+  const module = { exports: {} as Record<string, () => unknown> }
+  vm.runInNewContext(js, { module, exports: module.exports, document: doc })
+  const getFrame = module.exports.getFrame as () => unknown
+
+  assert.equal(getFrame(), frame)
+  assert.equal(queries, 1, 'first call resolves once')
+  assert.equal(getFrame(), frame)
+  assert.equal(getFrame(), frame)
+  assert.equal(queries, 1, 'further calls must reuse the cached node')
+
+  frame.isConnected = false
+  assert.equal(getFrame(), frame)
+  assert.ok(queries > 1, 'a disconnected frame must be re-resolved')
+
+  frame.marked = false
+  const before = queries
+  assert.equal(getFrame(), null)
+  assert.ok(queries > before, 'a node that lost the marker must be re-resolved')
 })

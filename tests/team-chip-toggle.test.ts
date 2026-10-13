@@ -69,3 +69,23 @@ test('入口武装该效果', () => {
   assert.match(ENTRY, /import \{ installTeamChipToggle \} from '\.\/effects\/team-chip-toggle\.ts'/)
   assert.match(ENTRY, /installTeamChipToggle\(ctx\)/)
 })
+
+// 用户报障（2026-10-11）：平板模式下点开智能体面板后，再点同一颗 chip 收不起来。
+// 根因之一是门控：MOBILE_QUERY 的 `max-width: 1023px` 在宽视口恒 false ⇒ 本效果压根没安装，
+// 而宽触屏没有 hover 兜底。这条断言是**防回退**的：把第四参改回 MOBILE_QUERY（或删掉）
+// 必须让它变红 —— 顺带 tsc 的 noUnusedLocals 也会因 TOUCH_QUERY 未使用而拦住。
+test('门控是 TOUCH_QUERY：宽触屏（平板）也必须武装', () => {
+  assert.match(SRC, /import \{ TOUCH_QUERY, installMobileEffect \} from '\.\.\/platform\/breakpoints\.ts'/)
+  const at = SRC.indexOf("installMobileEffect(ctx, 'dsh-web-mobile: team chip toggle'")
+  assert.ok(at > 0, '安装点未找到')
+  const call = SRC.slice(at, SRC.indexOf('\n}', at))
+  assert.match(call, /, TOUCH_QUERY\)/, '第四参必须是 TOUCH_QUERY（宽触屏也要武装）')
+  assert.doesNotMatch(call, /MOBILE_QUERY/, '不得再用 MOBILE_QUERY 门控（平板恒不命中）')
+  // 门控语义：TOUCH_QUERY = '(pointer: coarse)' ⇒ 鼠标驱动的窗口（含窄桌面窗口）恒不命中，
+  // 宽触屏（平板/折叠屏展开）命中。这一条把「扩到平板」与「桌面仍零介入」同时钉住。
+  const BREAKPOINTS = readFileSync(
+    fileURLToPath(new URL('../src/client/platform/breakpoints.ts', import.meta.url)),
+    'utf8',
+  )
+  assert.match(BREAKPOINTS, /export const TOUCH_QUERY = '\(pointer: coarse\)'/)
+})

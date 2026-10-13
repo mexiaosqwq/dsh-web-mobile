@@ -1,5 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect, getFrame } from './phone-chrome.ts'
+import { getFrame } from '../platform/frame.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
 import { fadeOverlayOut } from './overlay-backdrop-fab.ts'
 
@@ -924,7 +925,7 @@ function releaseFollowStyles(): void {
  * IN FLIGHT — user report 「最后抽屉样式突然消失,不是自然的动画收起」.
  * Late commit: animate the inline transform to the slot, flip only when the
  * drawer is already off-screen, then drop the inline pair. */
-let pendingCommit: { el: HTMLElement; ctx: ClientContext; timer: number } | null = null
+let pendingCommit: { el: HTMLElement; ctx: ClientContext; timer: number; target: string } | null = null
 
 function finishPendingCommit(): void {
   const pending = pendingCommit
@@ -945,8 +946,15 @@ function finishPendingCommit(): void {
 }
 
 /** Animate `el` to `targetTx` with our own transition, flip the host when it
- * lands. One-shot: a second call settles the previous commit first. */
+ * lands. A repeat of the SAME intent inside the window is claimed by the
+ * in-flight commit (no-op); a different intent settles it first. */
 function commitWithAnimation(ctx: ClientContext, el: HTMLElement, targetTx: string): void {
+  // Same target, same element = the drawer is already leaving that way. Let the
+  // first commit land: force-settling here would flip the host state NOW and
+  // then animate an already-closed drawer (Escape twice inside the 320ms window
+  // used to toggle the host twice — the "晚提交" contract broken by us).
+  const inFlight = pendingCommit
+  if (inFlight !== null && inFlight.el === el && inFlight.target === targetTx) return
   finishPendingCommit()
   // prefers-reduced-motion: degrade the animation instead of adding one. This
   // cannot be left to CSS — the transition written below is inline
@@ -956,15 +964,20 @@ function commitWithAnimation(ctx: ClientContext, el: HTMLElement, targetTx: stri
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     fadeOverlayOut()
     cooldownUntil = performance.now() + COOLDOWN_MS
-    pendingCommit = { el, ctx, timer: 0 }
+    pendingCommit = { el, ctx, timer: 0, target: targetTx }
     finishPendingCommit()
     return
   }
   el.style.setProperty('transition', `transform ${COMMIT_ANIM_MS}ms ease-in-out`, 'important')
-  // Flush the before-change style so the transition provably starts from the
-  // current (finger) position instead of risking a coalesced recalc that
-  // would jump straight to the target.
-  void el.getBoundingClientRect()
+  // Flush the before-change style ONLY when an inline transform is already
+  // present — that is the case this flush exists for: a finger-follow wrote the
+  // current position in this same frame, and the transition has to start from it
+  // instead of from a coalesced recalc. A click/Escape/backdrop close starts from
+  // the stylesheet's open state (`transform: none`, no inline value), so the
+  // transition is well defined without forcing a reflow of the whole column —
+  // measured 105ms of `onDrawerClick` on a 3.5k-node session, growing with the
+  // conversation.
+  if (el.style.getPropertyValue('transform') !== '') void el.getBoundingClientRect()
   el.style.setProperty('transform', targetTx, 'important')
   // Fade the dimming in step with the slide-out: the marker flips only when
   // the drawer lands, so without this the screen would go drawer-then-dark
@@ -975,6 +988,7 @@ function commitWithAnimation(ctx: ClientContext, el: HTMLElement, targetTx: stri
     el,
     ctx,
     timer: window.setTimeout(finishPendingCommit, COMMIT_ANIM_MS + 40),
+    target: targetTx,
   }
 }
 
@@ -1542,7 +1556,7 @@ export function installSidebarSwipe(ctx: ClientContext, filesToggle: () => boole
     // report: pinch-out zoomed but pinch-in would not zoom back).
     const onTouchMove = (event: TouchEvent): void => {
       if (trackingPointer === 0) return
-      if (event.touches.length > 1) {
+      if (event.touches.length !== 1 || !event.cancelable || document.hidden) {
         abortStroke(ctx)
         return
       }

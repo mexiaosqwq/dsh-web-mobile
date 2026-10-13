@@ -1,5 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * 模型 / 推理等级菜单的锚点修正（2026-09-23 店主："这个模型打开，是不是有点偏左边？"）。
@@ -33,6 +33,17 @@ import { installMobileEffect } from './phone-chrome.ts'
  * 菜单开着时得跟着挪，否则会和卡片错位。
  *
  * 为什么不用 MutationObserver：会话在流式输出，`subtree` 观察等于每帧扫全场。
+ *
+ * ## 成本（2026-10-13 第二轮，三处同帧重复工作）
+ *
+ * 1. **rect 一帧一读**：`findMenu()` 为判定「菜单可见」先读一次菜单盒，`place()` 紧接着
+ *    又对**同一个**菜单节点读第二次（旧版 :76-77 → :84）。现在本帧内同一个元素的
+ *    `getBoundingClientRect()` 只读一次、结果在帧内复用（`frameRects`）。
+ * 2. **rAF 槽合并**：旧版 `if (raf !== 0) return` 是「先到者胜」——同一帧里先排了
+ *    `follow()` 再来的 `refresh()` 会被整份丢掉，那次交互当帧就不落位。改成「槽位保存
+ *    最新那份意图」，后到者覆盖先到者，请求不再丢。
+ * 3. **还值不置空**：旧版收尾统一把 inline left 置成空串，会把宿主自己那行位置一起抹掉；
+ *    现在记下第一次接管时的原值并按原值还回去。
  */
 
 /** 模型触发器（图标形态的 chip）。 */
@@ -53,6 +64,14 @@ const SETTLE_MS = [0, 60, 200]
 export function installModelMenuAnchor(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: model menu anchor', () => {
     let raf = 0
+    /** 本帧待跑的那一份意图。后到的请求覆盖它（见 schedule()）。 */
+    let pending: (() => void) | null = null
+    /**
+     * 本帧的 rect 缓存（键 = 元素）。同一趟定位里同一个元素只读一次：`findMenu()` 判定
+     * 可见性要读菜单盒，`place()` 又用同一个菜单盒。帧开始重建、帧结束丢弃，
+     * 所以跨帧（布局可能已经变了）绝不会用到陈旧值。
+     */
+    let frameRects: Map<Element, DOMRect | null> | null = null
     const timers: number[] = []
     /** 已确认「开着」的菜单节点；null 表示当前没有菜单（滚动路径据此零查询）。 */
     let active: HTMLElement | null = null
@@ -61,14 +80,32 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
     /**
      * 我们最后写进 inline left 的节点与值。卸载/菜单消失时要把这行还回去 ——
      * 否则宿主之后再渲染同一个菜单会带着我们留下的位置（issue #86）。
-     * 只在值仍是我们写的那份时才清，避免抹掉宿主自己写的位置。
+     * 只在值仍是我们写的那份时才还，避免抹掉宿主自己写的位置。
+     *
+     * `original` = **第一次接管这个菜单时**宿主留下的那行 inline left（可能是空串，
+     * 也可能是宿主自己写过的值）。收尾按它还原 —— 旧版一律置空串，宿主的位置会被一起抹掉。
      */
-    let placedLeft: { el: HTMLElement; value: string } | null = null
+    let placedLeft: { el: HTMLElement; value: string; original: string } | null = null
 
+    /** 交还我们写过的那行 inline left（值仍是我们写的才动），并放弃所有权。 */
+    const releasePlacement = (): void => {
+      const placed = placedLeft
+      placedLeft = null
+      if (placed !== null && placed.el.style.left === placed.value) placed.el.style.left = placed.original
+    }
+
+    /**
+     * 本文件**唯一**的 rect 读点。同一帧里同一个元素复用第一次的结果
+     * （`frameRects` 为 null 时——理论上只在帧外——退化为裸读，行为不变）。
+     */
     const laidOut = (el: Element | null): DOMRect | null => {
       if (el === null) return null
+      const cached = frameRects?.get(el)
+      if (cached !== undefined) return cached
       const box = el.getBoundingClientRect()
-      return box.width > 0 && box.height > 0 ? box : null
+      const result = box.width > 0 && box.height > 0 ? box : null
+      frameRects?.set(el, result)
+      return result
     }
 
     /** 唯一的全文档查询入口（只在交互路径调用，见文件头「成本」）。 */
@@ -94,8 +131,14 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       else if (cardBox !== null) left = cardBox.left + (cardBox.width - width) / 2
       else return
       const next = `${Math.round(Math.min(Math.max(left, GUTTER), max))}px`
+      if (placedLeft !== null && placedLeft.el !== menu) releasePlacement()
+      if (placedLeft === null) {
+        // 第一次接管：先记原值，再写我们的值。
+        placedLeft = { el: menu, value: next, original: menu.style.left }
+      } else {
+        placedLeft.value = next
+      }
       if (menu.style.left !== next) menu.style.left = next
-      placedLeft = { el: menu, value: next }
     }
 
     /** 交互路径：刷新缓存（会查询）并按新位置落位。 */
@@ -110,6 +153,8 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
     const follow = (): void => {
       if (active === null) return
       if (laidOut(active) === null) {
+        // 菜单已经不在了（收起/卸载）：把位置还回去，别再占着。
+        releasePlacement()
         active = null
         activeTrigger = null
         activeCard = null
@@ -118,11 +163,27 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       place(active)
     }
 
+    /**
+     * 把一次定位请求排进下一帧。**合并语义**：一帧只跑一次，槽位存的是「最新那份意图」，
+     * 后到的请求覆盖先到的（不是被丢掉）。
+     *
+     * 旧版是「先到者胜」的 `if (raf !== 0) return`：同一帧里 `follow()` 之后来的
+     * `refresh()` 会被整份吃掉 —— 用户刚点开菜单、同一帧页面又在滚（流式输出时常态）时，
+     * 那次交互当帧不落位，只能等 60ms/200ms 的收尾计时器兜底。
+     */
     const schedule = (run: () => void): void => {
+      pending = run
       if (raf !== 0) return
       raf = window.requestAnimationFrame(() => {
         raf = 0
-        run()
+        const job = pending
+        pending = null
+        frameRects = new Map()
+        try {
+          if (job !== null) job()
+        } finally {
+          frameRects = null
+        }
       })
     }
 
@@ -177,11 +238,12 @@ export function installModelMenuAnchor(ctx: ClientContext): void {
       window.removeEventListener('resize', onViewportChange)
       document.removeEventListener('scroll', onViewportChange, true)
       if (raf !== 0) window.cancelAnimationFrame(raf)
+      pending = null
+      frameRects = null
       for (const timer of timers) window.clearTimeout(timer)
       timers.length = 0
-      // 还回我们写的那行 inline left（只在值仍是我们写的时候）。
-      if (placedLeft !== null && placedLeft.el.style.left === placedLeft.value) placedLeft.el.style.left = ''
-      placedLeft = null
+      // 还回我们改写的那行 inline left（只在值仍是我们写的时候，按第一次接管时的原值还原）。
+      releasePlacement()
       active = null
       activeTrigger = null
       activeCard = null

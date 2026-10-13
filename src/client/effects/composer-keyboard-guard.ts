@@ -1,5 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { detectIosWebKit, installMobileEffect } from './phone-chrome.ts'
+import { detectIosWebKit } from '../platform/device.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * iOS keyboard guard for the composer's fixed control cluster.

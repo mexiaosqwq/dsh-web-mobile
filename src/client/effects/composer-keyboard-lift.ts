@@ -1,5 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { detectIosWebKit, installMobileEffect } from './phone-chrome.ts'
+import { detectIosWebKit } from '../platform/device.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * Issue #149 mitigation: keep the iOS keyboard's composer above the system

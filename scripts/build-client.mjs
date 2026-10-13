@@ -227,8 +227,9 @@ const modules = order
   })
   .join('\n')
 
+const bundleId = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).name ?? 'dsh-web-mobile'
 const wrapped = [
-  'window.__ModuleLoader__.load({ id: "dsh-web-mobile", factory: (require) => {',
+  `window.__ModuleLoader__.load({ id: ${JSON.stringify(bundleId)}, factory: (require) => {`,
   'var __modules = {};',
   modules,
   'var __cache = {};',

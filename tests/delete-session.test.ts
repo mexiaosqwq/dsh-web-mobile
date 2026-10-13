@@ -518,3 +518,33 @@ test('reports success when workspace accounting throws after the deletion finish
     await rm(root, { recursive: true, force: true })
   }
 })
+
+test('C10: the returned error carries stage/renamed/recovery programmatically (no message parsing)', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'dsh-del-'))
+  try {
+    const root = join(base, 'root')
+    await mkdir(root, { recursive: true })
+    const dir = join(root, PROJECT_DIR, SESSION_ID)
+    await scaffoldSession(root, dir)
+    // stash 失败：把 .sessions-trash 变成普通文件
+    await writeFile(join(root, '.sessions-trash'), 'not a dir')
+    const deps: DeleteSessionDeps = {
+      persistence: { config: { root }, list: async () => [{ header: storedHeader() }] },
+      workspaceRegistry: { list: () => [] },
+    }
+    const result = await deleteSession(deps, SESSION_ID)
+    assert.equal(result.status, 500)
+    assert.ok('error' in result)
+    if (!('error' in result)) return
+    assert.equal(result.error.stage, 'stash')
+    assert.deepEqual(result.error.renamed, [
+      { from: 'session.v2.jsonl.zstd', to: 'session.v2.jsonl.zstd.trash' },
+    ])
+    assert.equal(result.error.recovery, 'partial')
+    assert.deepEqual(result.error.residual, [])  // 显式空数组 = 无残留
+    assert.equal(typeof result.error.failedTarget, 'string')
+    assert.match(result.error.message, /stage=stash/)
+  } finally {
+    await rm(base, { recursive: true, force: true })
+  }
+})

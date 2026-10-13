@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   classifySwipe,
   classifyFilesSwipe,
@@ -666,4 +667,29 @@ test('openStateStartMode: the drawer body always owns its stroke', () => {
   assert.equal(openStateStartMode(true, false), 'drawer')
   assert.equal(openStateStartMode(false, true), 'files')
   assert.equal(openStateStartMode(false, false), 'drawer')
+})
+
+test('the close commit only forces a reflow when a finger wrote the start position', () => {
+  // 点击/Escape/backdrop 关闭时抽屉不带 inline transform（起点就是样式表的
+  // 打开态），强制 reflow 只会让整列同步重排 —— 实测在 3.5k 节点会话上
+  // `onDrawerClick` 占 105ms，且随上下文变长而增长。手势关闭仍必须 flush：
+  // 起点是同一帧里刚写下的手指位置。
+  const src = readFileSync(new URL('../src/client/effects/sidebar-swipe.ts', import.meta.url), 'utf8')
+  const body = src.slice(src.indexOf('function commitWithAnimation('), src.indexOf('function commitFollowClose('))
+  assert.match(body, /if \(el\.style\.getPropertyValue\('transform'\) !== ''\) void el\.getBoundingClientRect\(\)/)
+  assert.doesNotMatch(body, /\n  void el\.getBoundingClientRect\(\)/)
+})
+
+test('a repeat close inside the commit window is claimed, not force-settled', () => {
+  // 320ms 窗口内第二次关闭（连按两次 Escape / 点两次 backdrop）不得先
+  // finishPendingCommit 翻宿主态、再对已关闭的抽屉继续动画 —— 那会把
+  // 「晚提交」契约破坏成两次 toggle。同向意图必须由在飞的提交认领。
+  const src = readFileSync(new URL('../src/client/effects/sidebar-swipe.ts', import.meta.url), 'utf8')
+  const body = src.slice(src.indexOf('function commitWithAnimation('), src.indexOf('function commitFollowClose('))
+  const claim = body.indexOf('inFlight.target === targetTx')
+  const settle = body.indexOf('finishPendingCommit()')
+  assert.ok(claim > -1, 'must recognise a same-intent in-flight commit')
+  assert.ok(settle > -1 && claim < settle, 'the claim has to run before any force-settle')
+  assert.match(src, /pendingCommit: \{ el: HTMLElement; ctx: ClientContext; timer: number; target: string \} \| null/)
+  assert.equal((src.match(/target: targetTx/g) ?? []).length, 2, 'both commit branches must record their target')
 })

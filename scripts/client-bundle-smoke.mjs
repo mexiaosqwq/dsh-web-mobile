@@ -51,7 +51,7 @@ const windowStub = {
 // 1) evaluation: the bundle registers itself (a syntax error surfaces here).
 new Function('window', source)(windowStub)
 
-const entryId = 'dsh-web-mobile'
+const entryId = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).name ?? 'dsh-web-mobile'
 if (!registered.includes(entryId)) {
   console.error(`SMOKE FAIL: entry module "${entryId}" was not registered (saw ${JSON.stringify(registered)})`)
   process.exit(1)

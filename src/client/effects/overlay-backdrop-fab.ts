@@ -2,7 +2,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { NS } from '../i18n/locales.ts'
 import type { PanelExit } from './panel-exit.ts'
-import { getFrame } from './phone-chrome.ts'
+import { getFrame } from '../platform/frame.ts'
 
 /** Fade the CURRENT backdrop out (pointer-events off + opacity 0). Called by
  * the gesture layer when a close commit starts animating, so the dimming

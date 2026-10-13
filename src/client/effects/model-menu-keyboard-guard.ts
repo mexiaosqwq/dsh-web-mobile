@@ -1,6 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { shadowFocus } from '../core/prototype-focus-shadow.ts'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * Mobile guard: opening the host's model / reasoning-level menu must not raise

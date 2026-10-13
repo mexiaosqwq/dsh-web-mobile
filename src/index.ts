@@ -153,6 +153,8 @@ function installReasoningEffortDefaults(ctx: HostContext): void {
     // Log the unreachable count only when it changes, so a stable profile does
     // not repeat the same line on every settings change.
     let lastUnresolved = -1
+    // Same change-gating for the `auto` 档 count (see the log site below).
+    let lastAuto = -1
     const run = (): void => {
       if (disposed || running) return
       running = true
@@ -186,6 +188,19 @@ function installReasoningEffortDefaults(ctx: HostContext): void {
               `dsh-web-mobile: ${outcome.unresolved} model(s) below the profile layer declare no reasoning levels and stay untouched`,
             )
           }
+          // The `auto` 档: a hand-declared model that says it takes no custom
+          // level (`compat.supportsReasoningEffort: false`, or `reasoningEfforts:
+          // false`) is deliberately left without one, so the composer keeps
+          // showing the provider default for it. Said once per state change, the
+          // way the unreachable count above is reported — otherwise a user who
+          // wonders why this one model has no 「推理等级」 control has nothing to
+          // read.
+          if (outcome.auto > 0 && outcome.auto !== lastAuto) {
+            settingsCtx.logger.warn(
+              `dsh-web-mobile: ${outcome.auto} model(s) declare no reasoning-effort support and stay at their own default (auto)`,
+            )
+          }
+          lastAuto = outcome.auto
           lastUnresolved = outcome.unresolved
         })
         .catch((error: unknown) => {

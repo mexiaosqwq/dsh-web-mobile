@@ -59,7 +59,12 @@ test('the sheet is positioned BEFORE it is shown, so the keyboard-collapse reflo
   // 兜底：rAF 停摆（后台标签页）或 follow 跑完时也必须显形，不能永远藏着。
   assert.match(SRC, /const revealTimer = window\.setTimeout\(reveal, 400\)/)
   assert.match(SRC, /teardown\.push\(\(\) => window\.clearTimeout\(revealTimer\)\)/)
-  assert.match(SRC, /if \(\+\+frames < 12\) raf = requestAnimationFrame\(follow\)\n    else reveal\(\)/)
+  // 2026-10-13：12 帧链的收尾多了一步「复位排程标志」（follow 期间视口事件被吸收，
+  // 链一结束必须恢复「视口一变就 place」），但**跑完必须显形**这条语义没变。
+  assert.match(SRC, /if \(\+\+frames < 12\) raf = requestAnimationFrame\(follow\)/)
+  assert.match(SRC, /else \{\n      following = false\n      reveal\(\)\n    \}/)
+  // 浮层已被收起（锚点脱离文档 → close()）时不再排帧、也不再显形。
+  assert.match(SRC, /if \(!sheet\.isConnected\) \{\n      following = false\n      return\n    \}/)
 })
 
 test('it is an anchored popover, not a full-width bottom sheet (owner feedback 2026-10-06)', () => {

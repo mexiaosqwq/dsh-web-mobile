@@ -1,62 +1,43 @@
-/**
- * One shared shadow over `HTMLInputElement.prototype.focus`.
- *
- * Several mobile guards must stop a *programmatic* focus (a host effect or a
- * Modal autofocus that would raise the soft keyboard). Each guard used to save
- * the method it saw, install its own wrapper, and write the saved method back
- * when it disarmed. With two guards loaded that single global slot is a lost
- * update: whoever disarms first deletes the other guard's wrapper, and whoever
- * disarms last writes a STALE wrapper back to the prototype — by then each
- * guard's saved "original" is the other guard's wrapper, so neither owns what
- * is installed any more and nobody can restore it (measured on the real
- * interleaving: arm A → arm B → disarm A → disarm B leaves A's wrapper on the
- * prototype with both saved originals null).
- *
- * This manager owns the single patch instead. Callers register a predicate
- * that returns true when an element must not be focused and get a disposer;
- * the real method is captured once and restored only when the last predicate
- * is gone. Arming and disarming in any order is therefore safe and no wrapper
- * outlives its guards.
- *
- * A user tap is unaffected: the browser focuses natively and never goes
- * through this method.
- *
- * Zero imports (same rule as `reconciler-core.ts`): the core stays DOM-agnostic
- * and the guards pass their own predicates in.
- */
-
-/** Predicate deciding whether one element's programmatic focus must be swallowed. */
+/** Shared focus interception with descriptor and wrapper ownership restoration. */
 export type FocusSkip = (element: HTMLInputElement) => boolean
+const rules = new Set<{ shouldSkip: FocusSkip }>()
+let restore: (() => void) | null = null
 
-/** Registered predicates; the patch exists while this set is non-empty. */
-const skips = new Set<FocusSkip>()
-
-/** The real method, captured on the first registration and restored on the last. */
-let original: ((this: HTMLInputElement, options?: FocusOptions) => void) | null = null
-
-/**
- * Register a predicate: while it is registered, `HTMLInputElement.prototype.focus`
- * is a no-op for every element it matches.
- * @param shouldSkip - predicate deciding which elements must not be focused.
- * @returns disposer removing this predicate; the patch falls away with the last one.
- */
 export function shadowFocus(shouldSkip: FocusSkip): () => void {
-  skips.add(shouldSkip)
-  if (original === null) {
-    const base = HTMLInputElement.prototype.focus
-    original = base
-    HTMLInputElement.prototype.focus = function focus(this: HTMLInputElement, options?: FocusOptions): void {
-      for (const skip of skips) {
-        if (skip(this)) return
+  if (restore === null) {
+    const proto = HTMLInputElement.prototype
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'focus')
+    const previous = proto.focus
+    if (typeof previous !== 'function' || descriptor?.configurable === false ||
+      (!descriptor && !Object.isExtensible(proto))) return () => {}
+    const wrapper = function focus(this: HTMLInputElement, options?: FocusOptions): void {
+      for (const rule of rules) if (rule.shouldSkip(this)) return
+      previous.call(this, options)
+    }
+    try {
+      Object.defineProperty(proto, 'focus', {
+        configurable: true, writable: true,
+        enumerable: descriptor?.enumerable ?? false, value: wrapper,
+      })
+    } catch { return () => {} }
+    restore = () => {
+      if (Object.getOwnPropertyDescriptor(proto, 'focus')?.value !== wrapper) return
+      try {
+        if (descriptor) Object.defineProperty(proto, 'focus', descriptor)
+        else delete (proto as Partial<HTMLInputElement>).focus
+      } catch {
+        // An externally frozen wrapper is transparent once its rules are gone.
       }
-      base.call(this, options)
     }
   }
+  const rule = { shouldSkip }
+  rules.add(rule)
   return () => {
-    skips.delete(shouldSkip)
-    if (skips.size === 0 && original !== null) {
-      HTMLInputElement.prototype.focus = original
-      original = null
+    if (!rules.delete(rule)) return
+    if (rules.size === 0) {
+      const release = restore
+      restore = null
+      release?.()
     }
   }
 }

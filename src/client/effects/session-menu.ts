@@ -15,10 +15,8 @@
  * menu component, no child elements) — label reads and the injected text
  * fall back across both.
  *
- * Row → session id: session rows carry no id in the DOM, so the session is
- * resolved from the client list by display title (the row's rendered title IS
- * the summary's `displayTitle`); duplicate titles are disambiguated by the
- * row's position within its workspace group section.
+ * Row → session id: session rows carry no id in the DOM, so the id is read
+ * off the host's own stable anchors (see `rowSessionId`).
  *
  * Ported from community-fork wzxmt-zhc v2.7.0; the only mainline delta is
  * where the delete-dialog CSS lives: base.css.ts, with corrected animation
@@ -26,7 +24,9 @@
  * `dsh-mobile-nav-*` names, which silently no-op).
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { MOBILE_QUERY, TOUCH_QUERY, installMobileEffect, toggleDrawer } from './phone-chrome.ts'
+import { MOBILE_QUERY, TOUCH_QUERY, installMobileEffect } from '../platform/breakpoints.ts'
+import { getFrame } from '../platform/frame.ts'
+import { toggleDrawer } from './drawer-close.ts'
 import { currentSessionIdOf, sessionsCanClear, verifySessionDeleted } from '../core/sessions-compat.ts'
 import { NS } from '../i18n/locales.ts'
 import { findSessionIdInFiber, reactFiberOf } from './session-row-fiber.ts'
@@ -97,18 +97,20 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
     let dialogHost: { backdrop: HTMLElement; card: HTMLElement } | null = null
     let closeDialogOnKey: ((event: KeyboardEvent) => void) | null = null
 
+    // 请求身份（epoch），每次确认点击自增。更晚的删除一发起，在途响应即过期 ——
+    // 过期结果不得 closeDialog / clear / 收抽屉，否则会拿旧响应改新对话框与新当前会话。
+    let deleteEpoch = 0
+
     /**
      * The session id of one row, from the host's own stable anchors.
      *
      * 2026-10-07 — this replaces the whole "match the displayed title, then
      * disambiguate duplicates by group position" heuristic, which 0.2.0-rc.2
-     * broke twice over (both measured on the real drawer):
-     *  · every session row is now wrapped in the host's `HoverCard` `<span>`, so
-     *    `:scope > [class*="_sessionRow"]` matched NOTHING → `rowIndex = -1` →
-     *    `sameTitleBefore = 0` → duplicate titles silently resolved to the FIRST
-     *    session with that title, i.e. **deleting the wrong conversation**;
-     *  · the group header (`_projectRow`) is likewise wrapped, so the workspace
-     *    could not be identified at all (「无法确定要删除的会话」).
+     * broke twice over on the real drawer: every row is now wrapped in the
+     * host's `HoverCard` `<span>`, so `:scope > [class*="_sessionRow"]` and the
+     * `_projectRow` group header matched NOTHING → duplicate titles silently
+     * resolved to the FIRST session with that title, i.e. **deleting the wrong
+     * conversation**.
      *
      * Order of preference, all host-owned:
      *  1. `data-row-key="session:<id>"` — the same attribute the host's own
@@ -250,7 +252,8 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
         if (noButton !== null) noButton.disabled = true
         yesButton.textContent = navT('deletePending')
         if (errorLine !== null) errorLine.hidden = true
-        const wasCurrent = currentSessionIdOf(ctx.sessions.list.getSnapshot()) === sessionId
+        // 请求身份：本次点击的序号。期间又发起删除时，这次的结果就过期了。
+        const epoch = ++deleteEpoch
         try {
           const response = await fetch('/api/mobile-nav.session.delete', {
             method: 'POST',
@@ -263,21 +266,15 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
             return
           }
         } catch (reason) {
-          // A rejected fetch proves nothing. The host half deployed on DSHA
-          // (a DSHA-patched builtin build) aborts the reply AFTER its handler
-          // has already moved the session into the trash, so the browser
-          // reports `TypeError: Failed to fetch` (net::ERR_EMPTY_RESPONSE) for
-          // a delete that DID land — exactly the 2026-10-07 false failure.
-          // Ask the session list instead of the fetch promise; only a session
-          // that survives every re-read is a real failure. Verification itself
-          // must never become the new failure mode, so any surprise in the
-          // snapshot shape falls back to the ordinary error line.
+          // A rejected fetch proves nothing (DSHA's host half aborts the reply
+          // after the trash move — see verifySessionDeleted). Ask the session
+          // list instead; only a session that survives every re-read failed.
+          // Verification itself must not become the new failure mode.
           let landed = false
           try {
             landed = await verifySessionDeleted({
               listed: () => ctx.sessions.list.getSnapshot()?.byId?.[sessionId] !== undefined,
-              // Called AS A METHOD on ctx.sessions: refresh() reads `this.manager`
-              // and an extracted reference would throw "this is undefined".
+              // Called AS A METHOD: refresh() reads `this.manager`.
               refresh: async () => {
                 await (ctx.sessions as { refresh?: () => Promise<void> }).refresh?.()
               },
@@ -293,22 +290,26 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
             return
           }
         }
+        // 「是否仍是当前会话」必须在**请求完成时**重新核对：请求期间用户可能已经切到
+        // 别的会话，用请求前算好的旧值 clear() 会把新当前会话的选中态清掉（2026-10-11）。
+        const wasCurrent = currentSessionIdOf(ctx.sessions.list.getSnapshot()) === sessionId
+        // 过期结果（期间又发起过删除）只丢弃，不关别人的对话框、也不动状态。
+        if (epoch !== deleteEpoch) return
         closeDialog()
         if (wasCurrent && sessionsCanClear(ctx.sessions)) ctx.sessions.clear()
-        // Repull the baseline so the deleted row disappears. Must be called AS
-        // A METHOD on ctx.sessions: refresh() reads `this.manager`, and an
-        // extracted reference would throw "this is undefined" — the failure
-        // mode that left deleted cold sessions lingering as ghost rows.
+        // Repull the baseline so the deleted row disappears; called AS A METHOD
+        // on ctx.sessions because refresh() reads `this.manager`.
         const sessions = ctx.sessions as { refresh?: () => Promise<void> }
-        await sessions.refresh?.()
-        // On the mobile branch the drawer hosts the list, so closing it is
-        // the right follow-up after deleting the current session; on the
-        // desktop layout (wide touch) the same call would collapse the
-        // always-visible sidebar panel, so gate it on the mobile query.
-        // toggleDrawer keeps that semantics (it falls back to the plain toggle
-        // when the drawer is not open) while making the close a late commit,
-        // so the marker cannot flip while the column is still painted — the
-        // window in which the drawer band covers an open modal (2026-09-25).
+        try {
+          await sessions.refresh?.()
+        } catch (reason) {
+          // 列表重拉失败只影响刷新，不代表删除失败 —— 单独 warn，也不许变成未处理 rejection。
+          console.warn('[dsh-web-mobile] session list refresh after delete failed:', reason)
+        }
+        // 手机档抽屉里就是列表，删完当前会话顺手收起；桌面档的面板不得被收起（MOBILE_QUERY
+        // 门保持）。只有抽屉**确实开着**才关：盲 toggle 会把已关的抽屉重新打开（2026-10-11）。
+        const frame = getFrame()
+        if (frame === null || frame.hasAttribute('data-sidebar-collapsed')) return
         if (wasCurrent && window.matchMedia(MOBILE_QUERY).matches) toggleDrawer(ctx)
       })
 
@@ -486,7 +487,7 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
     // id are known when the portaled menu appears.
     //
     // The id comes off the row's React FIBER first (same proven path the
-    // long-press navigation uses in phone-chrome.ts:715). The old title/group
+    // long-press navigation uses in drawer-close.ts:249). The old title/group
     // heuristic is kept only as a fallback: on 0.2.0-rc.2 the `_projectRow`
     // group header no longer sits inside `_groupSection`, so duplicate titles
     // (three rows all called 「你好」) could not be disambiguated and the delete

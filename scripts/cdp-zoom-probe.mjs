@@ -15,9 +15,16 @@
 //
 // 用法：DSH_PROBE_URL=http://127.0.0.1:3080/ DSH_PROBE_SESSION_ID=<id> \
 //       DSH_PROBE_CHROME=/path/to/chrome node scripts/cdp-zoom-probe.mjs
+import { prepareHostScenario } from './lib/probe-host-scenario.mjs'
 import { spawn } from 'node:child_process'
+import { createCdpClient } from './lib/probe-cdp-client.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import net from 'node:net'
+import { installExitGuard, REQUEST_DEADLINE_MS, createCleanup } from './lib/probe-cdp-lifecycle.mjs'
+
+// C13：资源句柄模块级 + 进程退出兜底（早退/抛错也必须回收）
+let chrome = null
+let profileDir = null
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -40,16 +47,21 @@ const allocatePort = () =>
     srv.on('error', reject)
   })
 
+import { createVerdict } from './lib/probe-verdict.mjs'
+const verdict = createVerdict('cdp-zoom-probe')
 let failures = 0
 const check = (name, ok, detail) => {
   if (!ok) failures += 1
+  if (ok) verdict.pass(name, detail)
+  else verdict.fail(name, detail)
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}: ${detail}`)
 }
+const skip = (name, detail) => { verdict.skip(name, detail); console.log(`SKIP ${name}: ${detail}`) }
 
 async function main() {
   const port = await allocatePort()
-  const profileDir = await mkdtemp(join(homedir(), 'tmp', 'dsh-zoom-'))
-  const chrome = spawn(
+  profileDir = await mkdtemp(join(homedir(), 'tmp', 'dsh-zoom-'))
+  chrome = spawn(
     CHROME,
     [
       '--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
@@ -59,8 +71,11 @@ async function main() {
     { stdio: 'ignore', env: { ...process.env, TMPDIR: join(homedir(), 'tmp'), XDG_RUNTIME_DIR: join(homedir(), 'tmp') } },
   )
 
+  let launchError = null
+  chrome.once('error', (error) => { launchError = error })
   let wsUrl = null
   for (let i = 0; i < 60; i++) {
+    if (launchError !== null) throw launchError
     try {
       const list = await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json())
       const page = list.find((t) => t.type === 'page')
@@ -68,25 +83,11 @@ async function main() {
     } catch { /* retry */ }
     await sleep(250)
   }
-  if (!wsUrl) { console.error('chrome 未就绪'); chrome.kill(); process.exit(1) }
+  if (!wsUrl) throw new Error('chrome 未就绪')
 
   const ws = new WebSocket(wsUrl)
-  let id = 0
-  const pending = new Map()
-  const send = (method, params = {}) =>
-    new Promise((res, rej) => {
-      const mid = ++id
-      pending.set(mid, { res, rej })
-      ws.send(JSON.stringify({ id: mid, method, params }))
-    })
-  ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data)
-    if (msg.id && pending.has(msg.id)) {
-      const entry = pending.get(msg.id)
-      pending.delete(msg.id)
-      msg.error ? entry.rej(new Error(msg.error.message)) : entry.res(msg.result)
-    }
-  }
+  // 统一 CDP 客户端（goal ①）：不再手写 send/onmessage/pending —— 该类手写引入过多次裸标识符与应答关联缺陷
+  const { send, waitFor } = createCdpClient({ ws, requestDeadlineMs: REQUEST_DEADLINE_MS })
   await new Promise((res) => { ws.onopen = res })
   const evalv = async (expression) => {
     const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
@@ -104,12 +105,7 @@ async function main() {
 
   // 隔离 profile 首启会弹宿主 "Internal Testing Notice" 模态（连 mask 一起
   // 移除，只删 aria-modal 会留遮罩拦截）。
-  const dismissHostModal = () =>
-    evalv(`(() => {
-      const root = document.querySelector('[class*="_root_15u5s"]')
-      if (root !== null && root.parentElement === document.body) root.remove()
-      for (const modal of document.querySelectorAll('[aria-modal="true"]')) modal.remove()
-    })()`)
+  const dismissHostModal = () => prepareHostScenario(evalv)
 
   const boot = async ({ width, height, touch }) => {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 3, mobile: touch })
@@ -148,8 +144,14 @@ async function main() {
       const widgets = [...document.querySelectorAll('input[type="checkbox"], input[type="radio"], input[type="range"], select')]
         .map((el) => ({ tag: el.tagName, type: el.getAttribute('type'), fontSize: Number.parseFloat(getComputedStyle(el).fontSize) }))
       const composer = (() => {
-        const card = document.querySelector('[data-phase] [class*="_card"]:has(textarea)')
+        const card = document.querySelector('[data-composer-card]')
         if (card === null) return null
+        const editor = card.querySelector('[data-composer-input]')
+        if (editor !== null) return {
+          kind: 'lexical', editable: editor.isContentEditable,
+          editor: Number.parseFloat(getComputedStyle(editor).fontSize),
+          phase: editor.getAttribute('data-phase'),
+        }
         const pick = (sel) => {
           const el = card.querySelector(sel)
           return el === null ? null : Number.parseFloat(getComputedStyle(el).fontSize)
@@ -237,15 +239,25 @@ async function main() {
   check('A0 移动分支已激活', a.frame === true, `frame=${a.frame}`)
   check('A1 非 iOS 引擎无 iOS 标记', a.marker === false, `marker=${a.marker} (期望 false: Chromium 不会聚焦放大)`)
   const aSmall = a.fields.filter((f) => f.visible && f.fontSize < 16)
+  const aSample = await evalv(`(() => {
+    const input = document.createElement('input')
+    input.type = 'text'; input.style.fontSize = '13px'
+    document.body.appendChild(input)
+    const font = Number.parseFloat(getComputedStyle(input).fontSize)
+    input.remove(); return font
+  })()`)
   check(
-    'A2 第三方小字号输入框保持原样',
-    aSmall.length > 0,
-    `${aSmall.length} 个可见输入域 <16px: ${describe(aSmall) || '(无)'} (期望 >0: 安卓不该被无谓放大)`,
+    'A2 非iOS的13px输入夹具保持原样',
+    aSample === 13,
+    `controlledSample=${aSample}px; installedVisibleSmallFields=${aSmall.length}（未安装样本不计覆盖）`,
   )
+  if (a.composer?.kind === 'lexical') skip('A3.legacy textarea/mirror/backdrop', '本宿主为Lexical；旧三件套不适用')
   check(
-    'A3 composer 三件套同字号',
-    a.composer !== null && a.composer.textarea === a.composer.mirror && a.composer.textarea === a.composer.backdrop,
-    `composer=${JSON.stringify(a.composer)} (三者必须一致: mirror 量高度、backdrop 画高亮)`,
+    'A3 当前composer字号与编辑前置',
+    a.composer?.kind === 'lexical'
+      ? a.composer.editable === true && Number.isFinite(a.composer.editor)
+      : a.composer !== null && a.composer.textarea !== null && a.composer.textarea === a.composer.mirror && a.composer.textarea === a.composer.backdrop,
+    `composer=${JSON.stringify(a.composer)}; Lexical要求可编辑；旧宿主要求三件套一致`,
   )
   check(
     'A4 根与抽屉保留 pinch-zoom',
@@ -322,15 +334,18 @@ async function main() {
   const bSmall = b.fields.filter((f) => f.visible && f.fontSize < 16)
   check(
     'B2 所有可见文本输入域 >=16px',
-    bSmall.length === 0,
+    b.fields.some(f => f.visible) && bSmall.length === 0,
     bSmall.length === 0
       ? `全部 ${b.fields.filter((f) => f.visible).length} 个可见输入域: ${describe(b.fields)}`
       : `仍有 <16px: ${describe(bSmall)} (iOS 会对它们聚焦放大)`,
   )
+  if (b.composer?.kind === 'lexical') skip('B3.legacy textarea/mirror/backdrop', '本宿主为Lexical；旧三件套不适用')
   check(
-    'B3 composer 三件套同为 16px',
-    b.composer !== null && b.composer.textarea === 16 && b.composer.mirror === 16 && b.composer.backdrop === 16,
-    `composer=${JSON.stringify(b.composer)}`,
+    'B3 当前composer可编辑且至少16px',
+    b.composer?.kind === 'lexical'
+      ? b.composer.editable === true && b.composer.editor >= 16
+      : b.composer !== null && b.composer.textarea === 16 && b.composer.mirror === 16 && b.composer.backdrop === 16,
+    `composer=${JSON.stringify(b.composer)}; required-precondition editable=true`,
   )
   const bWidgetChanged = b.widgets.filter((w) => w.fontSize === 16)
   check(
@@ -372,9 +387,26 @@ async function main() {
 
   console.log(`\n${failures === 0 ? '全部通过' : failures + ' 项失败'}`)
   ws.close()
-  chrome.kill()
-  await rm(profileDir, { recursive: true, force: true }).catch(() => {})
-  process.exit(failures === 0 ? 0 : 1)
+  // C13：收尾统一走 createCleanup（精确 PID + profile 旁证）；exited/removed 为 false **必须判 FAIL**。
+  const cleanupEvidence = await createCleanup({ child: chrome, profileDir, rm })()
+  const cleanupOk = cleanupEvidence.exited === true && cleanupEvidence.removed === true
+  if (!cleanupOk) failures += 1
+  console.log('CLEANUP ' + JSON.stringify(cleanupEvidence))
+  if (!cleanupOk) verdict.fail('cleanup', 'exited/removed not true')
+  console.log(verdict.summary())
+  process.exit(verdict.exitCode())
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch(async (error) => {
+  console.error(error)
+  const evidence = await createCleanup({ child: chrome, profileDir, rm })()
+  console.log('CLEANUP ' + JSON.stringify(evidence))
+  const cleanupOk = evidence.exited === true && evidence.removed === true
+  verdict.fail('fatal', error instanceof Error ? error.message : String(error))
+  if (!cleanupOk) verdict.fail('cleanup', 'exited/removed not true')
+  console.log(verdict.summary())
+  console.log('FATAL cleanup=' + (cleanupOk ? 'PASS' : 'FAIL') + ' cause=' + (error instanceof Error ? error.message : String(error)))
+  process.exit(1)
+})
+
+installExitGuard({ getChild: () => chrome, getProfileDir: () => profileDir })

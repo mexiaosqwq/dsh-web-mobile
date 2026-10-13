@@ -79,7 +79,6 @@ async function main() {
       const tb = document.querySelector('.dsfv-toolbar-btn')
       const ib = document.querySelector('.dsfv-icon-btn')
       const fr = document.querySelector('.dsfv-file-row')
-      const si = document.querySelector('.dsfv-search-input')
       const sc = document.querySelector('.dsfv-scroll')
       const meta = document.querySelector('.dsfv-meta')
       const chip = document.querySelector('.dsfv-produced-chip')
@@ -88,7 +87,6 @@ async function main() {
         tbMinH: getComputedStyle(tb).minHeight,
         ibMinW: getComputedStyle(ib).minWidth,
         frMinH: getComputedStyle(fr).minHeight,
-        siFont: getComputedStyle(si).fontSize,
         scOverflowX: getComputedStyle(sc).overflowX,
         metaDisplay: getComputedStyle(meta).display,
         chipMinH: getComputedStyle(chip).minHeight,
@@ -98,7 +96,16 @@ async function main() {
     record(css.tbMinH === '34px', '2.toolbar-btn-34', `minH=${css.tbMinH}`)
     record(css.ibMinW === '34px', '2.icon-btn-34', `minW=${css.ibMinW}`)
     record(css.frMinH === '44px', '2.file-row-44', `minH=${css.frMinH}`)
-    record(css.siFont === '16px', '2.search-input-16px', `font=${css.siFont}`)
+    // 这里原本是一条 dsfv-search-input === 16px 的断言，2026-10-13（C14）删除：
+    // 那条 16px 是 **iOS 门控**的规则（misc.css.ts 的
+    // html[data-mobile-nav-ios] [data-mobile-nav="frame"] [class*="dsfv-search-input"]），
+    // 而本探针没有 iPhone UA 覆盖（页面上的 iOS 标记由 viewport-meta.ts 按
+    // platform/device.ts 的 detectIosWebKit 判定，Chromium UA 下恒缺席）⇒ 在非 iOS
+    // 场景里它要么必红、要么只能被改成恒真，两种都不是在测它声称的东西。
+    // iOS 门控的规则不该在非 iOS 场景断言；真实覆盖在 scripts/cdp-zoom-probe.mjs 的
+    // B 场景（setUserAgentOverride 到 iPhone UA，B7 断言同一批 dsfv/ask 字段 >=16px，
+    // 形状由该文件的 floorProbe 注入），另有一条不变量在 tests/ios-zoom-guard.test.ts
+    // 守着这条边界（要么给该档补 iPhone UA、要么不要断言它）。
     record(css.scOverflowX === 'auto', '2.scroll-owns-hscroll', `ovx=${css.scOverflowX}`)
     record(css.metaDisplay === 'none', '2.meta-hidden-under-480', `disp=${css.metaDisplay}`)
     record(css.chipMinH === '40px', '2.produced-chip-40', `minH=${css.chipMinH}`)

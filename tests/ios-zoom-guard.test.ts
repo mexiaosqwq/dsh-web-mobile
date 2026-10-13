@@ -4,9 +4,14 @@
 // leaves a browser-applied zoom impossible to undo.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { detectIosWebKit } from '../src/client/effects/phone-chrome.ts'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { detectIosWebKit } from '../src/client/platform/device.ts'
 import { LAYOUT_CSS } from '../src/client/styles/layout.css.ts'
 import { MISC_CSS } from '../src/client/styles/misc.css.ts'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const IPHONE =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1'
@@ -105,4 +110,37 @@ test('root and drawer keep pinch-zoom while still refusing horizontal pan', () =
   assert.ok(drawerBody, 'the drawer column rule must exist')
   const drawer = [...drawerBody.matchAll(/touch-action: ([^;]+);/g)].at(-1)?.[1]
   assert.equal(drawer, 'pan-y pinch-zoom !important')
+})
+
+test('the iOS-gated 16px floor is never asserted from a non-iOS scene', () => {
+  // C14（2026-10-13）：scripts/probes/file-viewer-probe.mjs 曾在 Chromium UA 下断言
+  // dsfv-search-input === 16px，而那条 16px 是 html[data-mobile-nav-ios] 门控的
+  // （misc.css.ts）—— 非 iOS 场景里它要么必红、要么只能被改成恒真。这里把边界钉住：
+  // 断言这个门控值的探针必须自己带 iPhone UA 覆盖，否则就不该断言它。
+  //
+  // 判据一律读**去掉注释后的源码**：探针注释里专门写了「覆盖搬到 cdp-zoom-probe 去了，
+  // 那边用 setUserAgentOverride」—— 按原文本判会让这条护栏恒真（返向变异时实测撞到过：
+  // 把断言放回去仍然绿）。只剔除整行注释，不用「// 到行尾」的粗暴法，免得截断字符串里的
+  // http:// 之类。
+  const stripComments = (source: string): string =>
+    source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const probe = stripComments(readFileSync(join(ROOT, 'scripts/probes/file-viewer-probe.mjs'), 'utf8'))
+  const hasIosScene = /setUserAgentOverride/.test(probe)
+  assert.ok(
+    hasIosScene || !/search-input-16px/.test(probe),
+    'iOS 门控的 16px 下限不能在非 iOS 场景断言：给该档补 iPhone UA，或删掉这条断言',
+  )
+  // 覆盖必须真的落在带 iPhone UA 的那支探针上（同一形状、同一门控）。
+  const zoom = stripComments(readFileSync(join(ROOT, 'scripts/cdp-zoom-probe.mjs'), 'utf8'))
+  assert.match(zoom, /setUserAgentOverride/, 'iOS 场景必须来自 UA 覆盖')
+  assert.match(zoom, /dsfv-search-input/, 'iOS 档必须注入 dsfv 搜索框这个形状')
+  assert.match(zoom, /B7 iOS 下同三个字段仍 >=16px/, '并真的断言 >=16px（否则覆盖是空的）')
+  // 门控本身：16px 那条规则的每个选择器都带 iOS 标记（非 iOS 场景恒不命中）。
+  // 必须锚在该规则自己的行首，否则切片从选择器中段开始（第一个元素变成半截
+  // `dsfv-search-input"]`，这一步就退化成在测自己的切片）。
+  const gatedRule = /\n  (html\[data-mobile-nav-ios\][^{]*dsfv[^{]*)\{/.exec(MISC_CSS)?.[1]
+  assert.ok(gatedRule, 'dsfv 三件套的 iOS 门控规则必须存在')
+  const selectors = gatedRule.split(',').map((part) => part.trim()).filter(Boolean)
+  assert.ok(selectors.length >= 3, 'dsfv 三件套都要在门控规则里')
+  for (const selector of selectors) assert.match(selector, /^html\[data-mobile-nav-ios\] /)
 })

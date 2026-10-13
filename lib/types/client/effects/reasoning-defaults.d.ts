@@ -27,6 +27,9 @@
  *    wire spellings survive.
  * 3. Mobile-only (`installMobileEffect`): the plugin's desktop contract is a
  *    complete no-op, and desktop installs keep the host half.
+ * 4. A model that declares no reasoning-effort support lands in the `auto` 档
+ *    and is left at its own default; see {@link AUTO_REASONING_EFFORTS} and
+ *    {@link reasoningEffortDecision}.
  *
  * The remote is read lazily rather than injected: making `remote.settings` a
  * required fiber dependency would keep this whole plugin dormant on host
@@ -43,6 +46,24 @@ export declare const LLM_PI_AI_ENTRY = "llm-pi-ai";
  * the factory default and why `minimal`/`xhigh` stay out.
  */
 export declare const DEFAULT_REASONING_EFFORTS: Readonly<Record<string, string | null>>;
+/**
+ * The `auto` 档: the plugin's name for 「不干预」 — leave the model's
+ * `reasoningEfforts` ABSENT so it keeps its own / the catalog's capability and
+ * the composer shows the host's provider-default choice.
+ *
+ * NOT a host value; never write this string into the profile. The host's level
+ * enum is closed — `THINKING_LEVELS`, `@deepseek-ai/dsh-llm-pi-ai:lib/index.js:
+ * 296-304` = `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`,
+ * used as the `reasoningEfforts` dict KEY type (`:1001`) and the profile
+ * `reasoning` type (`:1029`) — and it has no `auto` (the `"auto"` at `:1040` is
+ * `transport`'s). Hard-writing the string is refused by the schema; the host's
+ * own word for 「不写档位」 is the absent field (`resolveModelReasoning`,
+ * `:566-570`). `src/reasoning-effort.ts` carries the full evidence trail — the
+ * two halves cannot share a module (see the header above), so this constant and
+ * {@link reasoningEffortDecision} are duplicated there on purpose and held in
+ * step by `tests/reasoning-defaults-parity.test.ts`.
+ */
+export declare const AUTO_REASONING_EFFORTS = "auto";
 /** One settings path edit, as the settings remote takes them. */
 export interface SettingsPathOp {
     readonly op: 'set';
@@ -53,23 +74,36 @@ export interface SettingsPathOp {
 export interface ReasoningFillPlan {
     readonly ops: SettingsPathOp[];
     readonly filled: number;
+    /** Entries parked in the `auto` 档 (see {@link AUTO_REASONING_EFFORTS}). */
+    readonly auto: number;
 }
+/**
+ * Decide which 档 one model entry belongs to: `auto` (leave it alone) or `fill`.
+ *
+ * `auto` covers exactly the entries this feature must not touch: a non-object
+ * entry; an entry that already states its capability on its own or through a
+ * lower layer (the host's `reasoningEfforts: false`, `dsh-llm-pi-ai:lib/
+ * index.js:1008` → `{ reasoning: false }` at `:570`, is its sanctioned spelling
+ * of 「不参与思考档位」); and an entry whose `supportsReasoningEffort` is `false`
+ * in either layer — filling that one offers the composer levels the model
+ * refuses, and the request path throws `UNSUPPORTED_REASONING_EFFORT`
+ * (`:1705-1709`). A layer that says nothing never forces `auto`.
+ *
+ * Same rules as the host twin (`src/reasoning-effort.ts`), which documents the
+ * full evidence trail; the two are held in step by
+ * `tests/reasoning-defaults-parity.test.ts`.
+ */
+export declare function reasoningEffortDecision(entry: unknown, resolvedEntry: unknown, userProfile: unknown, resolvedProfile: unknown): typeof AUTO_REASONING_EFFORTS | 'fill';
 /**
  * Plan the default-level fill for one `llm-pi-ai` section. Neither argument is
  * mutated. `resolved` decides where a level set is missing, `user` supplies what
  * may be written.
- *
- * @param resolved - the live merged section (`section.value`).
- * @param user - the user layer (`section.user`).
- * @returns ordered path ops plus how many models they cover.
  */
 export declare function planReasoningEffortFill(resolved: unknown, user: unknown): ReasoningFillPlan;
 /**
  * Install the browser-half fill: one attempt at install, one short retry (the
  * remote may not have answered the first describe yet), a slow sweep for edits
  * nobody re-describes, and an immediate pass on the `llm-pi-ai` document event.
- *
- * @param ctx - the client plugin context.
  */
 export declare function installReasoningDefaults(ctx: ClientContext): void;
 //# sourceMappingURL=reasoning-defaults.d.ts.map

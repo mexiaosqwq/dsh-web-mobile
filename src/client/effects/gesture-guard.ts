@@ -25,7 +25,7 @@
  */
 
 /** Marked targets with their expiry timestamp (monotonic performance.now). */
-const consumed = new Map<EventTarget, number>()
+const consumed = new WeakMap<EventTarget, number>()
 
 /**
  * True while the live stroke is axis-locked horizontal. Unlike the consume
@@ -82,6 +82,7 @@ export function markGestureConsumed(
 ): void {
   const until = performance.now() + windowMs
   if (!isElementLike(target)) {
+    if ((typeof target !== 'object' && typeof target !== 'function') || target === null) return
     consumed.set(target, until)
     return
   }
@@ -102,10 +103,14 @@ export function consumeIfGestured(event: Event): boolean {
   const now = performance.now()
   const target = event.target
   if (!isElementLike(target)) {
-    for (const [t, until] of consumed) {
-      if (until <= now) consumed.delete(t)
+    if ((typeof target !== 'object' && typeof target !== 'function') || target === null) return false
+    const until = consumed.get(target)
+    if (until === undefined) return false
+    if (until <= now) {
+      consumed.delete(target)
+      return false
     }
-    return false
+    return true
   }
   let el: { parentElement: unknown } | null = target
   while (el !== null) {

@@ -15,10 +15,8 @@
  * menu component, no child elements) — label reads and the injected text
  * fall back across both.
  *
- * Row → session id: session rows carry no id in the DOM, so the session is
- * resolved from the client list by display title (the row's rendered title IS
- * the summary's `displayTitle`); duplicate titles are disambiguated by the
- * row's position within its workspace group section.
+ * Row → session id: session rows carry no id in the DOM, so the id is read
+ * off the host's own stable anchors (see `rowSessionId`).
  *
  * Ported from community-fork wzxmt-zhc v2.7.0; the only mainline delta is
  * where the delete-dialog CSS lives: base.css.ts, with corrected animation

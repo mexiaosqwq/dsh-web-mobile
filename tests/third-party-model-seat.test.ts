@@ -209,3 +209,39 @@ test('dual-primary lane welds the stop/send cluster to the right edge (issue #19
   assert.ok(wrap !== undefined, 'dual-form wrap rule missing')
   assert.match(wrap.body, /flex-wrap: wrap/)
 })
+
+// 2026-10-12 · 用户真机报障「子代理 composer 的上下文表跑到左边去了」。
+// headless 393×844 同机对比（主会话 vs 子代理会话）实测：
+//   主会话  环锚点 x=310、发送键 333  → [模型胶囊][环][发送] 焊在右缘
+//   子代理  环锚点 x=127、发送键 333  → 188px 空档，环看着「跑到左边」
+// 根因：宿主 0.1.7-rc.2 把 ContextMeter 从 trailing 车道搬进卡片 dock，
+// 于是上面那条「无模型胶囊时由 meter 当吸收器」的兜底再也匹配不到
+// （meter 已不是车道的子元素）；子代理会话又一整个不渲染模型胶囊，
+// 车道里唯一带 margin-left:auto 的就剩发送键自己，插件注入的环锚点是
+// 普通流内元素，被留在车道左缘。修法 = 让环锚点顶替 meter 当吸收器，
+// 同时把发送键的 auto 清零（不清零则两个 auto 平分空隙，环仍回不去）。
+test('subagent composer: the ring anchor takes over the slack absorber (rc.2+)', () => {
+  const blocks = findRuleBlocks(section)
+  const row = '[data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"])'
+  const gate = ':not(:has([class*="_trigger"][aria-haspopup="menu"]))'
+  const laneGated = `${row} > [class*="_trailing"]${gate}`
+  const bySelector = (selector: string) => blocks.find((block) => block.selector === selector)
+
+  const reserve = bySelector(`${laneGated} > [data-mobile-nav="stats-ring-reserve"]`)
+  assert.ok(reserve !== undefined, 'ring anchor absorber rule missing')
+  // !important 是这条的全部要害：compat 层有一条
+  // [data-mobile-nav="stats-ring-reserve"] { margin: 0 2px 0 0 !important }，
+  // 不带 !important 的话本规则会被它压成 margin-left:0（受控实验实测：
+  // 环仍停在 x=127，而发送键被拉到 x=150 -- 空档只是换了个位置）。
+  assert.match(reserve.body, /margin-left: auto !important/)
+
+  const primary = bySelector(`${laneGated} > [class*="_primary"]`)
+  assert.ok(primary !== undefined, 'gated primary zeroing rule missing')
+  assert.match(primary.body, /margin-left: 0/)
+
+  // 门控必须与 meter 兜底那条逐字一致：模型胶囊在场（主会话）时一律不接管，
+  // 否则两个 auto 会把主会话已经焊好的右簇拆开。上面 findRuleBlocks 拿到的
+  // selector 已经逐字比对过门控，这里只再钉一次「reserve 才是吸收器」。
+  const reserveRule = section.slice(section.indexOf('> [data-mobile-nav="stats-ring-reserve"]'))
+  assert.match(reserveRule.slice(0, 400), /margin-left: auto !important/)
+})

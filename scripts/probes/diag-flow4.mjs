@@ -43,7 +43,10 @@ await client.evaluate(`localStorage.setItem('dsh.sessions.current', ${JSON.strin
 const lsNow = await client.evaluate(`localStorage.getItem('dsh.sessions.current')?.slice(0, 80)`)
 console.log('LS right before nav2:', lsNow)
 await client.send('Page.navigate', { url: URL_ })
-const act = await waitFor('active', async () => { return client.evaluate(`(()=>{const ph=document.querySelector('[data-phase]');return ph?ph.getAttribute('data-phase'):null})()`) === 'active' ? true : false }, 120000).catch(() => false)
+// C14：这里原本写的是 `client.evaluate(...) === 'active'`——与 Promise 比较，
+// 恒 false，于是每次都在这里白等满 120s 再继续（诊断脚本的假红灯）。
+// evaluate 的返回值必须 await 之后再比。
+const act = await waitFor('active', async () => (await client.evaluate(`(()=>{const ph=document.querySelector('[data-phase]');return ph?ph.getAttribute('data-phase'):null})()`)) === 'active', 120000).catch(() => false)
 console.log('active reached:', act)
 await sleep(3000)
 const d = await client.evaluate(`(() => {

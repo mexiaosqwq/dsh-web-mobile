@@ -6,11 +6,38 @@
 //              + 页面是否收到 pointercancel（浏览器把手势当滚动/pan 的证据）。
 //
 // 用法：DSH_PROBE_URL=http://127.0.0.1:3080/ node scripts/cdp-swipe-failures.mjs
+import { prepareHostScenario } from './lib/probe-host-scenario.mjs'
 import { spawn } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import net from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { createVerdict } from './lib/probe-verdict.mjs'
+import { installExitGuard, REQUEST_DEADLINE_MS, createCleanup } from './lib/probe-cdp-lifecycle.mjs'
+
+// 结论收口（C11）：断言失败必须影响退出码。此前 ok:false 只打印 OBS、结尾无条件 exit(0)。
+const verdict = createVerdict('cdp-swipe-failures')
+// C13：资源句柄放**模块级**（outer），这样 catch/finally 也能回收；main 内只做赋值。
+let chrome = null
+let profileDir = null
+// 单一生命周期出口：正常尾部与 catch 都走它 ⇒ 错误分支同样出 CLEANUP + 四类汇总，
+// 且 createCleanup 内部是「SIGTERM → 等精确 PID 退出 → SIGKILL → 再确认 → 才删 profile」。
+async function finishLifecycle() {
+  const evidence = await createCleanup({ child: chrome, profileDir, rm })()
+  console.log('CLEANUP ' + JSON.stringify(evidence))
+  if (evidence.exited !== true || evidence.removed !== true) {
+    verdict.fail('cleanup', `exited=${evidence.exited} removed=${evidence.removed}`)
+  }
+  console.log(verdict.summary())
+  process.exit(verdict.exitCode())
+}
+const results = []
+const record = (name, detail) => {
+  results.push({ name, detail })
+  console.log(`${detail.ok ? 'PASS' : 'FAIL'} ${name}: ${detail.text}`)
+  if (detail.ok) verdict.pass(name, detail.text)
+  else verdict.fail(name, detail.text)
+}
 
 const URL = process.env.DSH_PROBE_URL || 'http://127.0.0.1:3080/'
 const CHROME = process.env.DSH_PROBE_CHROME || 'google-chrome'
@@ -32,16 +59,30 @@ function allocatePort() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function main() {
+  // 故意失败自证（隔离夹具，不需要宿主/浏览器）：PROBE_SELFTEST=1 ⇒ 注入一条合成 FAIL，
+  // 必须 exit 1；PROBE_SELFTEST=clean ⇒ 只有一条合成 PASS，exit 0。
+  // 走的与真实断言完全同一条 record → verdict → exitCode 路径。
+  if (process.env.PROBE_SELFTEST === '1' || process.env.PROBE_SELFTEST === 'clean') {
+    record('selftest 合成 PASS（样例）', { ok: true, text: 'synthetic pass' })
+    if (process.env.PROBE_SELFTEST === '1') {
+      record('selftest 故意失败（必须让退出码非零）', { ok: false, text: 'synthetic deliberate failure' })
+    }
+    console.log(verdict.summary())
+    process.exit(verdict.exitCode())
+  }
   const port = await allocatePort()
-  const profileDir = await mkdtemp(join(homedir(), '.cache', 'dsh-nav-fail-'))
-  const chrome = spawn(CHROME, [
+  profileDir = await mkdtemp(join(homedir(), '.cache', 'dsh-nav-fail-'))
+  chrome = spawn(CHROME, [
     '--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
     '--remote-debugging-port=' + port, '--user-data-dir=' + profileDir,
     '--window-size=390,844', 'about:blank',
   ], { stdio: 'ignore' })
 
+  let launchError = null
+  chrome.once('error', (error) => { launchError = error })
   let wsUrl = null
   for (let i = 0; i < 40; i++) {
+    if (launchError !== null) throw launchError
     try {
       const list = await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json())
       const page = list.find((t) => t.type === 'page')
@@ -49,21 +90,39 @@ async function main() {
     } catch { /* retry */ }
     await sleep(250)
   }
-  if (!wsUrl) { console.error('chrome 未就绪'); chrome.kill(); process.exit(1) }
+  if (!wsUrl) { console.error('chrome 未就绪'); chrome.kill(); throw new Error('early abort: 见上方日志（不再绕过回收）') }
 
   const ws = new WebSocket(wsUrl)
   let id = 0
   const pending = new Map()
-  const send = (method, params = {}) => new Promise((res, rej) => {
+  const send = (method, params = {}) => new Promise((_res, _rej) => {
+    // C13：每请求 deadline（结算即清定时器），与其他探针同一判据。
+    // 任一拒绝路径（非 OPEN / deadline / ws.send 同步抛错）都必须
+    // pending.delete + clearTimeout，否则留下脏表项与迟到响应误关联。
+    let timer = null
+    const res = (value) => { clearTimeout(timer); _res(value) }
+    const rej = (error) => { clearTimeout(timer); _rej(error) }
     const mid = ++id
-    pending.set(mid, { res, rej })
-    ws.send(JSON.stringify({ id: mid, method, params }))
+    // 门在 pending.set 之前：非 OPEN 立即拒绝，且不得留下表项（mid 已声明，无 TDZ）
+    if (ws.readyState !== 1) { rej(new Error('socket not open (readyState=' + ws.readyState + ')')); return }
+    timer = setTimeout(() => {
+      pending.delete(mid)
+      clearTimeout(timer)
+      rej(new Error('request deadline ' + REQUEST_DEADLINE_MS + 'ms exceeded'))
+    }, REQUEST_DEADLINE_MS)
+    pending.set(mid, { res, rej, timer })
+    try { ws.send(JSON.stringify({ id: mid, method, params })) } catch (error) {
+      pending.delete(mid)
+      clearTimeout(timer)
+      rej(error instanceof Error ? error : new Error(String(error)))
+    }
   })
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data)
     if (msg.id && pending.has(msg.id)) {
       const p = pending.get(msg.id)
       pending.delete(msg.id)
+      clearTimeout(p.timer)
       if (msg.error) p.rej(new Error(msg.error.message))
       else p.res(msg.result)
     }
@@ -97,16 +156,12 @@ async function main() {
     if (await evalv(`!!document.querySelector(${JSON.stringify(FRAME_SELECTOR)})`)) { ready = true; break }
     await sleep(500)
   }
-  if (!ready) { console.error('插件 frame 未就绪'); process.exit(1) }
+  if (!ready) { console.error('插件 frame 未就绪'); throw new Error('early abort: 见上方日志（不再绕过回收）') }
   await sleep(1500)
 
   // 移除宿主 "Internal Testing Notice" 模态（BODY > DIV._root_15u5s 含 mask+aria-modal），
   // 否则其 mask 拦截一切触摸、aria-modal 让位使手势层全部 inert（同 cdp-swipe-probe.mjs）。
-  await evalv(`(() => {
-    const root = document.querySelector('[class*="_root_15u5s"]')
-    if (root !== null && root.parentElement === document.body) root.remove()
-    for (const m of document.querySelectorAll('[aria-modal="true"]')) m.remove()
-  })()`)
+  await prepareHostScenario(evalv)
   await sleep(500)
 
   // 注入 pointercancel 记录器 + 主滚动容器记录
@@ -145,11 +200,7 @@ async function main() {
     await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   }
 
-  const results = []
-  const record = (name, detail) => {
-    results.push({ name, detail })
-    console.log(`${detail.ok ? 'PASS' : 'OBS '} ${name}: ${detail.text}`)
-  }
+  // record / results 已提到模块级（见文件头），此处不再重复定义。
 
   // --- 前置：关闭抽屉到基线 ---
   const pre = await state()
@@ -296,6 +347,7 @@ async function main() {
     })
   } else {
     console.log('B3 跳过: 无 newSession 行（hero/blank 阶段）')
+    verdict.skip('B3 无 newSession 行（可选分支）', 'drawer 未渲染 sessionRow；该分支为可选，跳过且不计 PASS')
   }
 
   // ===== C. 横向滚动容器让位（识别区 48px→96px→45% 视口宽；2026-09-11 曾短暂 25%，同日回滚保持 45%） =====
@@ -320,6 +372,13 @@ async function main() {
     document.body.appendChild(strip)
   })()`)
   await sleep(200)
+  const c1Before = await state()
+  const c1Hit = await evalv(`(() => {
+    const strip = document.getElementById('probe-hscroller')
+    const target = document.elementFromPoint(40, 220)
+    return strip !== null && target !== null && strip.contains(target)
+  })()`)
+  if (!c1Hit) throw new Error('C1 required-precondition: touch origin did not hit horizontal scroller')
   await swipe(40, 220, 160, 220, 150)
   await sleep(700)
   const c1 = await state()
@@ -332,8 +391,8 @@ async function main() {
     }
   })()`)
   record('C1 横向滚动容器内横滑120px(让位不开抽屉)', {
-    ok: c1.open === false && c1.cancels >= 1 && c1strip !== null && c1strip.scrollWidth > c1strip.clientWidth,
-    text: `open=${c1.open} (期望 false: scroller 让位) cancels=${c1.cancels} (期望 >=1: 浏览器认领原生 pan) scrollLeft=${c1strip ? c1strip.scrollLeft : 'n/a'} (仅记录: headless 不落盘合成触摸滚动)`,
+    ok: c1.open === false && c1.cancels > c1Before.cancels && c1strip !== null && c1strip.scrollWidth > c1strip.clientWidth,
+    text: `open=${c1.open} (期望 false: scroller 让位) cancelsDelta=${c1.cancels - c1Before.cancels} (期望 >=1: 本次浏览器认领原生 pan) scrollLeft=${c1strip ? c1strip.scrollLeft : 'n/a'} (仅记录: headless 不落盘合成触摸滚动)`,
   })
   await evalv(`(() => { const s = document.getElementById('probe-hscroller'); if (s) s.remove() })()`)
   await sleep(300)
@@ -422,10 +481,18 @@ async function main() {
   // [data-composer-input]），更早的宿主才是 <textarea>。text control 的选区
   // 只在 selectionStart/End 上可见且不出现在 document.getSelection() 里；
   // contentEditable 走 DOM Range，两代都要复现"聚焦 + 选中前 20 字符"。
+  const e3Editable = await evalv(`(() => {
+    const input = document.querySelector('[data-composer-input]')
+    if (!input?.isContentEditable) return false
+    input.focus(); return document.activeElement === input
+  })()`)
+  if (e3Editable) await send('Input.insertText', { text: 'probe composer selection text for issue 44' })
   const composerSelection = await evalv(`(() => {
     const input = document.querySelector('[data-composer-input]') ||
       document.querySelector('[data-phase] [class*="_card"]:has(textarea) textarea')
-    if (input === null) return null
+    if (input === null) return { error: 'composer editor missing' }
+    if (input.tagName !== 'TEXTAREA' && !input.isContentEditable)
+      return { error: 'composer editable=false', kind: input.tagName, phase: input.getAttribute('data-phase') }
     input.focus()
     if (input.tagName === 'TEXTAREA') {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
@@ -433,15 +500,19 @@ async function main() {
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.setSelectionRange(0, 20)
     } else {
-      input.textContent = 'probe composer selection text for issue 44'
+      const walker = document.createTreeWalker(input, NodeFilter.SHOW_TEXT)
+      const node = walker.nextNode()
+      if (node === null || node.textContent.length < 20) return { error: 'native composer text missing' }
       const range = document.createRange()
-      range.setStart(input.firstChild || input, 0)
-      range.setEnd(input.firstChild || input, 20)
+      range.setStart(node, 0)
+      range.setEnd(node, 20)
       const sel = document.getSelection()
       sel.removeAllRanges()
       sel.addRange(range)
     }
     const sel = document.getSelection()
+    if (document.activeElement !== input || (input.tagName !== 'TEXTAREA' && (!sel || sel.isCollapsed)))
+      return { error: 'composer focus/selection not established', kind: input.tagName }
     return {
       kind: input.tagName,
       focused: document.activeElement === input,
@@ -450,13 +521,13 @@ async function main() {
       docCollapsed: sel === null ? true : sel.isCollapsed,
     }
   })()`)
-  if (composerSelection === null) {
-    record('E3 composer 内选区+标准打开手势(应让位不开抽屉, #44)', {
+  if (composerSelection === null || composerSelection.error) {
+    record('E3 composer 选区必需前置', {
       ok: false,
-      text: 'SKIP-REASON: 本宿主没有可注入选区的 composer 编辑面（既无 [data-composer-input] 也无 textarea）',
+      text: 'required-precondition(FAIL): ' + JSON.stringify(composerSelection),
     })
-    throw new Error('未找到 composer 编辑面（[data-composer-input] / textarea 均缺席）')
-  }
+    verdict.skip('E3c composer 塌缩选区对照', 'E3必需前置失败，未执行；不计PASS')
+  } else {
   await swipe(12, 400, 130, 400, 150)
   await sleep(700)
   const e3 = await state()
@@ -481,7 +552,9 @@ async function main() {
       setter.call(el, '')
       el.dispatchEvent(new Event('input', { bubbles: true }))
     } else {
-      el.textContent = ''
+      el.focus()
+      document.execCommand('selectAll')
+      document.execCommand('delete')
       const sel = document.getSelection()
       if (sel) sel.removeAllRanges()
     }
@@ -510,6 +583,7 @@ async function main() {
   })
   await evalv(`(() => { const ta = document.activeElement; if (ta && ta.blur) ta.blur() })()`)
   await ensureClosed()
+  }
 
   await evalv(`(() => { const s = document.getElementById('probe-seltext'); if (s) s.remove() })()`)
   await sleep(300)
@@ -596,11 +670,14 @@ async function main() {
   console.log(JSON.stringify(scrollInfo))
 
   ws.close()
-  chrome.kill()
-  // chrome lingers flushing its profile after kill on slow devices; a
-  // cleanup race must not turn an all-PASS run into exit 1.
-  await rm(profileDir, { recursive: true, force: true }).catch(() => {})
-  process.exit(0)
+  // C13：收尾统一走 createCleanup（精确 PID + profile 旁证）；exited/removed 为 false **必须判 FAIL**
+  // （不再用 .catch(() => {}) 把清理失败吞掉）。
+  await finishLifecycle()
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch(async (error) => {
+  console.error(error)
+  verdict.fail('fatal', error instanceof Error ? error.message : String(error))
+  await finishLifecycle()
+})
+installExitGuard({ getChild: () => chrome, getProfileDir: () => profileDir })

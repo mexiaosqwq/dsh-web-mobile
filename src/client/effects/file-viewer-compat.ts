@@ -1,4 +1,4 @@
-import { getFrame } from './phone-chrome.ts'
+import { getFrame } from '../platform/frame.ts'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 
 /**

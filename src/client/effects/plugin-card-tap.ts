@@ -1,6 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { decidePluginCardTap } from '../core/plugin-card-tap-core.ts'
-import { installMobileEffect } from './phone-chrome.ts'
+import { installMobileEffect } from '../platform/breakpoints.ts'
 
 /**
  * 插件管理页：整卡 / 整行可点（2026-10-07 店主报障）。

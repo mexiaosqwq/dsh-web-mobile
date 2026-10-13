@@ -3,7 +3,9 @@
 // DSH_PROBE_SESSION_ID (required), DSH_PROBE_CHROME (default chromium),
 // DSH_PROBE_TIMEOUT_MS (default 30000), DSH_PROBE_REQUIRE_CHIP (0 or 1, default 0).
 // Exits 0 only when every required check passes; any FAIL, timeout, page error,
-// or strict integration absence exits 1. Never calls process.exit().
+// or strict integration absence exits 1. 正常路径**不**调用 process.exit()（退出码由 return 值
+// 交给 CLI 包装层）；唯一的例外是只用于隔离自证的 PROBE_SELFTEST 分支。
+import { prepareHostScenario } from './lib/probe-host-scenario.mjs';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -59,6 +61,14 @@ function readConfig(env = process.env) {
   };
 }
 
+import { partitionErrors, summarizeNew } from './lib/probe-baseline.mjs'
+import { REQUEST_DEADLINE_MS, raceTotal, createCleanup, pidExited } from './lib/probe-cdp-lifecycle.mjs'
+
+// C13：waitFor 的总 deadline 由外层竞速强制，即使 probe 自身永远不 settle
+// （原来的实现只在自己 while 循环里看时间，probe 卡住就绕过了上限）。
+const waitFor = (label, timeoutMs, signal, probe) =>
+  raceTotal(label, timeoutMs + 250, waitForInner(label, timeoutMs, signal, probe))
+
 const results = [];
 
 // Known-failure baseline (machine-readable): these assertions fail on the
@@ -69,15 +79,49 @@ const results = [];
 // FAIL is NEW and exits non-zero. Keep entries minimal: a name that stops
 // failing must be removed from this list.
 const EXPECTED_FAILURES = [
-  { name: 'page.errors', includes: '404' },
-  { name: 'integration.gitgraph.pressed' },
+  // C12：逐条匹配 + **必须带到期时间**。不带 expiresAt 或已过期的条目不生效（会告警），
+  // 避免"一劳永逸的豁免"变成永久伪造绿。
+  // page.errors 的豁免**只能**来自 PAGE_ERROR_BASELINE（逐条签名+URL+到期）。
+  // 这里不再放第二层 404 豁免：否则 partitionErrors 判 NEW 之后，
+  // printSummary 还会把整条 page.errors 失败吸收掉。
+  { name: 'integration.gitgraph.pressed', signature: 'transformed=false', expiresAt: '2026-11-30',
+    note: '本地已知基线：pressed transform 未生效；到期复核（此前为无条件豁免）' },
 ];
 
+const baselineWarnings = [];
+
+// 页错误基线（与断言基线分开）：**逐条**匹配签名/资源 URL + 到期时间。
+// 旧实现只看「错误条数 + 首条前 160 字符是否含 404」，一条 404 就能吸收整批页错误。
+// ⚠️ 每条都必须带**已确认的具体资源 URL**（不能用 '404' 这种泛化子串：实跑新资源
+// new-plugin.js 的 404 会被整条吸收 ⇒ baselined=1/fresh=0，违反本批约束）。
+// 目前**没有任何已确认的具体资源** ⇒ 保持为空：所有页错误一律判 NEW（宁红不假绿）。
+// 模板（拿到确认 URL 后按此追加，且必须带到期）：
+//   { signature: '404', url: '/plugins/<name>/xxx.js', expiresAt: 'YYYY-MM-DD', note: '确认于 <日期> 的 <场景>' },
+const PAGE_ERROR_BASELINE = [];
+
 function isExpectedFailure(result) {
-  return EXPECTED_FAILURES.some(
-    (entry) => result.name === entry.name
-      && (entry.includes === undefined || result.detail.includes(entry.includes)),
-  );
+  // 注意：本函数会被 Array.prototype.filter 直接当回调用，第二参会是**数组下标**。
+  // 所以日期必须在这里自己取，绝不能作为可选参数出现在回调位置（否则命中基线时
+  // 会执行 now.getTime() 抛 TypeError: now.getTime is not a function）。
+  const now = new Date();
+  return EXPECTED_FAILURES.some((entry) => {
+    if (result.name !== entry.name) return false
+    if (entry.expiresAt === undefined) {
+      baselineWarnings.push(`基线条目 ${entry.name} 缺 expiresAt ⇒ 不生效`);
+      return false
+    }
+    const expiresAt = new Date(entry.expiresAt).getTime()
+    if (!Number.isFinite(expiresAt)) {
+      baselineWarnings.push(`基线条目 ${entry.name} 的 expiresAt 非法 ⇒ 不生效`);
+      return false
+    }
+    if (expiresAt <= now.getTime()) {
+      baselineWarnings.push(`基线条目 ${entry.name} 已于 ${entry.expiresAt} 过期 ⇒ 不再豁免`);
+      return false
+    }
+    const needle = entry.signature ?? entry.includes
+    return needle === undefined || result.detail.includes(needle)
+  });
 }
 
 class ProbeFailure extends Error {
@@ -120,7 +164,7 @@ function printSummary() {
   const passCount = count('PASS');
   const skipCount = count('SKIP');
   const failures = results.filter((result) => result.status === 'FAIL');
-  const baseFailures = failures.filter(isExpectedFailure);
+  const baseFailures = failures.filter((result) => isExpectedFailure(result));
   const newFailures = failures.filter((result) => !isExpectedFailure(result));
   const green = newFailures.length === 0 && skipCount === 0;
   console.log(`SUMMARY pass=${passCount} skip=${skipCount} fail=${failures.length} base=${baseFailures.length} new=${newFailures.length} green=${green}`);
@@ -153,7 +197,7 @@ function sleep(ms, signal) {
   });
 }
 
-async function waitFor(label, timeoutMs, signal, probe) {
+async function waitForInner(label, timeoutMs, signal, probe) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await probe();
@@ -258,11 +302,34 @@ function createCdpClient(ws, signal) {
   ws.onerror = () => rejectPending(new Error('CDP WebSocket error'));
   ws.onclose = () => rejectPending(new Error('CDP WebSocket closed'));
 
-  const send = (method, params = {}) => new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(signal.reason || new Error('aborted'));
-    const id = ++nextId;
-    pending.set(id, { resolve, reject });
+  const send = (method, params = {}) => new Promise((_resolve, _reject) => {
+  // C13：每次请求都有 deadline。桥不回/连接假死时不再永久挂住；
+  // 同步构造参数抛错也必须清掉定时器（下方 try 包住整个函数体）。
+  const timer = { id: null }
+  const clear = () => { if (timer.id !== null) { clearTimeout(timer.id); timer.id = null } }
+  const resolve = (value) => { clear(); _resolve(value) }
+  const reject = (error) => { clear(); _reject(error) }
+  // C13：readyState 门 —— 连接非 OPEN 时直接拒绝，不把请求挂进 pending。
+  const OPEN = 1
+  if (ws.readyState !== OPEN) {
+    reject(new Error(`socket not open (readyState=${ws.readyState}): ${method}`))
+    return
+  }
+  if (signal.aborted) return reject(signal.reason || new Error('aborted'));
+  const id = ++nextId;
+  // C13：超时必须**删除 pending**（否则迟到响应/泄漏会把表撑大）。
+  timer.id = setTimeout(() => {
+    pending.delete(id)
+    reject(new Error(`request deadline ${REQUEST_DEADLINE_MS}ms exceeded: ${method}`))
+  }, REQUEST_DEADLINE_MS)
+  pending.set(id, { resolve, reject });
+  // C13：ws.send 同步抛错也要清定时器 + 删 pending（否则该 id 永久挂起）。
+  try {
     ws.send(JSON.stringify({ id, method, params }));
+  } catch (error) {
+    pending.delete(id)
+    reject(error instanceof Error ? error : new Error(String(error)))
+  }
   });
 
   const evaluate = async (expression) => {
@@ -559,12 +626,8 @@ async function runCoreScenario(client, config, signal, pageErrors) {
   });
   pass('mobile.breakpoint-rearm', 'frame=present control=visible collapsed=true');
 
-  // Surface captured page errors (deduplicated); a real-combination gate must
-  // fail on them.
-  const uniqueErrors = [...new Set(pageErrors)];
-  check('page.errors', uniqueErrors.length === 0, uniqueErrors.length > 0
-    ? `count=${uniqueErrors.length} first=${uniqueErrors[0].slice(0, 160)}`
-    : 'count=0');
+  // page.errors 的判定**移到全部场景结束后**（见 tail 的 finalizePageErrors）：
+  // 原实现在这里（runCoreScenario 内）判定，gitgraph 阶段产生的页错误不会被计入。
 }
 
 async function runGitgraphScenario(client, config, signal) {
@@ -682,6 +745,17 @@ async function runGitgraphScenario(client, config, signal) {
 }
 
 async function main() {
+  // 基线分支自证（不需要宿主）：PROBE_SELFTEST=baseline 走**真实**的 FAIL 记录 →
+  // printSummary() → isExpectedFailure 路径，必须把 pressed 判为 BASE 且**不抛
+  // TypeError**；PROBE_SELFTEST=pageerror 注入一条「新资源 404」页错误，必须判 NEW。
+  if (process.env.PROBE_SELFTEST === 'baseline' || process.env.PROBE_SELFTEST === 'pageerror') {
+    if (process.env.PROBE_SELFTEST === 'baseline') {
+      record('FAIL', 'integration.gitgraph.pressed', 'active=false transformed=false transform=none')
+    } else {
+      record('FAIL', 'page.errors', 'baselined=0 expired=0 new=1 first=404 url=/plugins/new-plugin.js')
+    }
+    process.exit(printSummary())
+  }
   const abortController = new AbortController();
   const onSignal = (signalName) => abortController.abort(new Error(`received ${signalName}`));
   const onSigint = () => onSignal('SIGINT');
@@ -755,14 +829,23 @@ async function main() {
     // Page-error capture: registered before any navigation so boot-time
     // exceptions, console errors, and log errors all land in the gate.
     const pageErrors = [];
+    const urlOf = (text, explicit) => {
+      if (typeof explicit === 'string' && explicit.length > 0) return explicit;
+      const m = /https?:\/\/[^\s"')]+/.exec(String(text ?? ''));
+      return m === null ? undefined : m[0];
+    };
     client.on('Runtime.exceptionThrown', ({ exceptionDetails }) => {
-      pageErrors.push(exceptionDetails.exception?.description || exceptionDetails.text);
+      const signature = exceptionDetails.exception?.description || exceptionDetails.text;
+      pageErrors.push({ signature, url: urlOf(signature, exceptionDetails.url) });
     });
     client.on('Runtime.consoleAPICalled', ({ type, args }) => {
-      if (type === 'error') pageErrors.push(args.map((arg) => arg.value ?? arg.description ?? '').join(' '));
+      if (type === 'error') {
+        const signature = args.map((arg) => arg.value ?? arg.description ?? '').join(' ');
+        pageErrors.push({ signature, url: urlOf(signature) });
+      }
     });
     client.on('Log.entryAdded', ({ entry }) => {
-      if (entry.level === 'error') pageErrors.push(entry.text);
+      if (entry.level === 'error') pageErrors.push({ signature: entry.text, url: urlOf(entry.text, entry.url) });
     });
 
     // Inject the current session before the first navigation (no
@@ -790,12 +873,21 @@ async function main() {
 
     await waitForPageLoad('page load');
 
+    await prepareHostScenario(expression => client.evaluate(expression), { timeoutMs: config.timeoutMs });
     await runCoreScenario(client, config, signal, pageErrors);
 
     // Optional/strict gitgraph integration gate; the core scenario has already
     // restored the narrow viewport with the drawer closed. The scenario closes
     // any popover it opens before returning.
     await runGitgraphScenario(client, config, signal);
+
+    // C12 收口：全部场景跑完后**重新汇总全部**页错误，逐条与基线比对；
+    // 旧 404 与新错误共存时，新错误仍是 NEW ⇒ exit 非零。
+    const { baselined, fresh, expired } = partitionErrors(pageErrors, PAGE_ERROR_BASELINE, new Date());
+    for (const e of expired) baselineWarnings.push(`页错误基线条目已过期 ⇒ 不再豁免：${e.signature}`);
+    for (const w of baselineWarnings) console.log('BASELINE-WARN ' + w);
+    check('page.errors', fresh.length === 0,
+      `baselined=${baselined.length} expired=${expired.length} ${summarizeNew(fresh)}`);
   } catch (error) {
     if (!(error instanceof ProbeFailure)) {
       fail('fatal', error instanceof Error ? error.message : String(error));
@@ -822,10 +914,12 @@ async function main() {
     } catch (error) {
       console.error('teardown: stop chromium failed:', error.message);
     }
-    try {
-      if (profileDir) await rm(profileDir, { recursive: true, force: true });
-    } catch (error) {
-      console.error('teardown: remove profile failed:', error.message);
+    // C13：profile 回收统一走 createCleanup（精确 PID + 目录旁证）；任一为 false **必须判 FAIL**，
+    // 不再只 console.error 后继续（原实现会把清理失败吞成绿）。
+    const cleanupEvidence = await createCleanup({ child: chrome, profileDir, rm })();
+    console.log('CLEANUP ' + JSON.stringify(cleanupEvidence));
+    if (cleanupEvidence.exited !== true || cleanupEvidence.removed !== true) {
+      fail('cleanup', `exited=${cleanupEvidence.exited} removed=${cleanupEvidence.removed}`);
     }
     process.removeListener('SIGINT', onSigint);
     process.removeListener('SIGTERM', onSigterm);

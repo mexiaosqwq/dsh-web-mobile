@@ -46,8 +46,8 @@ test('the four style modules keep zero structural fatals', () => {
 // 2026-08-30 PC leak came through, so it is pinned here against the query it
 // has to complement.
 test('the desktop hide block stays the complement of MOBILE_QUERY', () => {
-  const CHROME = readFileSync(new URL('../src/client/effects/phone-chrome.ts', import.meta.url), 'utf8')
-  const query = /MOBILE_QUERY\s*=\s*'([^']+)'/.exec(CHROME)?.[1]
+  const BREAKPOINTS = readFileSync(new URL('../src/client/platform/breakpoints.ts', import.meta.url), 'utf8')
+  const query = /MOBILE_QUERY\s*=\s*'([^']+)'/.exec(BREAKPOINTS)?.[1]
   assert.equal(query, '(max-width: 1023px) and (pointer: coarse)', 'MOBILE_QUERY moved: the hide block below must move with it')
 
   const width = /max-width:\s*(\d+)px/.exec(query)?.[1]
@@ -133,4 +133,70 @@ test('legal :has() shapes are not reported fatal', () => {
     assert.match(out, /0 fatal/, `${label} must not add a fatal`)
     assert.doesNotMatch(out, /nested :has\(\)/, `${label} must not be reported as nested`)
   }
+})
+
+// --- patch registry (scripts/patch-registry-check.mjs, 2026-10-13) -------------
+//
+// This plugin is a guest on a host DOM it cannot change, so compat patches are
+// unavoidable here; what is avoidable is patches NOBODY OWNS - no target, no
+// reason, no expiry, no test. The registry gate makes each patch self-declare
+// those four things in an @patch block. It is wired here rather than into a new
+// test file on purpose: tests/ file count is pinned in AGENTS.md (two places,
+// enforced by docs-consistency), and this is the same family of structural gate
+// as the checker above.
+//
+// Same lesson as the nested-:has() case below it: "the checker can fire" is not
+// a regression net. The two mutation cases drive the temp seam so a later
+// relaxation of the gate (or a dropped field check) goes red.
+const REGISTRY_SCRIPT = fileURLToPath(new URL('../scripts/patch-registry-check.mjs', import.meta.url))
+
+function runRegistry(root?: string): { out: string, code: number } {
+  const env = root === undefined ? process.env : { ...process.env, PATCH_REGISTRY_ROOT: root }
+  try {
+    return { out: execFileSync(process.execPath, [REGISTRY_SCRIPT], { encoding: 'utf8', env }), code: 0 }
+  } catch (error) {
+    const e = error as { status?: number, stdout?: string }
+    return { out: e.stdout ?? '', code: e.status ?? -1 }
+  }
+}
+
+/** Temp root: real tree copy, with one @patch block rewritten. */
+function buildRegistryRoot(mutate: (css: string) => string): string {
+  const root = mkdtempSync(join(tmpdir(), 'patch-registry-test-'))
+  TEMP_ROOTS.push(root)
+  const styles = join(root, 'src', 'client', 'styles')
+  mkdirSync(styles, { recursive: true })
+  const from = fileURLToPath(new URL('../src/client/styles/layout.css.ts', import.meta.url))
+  writeFileSync(join(styles, 'layout.css.ts'), mutate(readFileSync(from, 'utf8')))
+  return root
+}
+
+test('every @patch self-declares its four fields and the registry matches', () => {
+  const { out, code } = runRegistry()
+  assert.equal(code, 0, 'the real tree must pass its own patch gate: ' + out)
+  assert.match(out, /registry in sync/)
+  // Not vacuous, and NOT pinned to a moving number. A hard-coded floor lived here
+  // until 2026-10-13: the phone-tier scoping work legitimately retired the
+  // tablet-tier-regression patch, the count went 5 -> 4, and the floor reddened
+  // the gate for a correct change. The invariant that actually matters is that the
+  // checker's count agrees with the rows the registry lists (the checker already
+  // enforces table-vs-source sync, so a wrong count cannot pass silently).
+  const count = Number(/(\d+) patch\(es\) self-declared/.exec(out)?.[1])
+  const registry = readFileSync(new URL('../docs/maintenance/patch-registry.md', import.meta.url), 'utf8')
+  // Only the SELF-DECLARED section: the file also carries the legacy inventory table,
+  // whose rows look the same, and counting those was the first version of this fix.
+  const section = registry.slice(registry.indexOf('<!-- BEGIN:generated -->'), registry.indexOf('<!-- END:generated -->'))
+  const listed = (section.match(/^\| `[^`]+` \|/gm) ?? []).length
+  assert.equal(count, listed, `checker reports ${count} patch(es) but the registry lists ${listed}`)
+  assert.ok(count > 0, 'a resolver that found no markers would pass vacuously')
+})
+
+test('a patch missing a field, or pointing at a missing test, is fatal', () => {
+  const noUntil = runRegistry(buildRegistryRoot((css) => css.replace(/\n\s*until: [^\n]*/, '\n')))
+  assert.equal(noUntil.code, 1, 'a patch with no expiry condition must fail the gate')
+  assert.match(noUntil.out, /missing until/)
+
+  const ghostTest = runRegistry(buildRegistryRoot((css) => css.replace(/test: tests\/a2-header-gating\.test\.ts/, 'test: tests/does-not-exist.test.ts')))
+  assert.equal(ghostTest.code, 1, 'a patch whose test file does not exist must fail the gate')
+  assert.match(ghostTest.out, /test points at a file that does not exist/)
 })
