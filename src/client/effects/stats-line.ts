@@ -1,4 +1,4 @@
-import type { ReconcilerTask } from '../core/reconciler-core.ts'
+import { TEXT_MUTATION_SCOPE, type ReconcilerTask } from '../core/reconciler-core.ts'
 
 // The official conversation status row (turns / steps / LLM time / TTFT /
 // cache) has a hashed class, so the stylesheet cannot target it directly.
@@ -520,15 +520,15 @@ export function createStatsLineTask(): ReconcilerTask {
       return
     }
   }
-  // Scope decision: the TPS readout updates are childList/characterData text
-  // mutations inside the composer stack, so this task can only wake on the
-  // tree key. A subtree-scoped observer would need one observer per
-  // container, which the single full-tree observer design intentionally
-  // avoids; the expensive composer-stack scan stays the cost of re-anchoring
-  // markers that React rebuilds every token.
+  // Scope decision: TPS readout updates are text mutations in the composer
+  // stack, in BOTH shapes -- React rebuilding the readout node (childList, the
+  // tree key) and React rewriting the text in place (characterData, the text
+  // key exported as TEXT_MUTATION_SCOPE). Both are declared: dropping either
+  // stops the readout from being re-folded. A subtree observer would need one
+  // per container, so the shared full-tree observer keeps its expensive scan.
   return {
     name: 'stats-line',
-    scopes: ['*'],
+    scopes: ['*', TEXT_MUTATION_SCOPE],
     ensure: mark,
     dispose: () => {
       // Hand the official layout back: drop every marker (the strip loses its

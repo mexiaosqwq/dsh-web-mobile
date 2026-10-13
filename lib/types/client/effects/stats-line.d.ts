@@ -1,4 +1,4 @@
-import type { ReconcilerTask } from '../core/reconciler-core.ts';
+import { type ReconcilerTask } from '../core/reconciler-core.ts';
 export declare function statsAnchorAlive(el: Element | null): boolean;
 export type TpsCandidate = {
     textContent: string | null;

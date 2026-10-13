@@ -4,7 +4,7 @@
 // 2026-10-12 P1 拆分第四片：由 effects/phone-chrome.ts 逐字搬出（纯搬运，不改行为）。
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installMobileEffect } from '../platform/breakpoints.ts'
-import { createReconcilerCore } from '../core/reconciler-core.ts'
+import { createReconcilerCore, mutationDirtyKey } from '../core/reconciler-core.ts'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { NS } from '../i18n/locales.ts'
 import { createPreviewCloseTask, createSheetRiseTask } from './aionui-compat.ts'
@@ -46,16 +46,18 @@ export function installReconciler(ctx: ClientContext): () => void {
   installMobileEffect(ctx, 'dsh-web-mobile: DOM reconciler', () => {
     // Coalesce every mutation burst (typing, animations, per-token TPS
     // re-renders) into one dirty-key pass per animation frame. Each task
-    // declares scopes so only intersecting tasks run on a given flush.
+    // declares scopes so only intersecting tasks run on a given flush. The
+    // record-to-key mapping is the core's (reconciler-core.ts), so the keys a
+    // task declares and the keys this observer produces cannot drift apart.
     const observer = new MutationObserver((records) => {
       const keys = new Set<string>()
       for (const record of records) {
         // DSHA: message history and streaming text do not change shell geometry.
+        // This filter drops body records for EVERY key (text included), which is
+        // deliberate: it is why the chat flow cannot wake shell-geometry tasks.
         const target = record.target instanceof Element ? record.target : record.target.parentElement
         if (target?.closest('[data-chat-flow]')) continue
-        keys.add(
-          record.type === 'attributes' && record.attributeName !== null ? record.attributeName : '*',
-        )
+        keys.add(mutationDirtyKey(record))
       }
       if (keys.size > 0) core.note(keys)
     })
@@ -63,6 +65,12 @@ export function installReconciler(ctx: ClientContext): () => void {
       childList: true,
       subtree: true,
       attributes: true,
+      // In-place text rewrites (React updates a text node's value instead of
+      // rebuilding the node) only surface as characterData records. Without
+      // this flag they never reach note() at all, so a text-only update used to
+      // wake nothing; with it they map to TEXT_MUTATION_SCOPE and wake exactly
+      // the tasks that declare that key (stats-line reads the TPS text).
+      characterData: true,
       attributeFilter: [
         'style',
         'class',

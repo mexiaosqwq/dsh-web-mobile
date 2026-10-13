@@ -1,6 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createReconcilerCore } from '../src/client/core/reconciler-core.ts'
+import { readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  createReconcilerCore,
+  mutationDirtyKey,
+  TEXT_MUTATION_SCOPE,
+  TREE_MUTATION_SCOPE,
+} from '../src/client/core/reconciler-core.ts'
 import type { FrameRequest, ReconcilerCore, ReconcilerTask } from '../src/client/core/reconciler-core.ts'
 import { createPreviewCloseTask } from '../src/client/effects/aionui-compat.ts'
 
@@ -289,4 +297,173 @@ test('preview-close-sync: own open marker must not be treated as a suite close',
   h.flushFrame()
   assert.equal(frameAttrs.has('data-aionui-preview-open'), false, 'inline style hidden must close the preview')
   ;(globalThis as { document?: unknown }).document = originalDocument
+})
+
+// ---------------------------------------------------------------------------
+// Mutation class -> dirty key -> woken tasks (the coverage table of C08).
+//
+// In-place text rewrites (characterData) now have their own dirty key instead
+// of sharing the tree sentinel. The table is ASSERTED AGAINST THE SOURCES, not
+// restated: a table restated in the test would keep passing after somebody
+// narrowed a scope in src/, which is exactly the regression this is here to
+// catch. Adding a task or changing its scopes therefore reddens this file on
+// purpose -- update EXPECTED_SCOPES in the same commit.
+// ---------------------------------------------------------------------------
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CLIENT_SRC = join(ROOT, 'src', 'client')
+const ADAPTER = join(CLIENT_SRC, 'effects', 'reconciler-adapter.ts')
+
+/** The declared coverage table: task name -> the dirty keys it declares. */
+const EXPECTED_SCOPES: Record<string, string[]> = {
+  'frame-marker': ['*'],
+  'header-metrics': ['*'],
+  'preview-fullscreen-toggle': ['data-aionui-preview-open', 'data-mobile-preview-full'],
+  'preview-close-sync': ['style'],
+  'sheet-rise-replay': [
+    '*',
+    'style',
+    'class',
+    'data-aionui-explorer-open',
+    'data-aionui-preview-open',
+    'data-mobile-preview-full',
+  ],
+  'file-viewer-open-marker': ['*'],
+  'stats-line': ['*', TEXT_MUTATION_SCOPE],
+  'overlay-backdrop-fab': ['*', 'data-sidebar-collapsed', 'data-phase'],
+  'panel-back-exit': ['*'],
+}
+
+const sorted = (list: string[]): string[] => [...list].sort()
+
+/** Keys a task may name by constant instead of by a string literal. */
+const SCOPE_CONSTANTS: Record<string, string> = { TREE_MUTATION_SCOPE, TEXT_MUTATION_SCOPE }
+
+function walkClient(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) return walkClient(full)
+    return /\.tsx?$/.test(entry.name) ? [full] : []
+  })
+}
+
+/** name -> declared scopes, read out of the task object literals in src/client. */
+function declaredScopes(): Map<string, string[]> {
+  const table = new Map<string, string[]>()
+  for (const file of walkClient(CLIENT_SRC)) {
+    const src = readFileSync(file, 'utf8')
+    const marks = [...src.matchAll(/name:\s*'([^']+)'/g)]
+    for (let i = 0; i < marks.length; i++) {
+      const mark = marks[i]
+      const body = src.slice(mark.index, i + 1 < marks.length ? marks[i + 1].index : src.length)
+      // name + ensure + dispose is the ReconcilerTask shape; slot and row
+      // registrations (name + inject / component) do not match it.
+      if (!/ensure\s*[:(]/.test(body) || !/dispose\s*[:(]/.test(body)) continue
+      const scopes = body.match(/scopes:\s*\[([^\]]*)\]/)
+      assert.ok(scopes !== null, `${relative(ROOT, file)}: ${mark[1]} declares no scopes`)
+      // An entry is a string literal or one of the shared key constants; any
+      // other spelling fails loudly, so a key cannot slip past this table.
+      const keys = [...scopes[1].matchAll(/'([^']+)'|([A-Za-z_][A-Za-z0-9_]*)/g)].map((match) => {
+        if (match[1] !== undefined) return match[1]
+        const known = SCOPE_CONSTANTS[match[2]]
+        assert.ok(known !== undefined, `${relative(ROOT, file)}: unknown scope identifier ${match[2]} on ${mark[1]}`)
+        return known
+      })
+      table.set(mark[1], keys)
+    }
+  }
+  return table
+}
+
+const attributeKeys = (table: Map<string, string[]>): string[] => {
+  const keys = new Set<string>()
+  for (const scopes of table.values()) {
+    for (const key of scopes) {
+      if (key !== TREE_MUTATION_SCOPE && key !== TEXT_MUTATION_SCOPE) keys.add(key)
+    }
+  }
+  return sorted([...keys])
+}
+
+test('mapping: text records get their own key, tree records keep the sentinel', () => {
+  assert.equal(TREE_MUTATION_SCOPE, '*', 'the tree sentinel spelling is part of the scopes vocabulary')
+  assert.equal(TEXT_MUTATION_SCOPE, 'characterData', 'the text key spells the record type it comes from')
+  assert.equal(mutationDirtyKey({ type: 'attributes', attributeName: 'style' }), 'style')
+  assert.equal(mutationDirtyKey({ type: 'characterData', attributeName: null }), TEXT_MUTATION_SCOPE)
+  assert.equal(mutationDirtyKey({ type: 'childList', attributeName: null }), TREE_MUTATION_SCOPE)
+  // Fail-open: the two shapes the mapping cannot name widen to the tree
+  // sentinel, so a mapping gap costs extra wakeups, never a missed one.
+  assert.equal(mutationDirtyKey({ type: 'attributes', attributeName: null }), TREE_MUTATION_SCOPE)
+  assert.equal(mutationDirtyKey({ type: 'future-record', attributeName: null }), TREE_MUTATION_SCOPE)
+})
+
+test('wiring: the observer observes text changes and drops body records first', () => {
+  const adapter = readFileSync(ADAPTER, 'utf8')
+  assert.match(adapter, /characterData:\s*true/,
+    'without this flag no text record reaches note(), so the text key could never fire')
+  assert.match(adapter, /keys\.add\(mutationDirtyKey\(record\)\)/,
+    'the observer must map records with the shared mapping, not with its own inline ternary')
+  const filterAt = adapter.indexOf("closest('[data-chat-flow]')")
+  const mapAt = adapter.indexOf('keys.add(mutationDirtyKey(record))')
+  assert.ok(filterAt !== -1 && mapAt !== -1, 'the body filter and the mapping must both exist')
+  assert.ok(filterAt < mapAt, 'the body filter runs first, so body records are dropped for every key')
+  assert.match(adapter, /closest\('\[data-chat-flow\]'\)\)\s*continue/,
+    'a body record must be skipped, not merely inspected')
+})
+
+test('the observed attribute filter covers exactly the attribute keys tasks declare', () => {
+  const declared = attributeKeys(declaredScopes())
+  const block = readFileSync(ADAPTER, 'utf8').match(/attributeFilter:\s*\[([^\]]*)\]/)
+  assert.ok(block !== null, 'the observer must keep an explicit attributeFilter')
+  const observed = sorted([...block[1].matchAll(/'([^']+)'/g)].map((match) => match[1]))
+  assert.deepEqual(sorted(observed), declared,
+    'every attribute key a task declares must be observed, and every observed attribute needs a declared consumer')
+})
+
+test('coverage table: the declared scopes are the ones this suite protects', () => {
+  const table = declaredScopes()
+  assert.deepEqual(sorted([...table.keys()]), sorted(Object.keys(EXPECTED_SCOPES)),
+    'a reconciler task appeared or disappeared: register its mutation classes in EXPECTED_SCOPES in the same commit')
+  for (const [name, scopes] of Object.entries(EXPECTED_SCOPES)) {
+    assert.deepEqual(sorted(table.get(name) ?? []), sorted(scopes), `${name} scope drift`)
+  }
+})
+
+test('coverage routing: a text-only burst still wakes every text reader', () => {
+  const table = declaredScopes()
+  const h = makeHarness()
+  const woken: string[] = []
+  for (const [name, scopes] of table) {
+    h.core.register({
+      name,
+      scopes,
+      ensure: () => {
+        woken.push(name)
+      },
+      dispose: () => {},
+    })
+  }
+  h.core.activate()
+
+  const burst = (key: string): string[] => {
+    woken.length = 0
+    h.core.note([key])
+    h.flushFrame()
+    return sorted(woken)
+  }
+  const tasksDeclaring = (key: string): string[] =>
+    sorted([...table].filter(([, scopes]) => scopes.includes(key)).map(([name]) => name))
+
+  const textReaders = tasksDeclaring(TEXT_MUTATION_SCOPE)
+  assert.deepEqual(textReaders, ['stats-line'], 'stats-line is the text reader (the TPS readout)')
+  assert.deepEqual(burst(TEXT_MUTATION_SCOPE), textReaders,
+    'a characterData-only burst must wake the text readers, or the readout stops being re-folded')
+  assert.deepEqual(burst(TREE_MUTATION_SCOPE), tasksDeclaring(TREE_MUTATION_SCOPE),
+    'a childList burst wakes every tree-key task')
+  assert.ok(burst(TREE_MUTATION_SCOPE).includes('stats-line'), 'stats-line stays woken on tree changes too')
+  assert.ok(!burst(TEXT_MUTATION_SCOPE).includes('header-metrics'),
+    'header-metrics reads structure (its geometry runs on ResizeObserver), so a text burst must not wake it')
+  for (const key of attributeKeys(table)) {
+    assert.deepEqual(burst(key), tasksDeclaring(key), `${key} must wake exactly its declared tasks`)
+  }
 })
