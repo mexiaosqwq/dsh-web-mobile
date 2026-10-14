@@ -47,7 +47,7 @@
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
   │  ├─ maintenance/         ← pitfalls.md（67 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md ← 入库
-  │  ├─ upstream/            ← runbook + compat-contracts.json + host-jank-feedback.md ← 入库
+  │  ├─ upstream/            ← runbook + 2 篇 compat audit + compat-contracts.json + host-jank-feedback.md ← 入库
   │  └─ audits/ · handover/ · fork-wzxmt-zhc/ · debug/ · superpowers/ ← 本地不入库（2026-10-13 起 docs 下只上传 maintenance 与 debug）
   ├─ .github/workflows/ci.yml ← verify → test:core → build → bundle smoke → git diff --exit-code lib
   ├─ assets/                 ← README 用图
@@ -62,6 +62,7 @@
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
 - 动手改某块代码前 → `docs/maintenance/pitfalls.md`（67 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约：slot/reconciler/样式/选择器/风格；改该目录文件时自动进入上下文）
+- 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（33 个模块逐个的背景/根因/易踩点；改该目录文件时自动进入上下文）
 - 做验收或起探针环境 → `docs/maintenance/verification-playbook.md`（三档验收场景 + CDP/Playwright MCP/Termux 配方）
 - 拉起团队、派令、做审查或写交接 → `docs/maintenance/collaboration-rules.md`（审查路线与两层验收、三岗 SOP、lead 终审铁律）
 - 写 Release notes → `docs/maintenance/release-notes-spec.md`（七段体例与署名三路核对）
