@@ -62,7 +62,7 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 - `file-viewer-compat.ts` / `file-share.ts` / `attachment-mention.ts` /
   `model-menu-anchor.ts` / `plugin-card-tap.ts` / `session-row-fiber.ts` /
   `subagent-chip-touch.ts` / `reasoning-defaults.ts` / `overlay-backdrop-fab.ts`
-  — 兼容与定位类，背景见各文件头注释。
+  — 兼容与定位类，背景见各文件自己的文档块。
 - `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 31 个的
   背景都在文件内 JSDoc 里）：前者是已安装列表的触摸/布局修补；后者是预览全屏切换按钮的
   reconciler 任务（`preview-fullscreen-toggle`）。
@@ -76,8 +76,8 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 
 ## 源码未覆盖的补充背景
 
-上面索引里说的「背景见文件内 JSDoc」对**大多数**模块成立（31/33 有文档块），但有几处细节
-源码里没有，只能放这里：
+上面索引里说的「背景见文件内文档块」对**大多数**模块成立（31/33 有），但有几处细节源码里
+没有，只能放这里：
 
 - **`shortcut-modal-keyboard-guard.ts`** — 文件里只有一行 JSDoc（导出函数上方），机制与实测数据在此：宿主
   `dsh-client-ui-shortcuts` 的弹层（`data-shortcut-modal="shortcuts"`）打开时把焦点抢到搜索框，
