@@ -31,7 +31,7 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 背景与根因见各文件自己的文档块；此处只记一句话定位与易踩点。
 
 - `phone-chrome.ts` — status bar/theme-color + 惰性 dismiss-shadow + frame-marker 任务。
-  2026-10-12 五片拆分后只剩这三件事（viewport/iOS 高度→`viewport-meta.ts`，reconciler
+  五片拆分后只剩这三件事（viewport/iOS 高度→`viewport-meta.ts`，reconciler
   实例与任务注册→`reconciler-adapter.ts`）。
 - `reconciler-adapter.ts` — **那一个全树 `MutationObserver`**（记录→脏键→`core.note()`）+
   任务注册面 `addReconcilerTask` + 本插件全部 reconciler 任务。改全树观察逻辑找这里，

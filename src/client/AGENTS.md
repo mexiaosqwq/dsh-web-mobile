@@ -4,7 +4,7 @@
 这里放**客户端半区的实现契约与易踩点**；`src/client/effects/` 下每个模块的背景另见
 `src/client/effects/AGENTS.md`（改该目录文件时与本文件一起进入上下文）。
 
-来源：原根 `AGENTS.md` 的「Architecture / Conventions」两节（2026-10-14 下沉到披露层，原文未改写）。
+来源：原根 `AGENTS.md` 的「Architecture / Conventions」两节（从根 AGENTS.md 下沉，原文未改写）。
 
 ## 入口与三个 slot
 
@@ -15,11 +15,11 @@
 - `conversation.session.header.actions` → `MobileNavToggle`（`order: 10`）：抽屉开关 + Files 按钮。
 - `conversation.input.left` → `ComposerFileButton`（`id: mobile-nav-file-upload`，`order: 10`）：常驻的
   composer 文件入口。宿主 0.1.6 删掉了回形针附件按钮，「文件」行只剩 "+" 列表里那一条；本控件坐在
-  加号旁的 tools 车道。2026-10-06 起它的 tap 弹插件的两选项小浮层（`effects/composer-file-picker.ts`：
+  加号旁的 tools 车道。它的 tap 弹插件的两选项小浮层（`effects/composer-file-picker.ts`：
   上传图片 / 上传附件），把选择交回宿主自己的隐藏 `input[type=file]`——intake 校验、上传与可用性都
   仍归宿主。会话作用域——hero/空白相位仍以 "+" 菜单为唯一文件入口。
 - `sidebar.footer.action` → `MobileDrawerFooter`（`id: mobile-nav-session-log`，`order: 5`）：只留会话
-  日志导出胶囊——原先并排的 Files 入口 2026-09-17 移除（抽屉开着时宿主与第三方 dismiss shim 都不让点击
+  日志导出胶囊——原先并排的 Files 入口已移除（抽屉开着时宿主与第三方 dismiss shim 都不让点击
   到达右侧栏 opener；契约见 `docs/specs/2026-09-17-sidebar-files-coexistence-design.md`）。order 5 让它
   排在远程图标行（order 默认 0）之下、用量徽章（order 10）之上。**不要与用量统计并列同 order**。
 - 已经没有 settings slot；触感反馈特性已移除。
@@ -30,10 +30,10 @@
   合并到 rAF 的刷新调度、逐任务错误隔离。
 - `effects/reconciler-adapter.ts` 是薄浏览器适配器：`document.documentElement` 上一个
   `MutationObserver` 把记录映射成脏键（`attributeName`，或树变更的 `'*'`）喂给 `core.note()`，并用
-  `installMobileEffect` 驱动激活/停用。（`phone-chrome.ts` 曾承担此职，2026-10-12 P1 拆分后搬走。）
+  `installMobileEffect` 驱动激活/停用。（`phone-chrome.ts` 曾承担此职，P1 拆分后搬走。）
 - 任务只在移动断点激活时跑，每动画帧合并一次。`stats-line` 保持 `scopes: ['*', 'characterData']`——
   树键因为它的槽随树重建，文本键因为 TPS 更新可能以原地 `nodeValue` 改写到达。**加键安全；删掉树键
-  正是这行要防的失效模式（2026-10-13）**。
+  正是这行要防的失效模式**。
 - 已注册任务：`frame-marker`、`header-metrics`、`preview-fullscreen-toggle`、`preview-close-sync`、
   `sheet-rise-replay`、`file-viewer-open-marker`、`stats-line`、`overlay-backdrop-fab`、`panel-back-exit`。
 
@@ -56,7 +56,7 @@
 
 CSS 写在 `styles/`，不写进组件文件；保留拼接顺序与完整 CSS 注释/分段边界。**该顺序是行为契约，不是
 排版偏好**：aionui 探索器/预览两列的平板档「居中不铺满」压在 compat 的铺满规则之上（两者同 (0,1,0)
-且都 `!important`，只靠 misc 在后分胜负——把顺序翻过来就退回铺满，2026-09-16 用 `order-flip.mjs`
+且都 `!important`，只靠 misc 在后分胜负——把顺序翻过来就退回铺满，用 `order-flip.mjs`
 复现）。
 
 ## 选择器与 DOM 标记
@@ -92,7 +92,7 @@ DOM 标记即跨模块状态契约：`data-mobile-nav="frame"`、`data-sidebar-c
 - TypeScript：单引号、不加分号、导出显式返回类型、installer 命名 `install<Domain>`。
 - 客户端内相对 import 必须带 `.ts`/`.tsx` 扩展名；`tsconfig.client.json` 为 CommonJS 产物重写它们。
   DSH 模块增强与 SlotMap/Context 类型用 type-only import。
-- **`effects/` 的 `../` import 能用（2026-09-14 A/B 实测，旧禁令已证伪）**：跨目录相对 import 正常解析，
+- **`effects/` 的 `../` import 能用（A/B 实测，旧禁令已证伪）**：跨目录相对 import 正常解析，
   bundle 里落成正确的 `require("./x.js")`。新代码不必为旧禁令绕路加镜像常量——能 import 就直接 import。
   **仍要守的**：`reconciler-core.ts` 保持零 import；task 模块拿 `ReconcilerTask` 类型走 `import type`
   （编译期擦除、不进 bundle）。
