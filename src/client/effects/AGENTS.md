@@ -1,7 +1,8 @@
 # effects/ · 效果模块背景
 
 改动 `src/client/effects/` 下任意文件时本文件会自动进入上下文；改别的目录时它不出现。
-每个模块的背景与根因写在**源码文件头注释**里，这里补的是跨模块共享的形状约束与易踩点。
+每个模块的背景与根因写在**该文件自己的文档块**里（31/33 有，位置在 imports 之后的导出上方），
+这里补的是跨模块共享的形状约束与源码里没写下的细节。
 
 ## 分层与依赖
 
@@ -27,7 +28,7 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 
 ## 模块索引
 
-背景与根因见各文件头注释；此处只记一句话定位与易踩点。
+背景与根因见各文件自己的文档块；此处只记一句话定位与易踩点。
 
 - `phone-chrome.ts` — status bar/theme-color + 惰性 dismiss-shadow + frame-marker 任务。
   2026-10-12 五片拆分后只剩这三件事（viewport/iOS 高度→`viewport-meta.ts`，reconciler
@@ -62,8 +63,9 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   `model-menu-anchor.ts` / `plugin-card-tap.ts` / `session-row-fiber.ts` /
   `subagent-chip-touch.ts` / `reasoning-defaults.ts` / `overlay-backdrop-fab.ts`
   — 兼容与定位类，背景见各文件头注释。
-- `installed-list.ts` / `preview-fullscreen.ts` — **没有头注释**（源码即全部背景）：前者是已安装列表的
-  触摸/布局修补；后者是预览全屏切换按钮的 reconciler 任务（`preview-fullscreen-toggle`）。
+- `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 31 个的
+  背景都在文件内 JSDoc 里）：前者是已安装列表的触摸/布局修补；后者是预览全屏切换按钮的
+  reconciler 任务（`preview-fullscreen-toggle`）。
 - `composer-paste-guard.ts` — 手机档多行粘贴只剩首行（2026-10 报障）：输入法上屏后的
   `beforeinput`/`insertText` 落进 Lexical 的 CONTROLLED_TEXT_INSERTION_COMMAND，只写第一段；真 `paste`
   事件走 PASTE_COMMAND 不吞段。本效果在捕获期把「可信 insertText + 多行 + 落在 composer 编辑面」改派成
@@ -72,56 +74,25 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   里 `searchRef.current?.focus()`）。用共享 focus 影子在**捕获期 pointerdown** 就位——观察者路线赶不上
   那个时机。
 
-## 模块背景全文
+## 源码未覆盖的补充背景
 
-以下模块**源码文件头注释为空**，背景原文从根 `AGENTS.md` 迁来，在此保留全量。
+上面索引里说的「背景见文件内 JSDoc」对**大多数**模块成立（31/33 有文档块），但有几处细节
+源码里没有，只能放这里：
 
-- **`composer-file-picker.ts`** — 手机档回形针入口（2026-10-06 报障）：宿主自带的两选项入口
-  0.1.6 起已删除，直点隐藏 input 只弹系统选择器（形态不可控、也无法「只挑图片」）。本效果吞掉
-  入口的 click，弹插件自绘的两选项**贴锚点小浮层**（上传图片 / 上传附件；同日店主否掉了整宽底部
-  弹层形态，改为按回形针 rect 定位、上方优先、夹进视口，行高 34px / 行间距 0，无「取消」行，点
-  浮层外或返回键关闭），选完仍点宿主那个 hidden input —— 按选项**临时**写 accept（图片
-  `image/*`、附件显式 `*/*`，`click()` 返回后立刻还原；附件那路 2026-10-07 从「不改属性」改成
-  显式 `*/*` 是**待真机确认的实验**：空 acceptTypes 在 DSHA 上起的是文档选择器而不是「打开方式」
-  应用列表）；浮层挂 `document.body`（同 delete-dialog 的取舍），CSS 在 base.css.ts。
-
-- **`shortcut-modal-keyboard-guard.ts`** — 手机档：快捷键弹层（宿主 `dsh-client-ui-shortcuts`
-  的 `data-shortcut-modal="shortcuts"`）打开时会把焦点抢到搜索框，手机随即弹软键盘 —— 用户是来
-  编辑快捷键的，键盘却盖掉半屏，而且弹层按 `100dvh` 定高、键盘一压就整体缩一截（实测 844→520
-  时 600px→496px，就是「打开就闪」）。这里通过共享管理器 `core/prototype-focus-shadow.ts`（#84）
-  给 `HTMLInputElement.prototype.focus` 注册一条「这个搜索框不聚焦」的谓词：宿主的
-  `focusWithoutRing` 落到影子上、输入框不获得焦点、键盘不起；点击不受影响（浏览器原生聚焦不经过
-  JS 方法）。谓词只在弹层存在期间注册，最后一个守卫卸载时真实方法才被放回。影子在
-  MutationObserver（只盯 `document.body` 的 childList）里安装 —— 微任务早于 React 的被动
-  effect，所以第一帧抢焦也拦得住；弹层移除时 `delete` 还原。
-
-- **`session-focus-guard.ts`** — 手机档：进入会话不自动弹软键盘（issue #140）。宿主 InputBar
-  在每次切会话时程序化聚焦编辑器；本效果订阅 `ctx.sessions.list` 快照、仅在当前会话 id 变化时开
-  一个 800ms 影子窗口（复用 `composer-keyboard-guard.ts` 的 own no-op focus 影子与标记），窗口内
-  MutationObserver 微任务给新挂载的 `[data-composer-input]` 装影子；宿主聚焦实测跑在 commit
-  同步相（早于微任务，headless t=314ms 无影子焦点实锤），窗口期另有 focusin 捕获**同步 blur**
-  兜底（composer guard 2026-09-23 同型）；用户点输入框当场解除窗口，原生点按永远不受影响。
-
-- **`composer-keyboard-lift.ts`** — iOS-only（#149）：宿主 Lexical 选区滚动助手把布局坐标可视带
-  和视口坐标 caret rect 比对，iOS 键盘的非零窗口滚动让它每次击键误发 `window.scrollBy`，composer
-  整块沉进系统辅助条。本效果在编辑器持焦期间用 screen-space-only 的 `translateY(−overlap)`
-  （seat rect.bottom vs `vv.height`）把 seat 钉回键盘顶；pinch 或双通道分歧时 fail-open；纯核
-  `computeComposerLift` 由测试钉死。
-
-- **`composer-keyboard-guard.ts`** — iOS-only：点 composer 的发送/停止/+ 按钮不得重新唤起已收起
-  的键盘（上游 `keepFocus` 在 `mousedown` 聚焦编辑器，PR #48；DOM 契约见文件头）。
-
-- **`team-chip-toggle.ts`** — 智能体团队 chip 的「再点关闭」：宿主 agent-team 插件的触发器
-  onClick 只在关闭时 `changeOpen(true)`、开态时仅 focus 面板，**永不 toggle**；关闭只靠 outside
-  pointerdown / Escape。本效果开态时先替用户向 `document.body` 派发一次合成 pointerdown（走宿主
-  自己的 dismiss），再吞掉那颗 click（**顺序不可换**）。
-
-- **`workspace-chip-toggle.ts`** — hero 工作区 chip 的「再点关闭」：宿主把选择器菜单开成
-  `<Menu anchor={null} portal>`，触发器在 Menu 子树外，于是它的「外部 pointerdown 关闭」把 chip
-  自己的第二击也吃掉；本效果只吞那一击 click，让宿主的关闭成为唯一结果。
+- **`shortcut-modal-keyboard-guard.ts`** — 文件里只有一行 JSDoc（导出函数上方），机制与实测数据在此：宿主
+  `dsh-client-ui-shortcuts` 的弹层（`data-shortcut-modal="shortcuts"`）打开时把焦点抢到搜索框，
+  手机随即弹软键盘——用户是来编辑快捷键的，键盘却盖掉半屏；弹层按 `100dvh` 定高，键盘一压
+  整体缩一截（实测 844→520 时 600px→496px，就是「打开就闪」）。本效果用共享 focus 影子
+  （`core/prototype-focus-shadow.ts`，#84）给 `HTMLInputElement.prototype.focus` 注册「这个
+  搜索框不聚焦」的谓词，宿主的 `focusWithoutRing` 落到影子上。影子在 MutationObserver
+  （只盯 `document.body` 的 childList）里安装——微任务早于 React 被动 effect，第一帧抢焦也拦得住。
+- **`session-focus-guard.ts`** — 影子窗口时长 **800ms**（源码用常量，数值语义在此）。
+- **`composer-keyboard-lift.ts`** — 抬升量语义：`translateY(−overlap)`，`overlap` = seat 的
+  `getBoundingClientRect().bottom` 减 `visualViewport.height`（`vv.height`），纯屏坐标。
+- **`composer-keyboard-guard.ts`** — 上游 PR **#48**（`keepFocus` 在 `mousedown` 聚焦编辑器）。
 
 ## 新增模块时
 
-背景写进**源码文件头注释**（≥3 行）或本文件，**不要写进根 `AGENTS.md`**——那边预算恒定、
-装不下线性增长项。本文件是披露层（改 `src/client/effects/` 下任意文件时自动进入上下文），
-没有体积压力。
+背景写进**该文件自己的文档块**（≥3 行，放 imports 之后、导出上方）或本文件，**不要写进根 `AGENTS.md`**——那边预算恒定、
+装不下线性增长项。本文件是披露层（改 `src/client/effects/` 下任意文件时自动进入上下文），但它**同样会线性增长**
+——能钉进源码的就钉进源码，这里只收源码装不下的。

@@ -24,12 +24,8 @@
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts · prototype-focus-shadow.ts（两个键盘守卫共享的一个 focus 影子，#84）· plugin-card-tap-core.ts（插件卡片整卡可点判定纯核）
   │     ├─ platform/         ← 跨效果共享的浏览器基础设施（无特性语义；effects/components 只许依赖它，不许互相要）：frame.ts（getFrame/findFrame + 记忆化）· breakpoints.ts（MOBILE_QUERY/DESKTOP_QUERY/TOUCH_QUERY + installMobileEffect）· device.ts（detectIosWebKit）
-  │     ├─ effects/          ← 33 个效果模块（逐个背景见同目录 AGENTS.md）：
-  │     │     phone-chrome · drawer-close · header-metrics · selection-chrome · reconciler-adapter · viewport-meta · sidebar-swipe · gesture-guard
-  │     │     subagent-chip-touch · composer-keyboard-guard · composer-keyboard-lift · composer-paste-guard · composer-file-picker · attachment-mention · file-share
-  │     │     shortcut-modal-keyboard-guard · model-menu-keyboard-guard · plugin-card-tap · installed-list · session-focus-guard · composer-plus-toggle · workspace-chip-toggle
-  │     │     team-chip-toggle · reasoning-defaults · model-menu-anchor · file-viewer-compat · aionui-compat · stats-line · preview-fullscreen
-  │     │     overlay-backdrop-fab · panel-exit · session-menu · session-row-fiber
+  │     ├─ effects/          ← 33 个效果模块（背景在各自文件内文档块；跨模块契约见同目录 AGENTS.md）
+  │     │     契约关键：reconciler-adapter（全树观察器）· viewport-meta · panel-exit · sidebar-swipe · gesture-guard · stats-line
   │     ├─ styles/           ← index.ts（base→layout→compat→misc 承载顺序）+ 4 个 .css.ts
   │     └─ i18n/locales.ts
   ├─ lib/                    ← 生成物：随 pnpm build 刷新，勿手改
@@ -62,7 +58,7 @@
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
 - 动手改某块代码前 → `docs/maintenance/pitfalls.md`（67 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约：slot/reconciler/样式/选择器/风格；改该目录文件时自动进入上下文）
-- 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（33 个模块逐个的背景/根因/易踩点；改该目录文件时自动进入上下文）
+- 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（跨模块形状约束 + 模块索引 + 源码未覆盖的细节；逐模块背景在各自文件内文档块）
 - 做验收或起探针环境 → `docs/maintenance/verification-playbook.md`（三档验收场景 + CDP/Playwright MCP/Termux 配方）
 - 拉起团队、派令、做审查或写交接 → `docs/maintenance/collaboration-rules.md`（审查路线与两层验收、三岗 SOP、lead 终审铁律）
 - 写 Release notes → `docs/maintenance/release-notes-spec.md`（七段体例与署名三路核对）
@@ -117,13 +113,12 @@ dsh web
 
 - Host/client split is load-bearing. 浏览器行为全在 `src/client/`——客户端半区的实现契约（slot 注册、reconciler、分层、样式、选择器与 DOM 标记、资源纪律、代码风格）见 **`src/client/AGENTS.md`**（披露层：改该目录下文件时自动进入上下文）。宿主半区只做三件事：响应压缩、会话删除端点（纯核 `src/delete-session.ts`，按宿主代际适配）、手写 `llm-pi-ai` 模型的默认思考档位补齐（纯核 `src/reasoning-effort.ts`）。
 - **依赖方向 `index.tsx → effects → platform → core`**，`tests/architecture.test.ts` 逐条强制（运行时环、层方向、`core/` DOM 纯净、行预算、模块级状态、entry inline 查询），台账只许缩不许涨，`test:core` 会跑它——新增环或超行文件是红 CI。
-- **Effects（33 个模块）** — 逐个模块的背景、根因与易踩点见 **`src/client/effects/AGENTS.md`**（披露层：改动该目录下任意文件时自动进入上下文）。本文件只留三条跨模块契约：①分层不可破；②全树 `MutationObserver` 在 `reconciler-adapter.ts`（不是 `phone-chrome.ts`），任务注册面 `addReconcilerTask`；③形状禁令三则——`viewport-meta.ts` 的三个函数保持「返回 disposer 的普通函数」（改成各自 `installMobileEffect` 会让外层每次重武装都多注册三个收不到的子 effect）、武装顺序 viewport meta → iOS 标记 → 稳定视口高度是行为、`panel-exit.ts` 退场先动画后提交。
+- **Effects（33 个模块）** — 逐个模块的背景写在各文件自己的文档块里（31/33 有）；跨模块形状约束与源码装不下的细节见 **`src/client/effects/AGENTS.md`**（披露层：改动该目录下任意文件时自动进入上下文）。本文件只留三条跨模块契约：①分层不可破；②全树 `MutationObserver` 在 `reconciler-adapter.ts`（不是 `phone-chrome.ts`），任务注册面 `addReconcilerTask`；③形状禁令三则——`viewport-meta.ts` 的三个函数保持「返回 disposer 的普通函数」（改成各自 `installMobileEffect` 会让外层每次重武装都多注册三个收不到的子 effect）、武装顺序 viewport meta → iOS 标记 → 稳定视口高度是行为、`panel-exit.ts` 退场先动画后提交。
 - Third-party compatibility is implemented through scoped DOM markers, stable `data-*` attributes, `MutationObserver`, and carefully scoped class/text anchors. Never modify third-party source packages.
 - Authoritative design docs: `docs/specs/2026-08-27-sidebar-swipe-gestures.md` (gesture parameters/state machine; the gesture defect baseline lives in the local-only audits directory).
 
 ## Workflow
 
-- **「全面更新」类指令默认按增量理解（用户要求，2026-09-25）**：用户说「全面更新」某文档 ≠ 推倒重写——口径是「该更新的更新（失效处就地小改）、该新增的新增（文末追加带日期增补节）」，原文结构与编号保留。文档类任务一律按此执行。
 - **main 已启用 PR-only 保护（2026-09-25 实测 GH013 拒直推，含 docs 小改）**：一切变更（含文档）走 分支→PR→CI→merge；**合并后立即删远端分支**（`git push origin --delete <branch>`）。本工作区有未提交改动时合并 PR 不要带 `--delete-branch`（会触发本地分支切换）。
 - **外部制作人 PR 主张独立验证（用户要求，2026-09-27）**：另一制作人的 PR/修复主张不当事实采信——以仓库实测（CDP 动态探针/锚测试/亲读代码路径）与用户真机验收为准；「桌面实测通过」对真机只有旁证力（CDP 绿 ≠ 真机好）。
 - **开场模糊指令先问再动（用户要求，2026-09-24）**：新开会话收到「跟进一下 X」「继续」等未给目标的指令时，**直接一句话问用户要目标与范围**，禁止自行展开 recall + 多路探测的重建调查链。例外：用户明说「自己找/搜刮」时仍先搜不反问。
@@ -230,7 +225,7 @@ dsh web
 ## Maintenance
 
 - **fork wzxmt-zhc 专项（本地不上传）**：`docs/fork-wzxmt-zhc/` —— README（对账快照 + 接手协议）、`backlog.md`（三档：直接摘/对账合并/参考不摘）、`log.md`。接手先读 README；快照会过时。**该目录 2026-10-13 起不进 git**，只在本机可读。
-- **体积门槛（2026-10-14 定档）**：工作区指令预算是**共享的 65,536 B**——`~/.dsh/AGENTS.md`（全局，33,266 B）+ 本文件 + 嵌套 AGENTS.md 一起算，超了从**最不具体的一端整份丢弃**（实测：本文件 45,513 B 时全局那份每轮被丢）。所以**本文件硬顶 30,000 B**（`tests/docs-consistency.test.ts` 强制）。只写命令、约定、契约、触发词索引与一两行铁律；**per-item 描述下沉披露层**（`src/client/AGENTS.md`、`src/client/effects/AGENTS.md`，改该目录文件时自动进入上下文）；推导/证据/大段流程/实测数字进 `docs/`（坑位 → `pitfalls.md`，验证流程 → `verification-playbook.md`，协作流程 → `collaboration-rules.md`，设计 → `specs/`），一次性事故复盘进 `docs/handover/`。
+- **体积门槛（2026-10-14 定档）**：工作区指令预算是**共享的 65,536 B**——`~/.dsh/AGENTS.md`（全局，33,266 B）+ 本文件 + 嵌套 AGENTS.md 一起算，超了从**最不具体的一端整份丢弃**（实测：本文件 45,513 B 时全局那份每轮被丢）。所以**本文件硬顶 30,000 B**（`tests/docs-consistency.test.ts` 强制）。只写命令、约定、契约、触发词索引与一两行铁律；**per-item 描述钉回源码**（每个模块的背景写在**该文件自己的文档块**里，31/33 已如此；只有源码真装不下的才进披露层 `src/client/AGENTS.md` / `src/client/effects/AGENTS.md`——披露层同样会线性增长，不是收容所）；推导/证据/大段流程/实测数字进 `docs/`（坑位 → `pitfalls.md`，验证流程 → `verification-playbook.md`，协作流程 → `collaboration-rules.md`，设计 → `specs/`），一次性事故复盘进 `docs/handover/`。
 - **知识去向（用户偏好，2026-09-18 拍板）**：零碎的规矩 / 要求 / 偏好 → **写进本文件对应节**，不要只存进记忆（记忆跨会话，但不能替代仓库文档）；需要推导 / 证据 / 大段流程 / 实测数字的内容 → `docs/`。记忆只留「跨会话需要主动回忆的教训」，且不得成为某条规矩的唯一存放处。
 - **同一 worktree 有并发写者时**：别人可能把你**未提交**的工作区改动一起提交走。别据此重做改动或补空提交——先 `git show HEAD:<file>` 确认内容已在；提交只 `git add` 自己点名的路径，**绝不 `git add -A`**。
 - **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`。**开新分支一律从 `origin/main` 起**（`git checkout -b <branch> origin/main`）。
