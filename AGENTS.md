@@ -22,36 +22,33 @@
   │     ├─ index.tsx         ← 浏览器半区入口（注册 3 个 slot；另有 file-share.ts 的 2 个官方 slot）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
-  │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts · prototype-focus-shadow.ts（两个键盘守卫共享的一个 focus 影子，#84）
+  │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts · prototype-focus-shadow.ts（两个键盘守卫共享的一个 focus 影子，#84）· plugin-card-tap-core.ts（插件卡片整卡可点判定纯核）
   │     ├─ platform/         ← 跨效果共享的浏览器基础设施（无特性语义；effects/components 只许依赖它，不许互相要）：frame.ts（getFrame/findFrame + 记忆化）· breakpoints.ts（MOBILE_QUERY/DESKTOP_QUERY/TOUCH_QUERY + installMobileEffect）· device.ts（detectIosWebKit）
-  │     ├─ effects/          ← 33 个效果模块：phone-chrome · drawer-close · header-metrics · selection-chrome · reconciler-adapter · viewport-meta · sidebar-swipe ·
-  │     │                       gesture-guard · subagent-chip-touch · composer-keyboard-guard ·
-  │     │                       composer-keyboard-lift · composer-paste-guard ·
-  │     │                       composer-file-picker ·
-  │     │                       attachment-mention · file-share ·
-  │     │                       shortcut-modal-keyboard-guard · model-menu-keyboard-guard · plugin-card-tap · installed-list · session-focus-guard ·
-  │     │                       composer-plus-toggle · workspace-chip-toggle · team-chip-toggle · reasoning-defaults ·
-  │     │                       model-menu-anchor ·
-  │     │                       file-viewer-compat · aionui-compat · stats-line ·
-  │     │                       preview-fullscreen ·
-  │     │                       overlay-backdrop-fab · panel-exit · session-menu · session-row-fiber
+  │     ├─ effects/          ← 33 个效果模块（逐个背景见同目录 AGENTS.md）：
+  │     │     phone-chrome · drawer-close · header-metrics · selection-chrome · reconciler-adapter · viewport-meta · sidebar-swipe · gesture-guard
+  │     │     subagent-chip-touch · composer-keyboard-guard · composer-keyboard-lift · composer-paste-guard · composer-file-picker · attachment-mention · file-share
+  │     │     shortcut-modal-keyboard-guard · model-menu-keyboard-guard · plugin-card-tap · installed-list · session-focus-guard · composer-plus-toggle · workspace-chip-toggle
+  │     │     team-chip-toggle · reasoning-defaults · model-menu-anchor · file-viewer-compat · aionui-compat · stats-line · preview-fullscreen
+  │     │     overlay-backdrop-fab · panel-exit · session-menu · session-row-fiber
   │     ├─ styles/           ← index.ts（base→layout→compat→misc 承载顺序）+ 4 个 .css.ts
   │     └─ i18n/locales.ts
   ├─ lib/                    ← 生成物：随 pnpm build 刷新，勿手改
   │  └─ types/…              ← d.ts+map；合并同 CSS 模块的 PR 在 .css.d.ts 冲突 → 重建
   ├─ scripts/
   │  ├─ build-client.mjs     ← 自研客户端打包器
+  │  ├─ client-bundle-smoke.mjs ← 白屏门：桩 __ModuleLoader__ 加载产物并执行 entry factory
   │  ├─ cdp-probe.mjs        ← 主探针 14 项核心断言（+6 集成，EXPECTED_FAILURES 基线）
   │  ├─ cdp-swipe-probe/failures · cdp-zoom-probe · cdp-compat-contracts (.mjs)
   │  ├─ css-structure-check.mjs ← CSS 结构检测器（已接入 test:core）
   │  ├─ patch-registry-check.mjs ← 补丁登记门禁：@patch 四要素（for/why/until/test）+ 表↔码双向一致（已接入 test:core，2026-10-13）
+  │  ├─ lib/                 ← 探针共用模块（错误基线匹配、CDP 客户端、宿主场景、判定）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
   ├─ tests/                  ← 59 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
   │  ├─ maintenance/         ← pitfalls.md（67 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md ← 入库
   │  ├─ upstream/            ← runbook + compat-contracts.json + host-jank-feedback.md ← 入库
-  │  └─ audits/ · fork-wzxmt-zhc/ · debug/ · superpowers/ ← 本地不入库（2026-10-13 起 docs 下只上传 maintenance 与 debug）
+  │  └─ audits/ · handover/ · fork-wzxmt-zhc/ · debug/ · superpowers/ ← 本地不入库（2026-10-13 起 docs 下只上传 maintenance 与 debug）
   ├─ .github/workflows/ci.yml ← verify → test:core → build → bundle smoke → git diff --exit-code lib
   ├─ assets/                 ← README 用图
   └─ .local-tests/ · .codegraph/ · .dsh-vision-toolkit/  ← 本地不入库（gitignore 噪音区）
