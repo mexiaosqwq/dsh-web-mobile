@@ -2,15 +2,12 @@
 
 ## Project
 
-- Single-package, client-only plugin for the DSH (DeepSeek Harness) Web UI. It adapts the web UI on **touch-primary devices with a viewport below 1024px** (overlay drawer, full-width conversation, adapted settings/explorer/preview sheets, status-bar safe areas, composer row, stats line). The activation query is `MOBILE_QUERY = '(max-width: 1023px) and (pointer: coarse)'` (platform/breakpoints.ts): width alone cannot distinguish a phone from a narrow desktop window — split views and OS display scaling push a PC's CSS viewport below 1024px too (2026-08-30 PC leak). A mouse-driven window (`pointer: fine`) or pointer-less one stays desktop at **every** width; the desktop hide block in misc.css.ts is the exact complement of MOBILE_QUERY as a comma list and hides the slot-rendered controls outside the mobile branch. ONE deliberate exception (v2.4.1): the session-delete trio (menu item + confirm/error dialog) arms on `TOUCH_QUERY = '(pointer: coarse)'` at EVERY width, so a large tablet in landscape keeps the desktop layout but still gets the 「删除会话」 item.
+- Single-package, client-only plugin for the DSH Web UI. Adapts the UI on **touch-primary devices with a viewport below 1024px**（overlay drawer、full-width conversation、settings/explorer/preview sheets、status-bar safe areas、composer row、stats line）. Activation query `MOBILE_QUERY = '(max-width: 1023px) and (pointer: coarse)'`（`platform/breakpoints.ts`）：宽度单独不足以区分手机与窄桌面窗口（分屏与系统缩放会把 PC 的 CSS 视口压到 1024px 以下），所以键鼠窗口（`pointer: fine`）或无指针窗口在**任何**宽度都保持桌面形态；misc.css.ts 的桌面隐藏块是 MOBILE_QUERY 的精确补集（逗号列表）。**唯一例外（v2.4.1）**：会话删除三件套（菜单项 + 确认/错误弹层）按 `TOUCH_QUERY = '(pointer: coarse)'` 在**每个**宽度武装，故横屏大平板保留桌面布局但仍拿到「删除会话」项。
 - Names differ by boundary: README/GitHub project = `dsh-web-mobile`; npm package = `dsh-web-mobile`（2026-08-30 由 dsh-mobile-nav 改名而来，旧名连同 2.2.0/2.3.0 已整包 unpublish，npm 上不再存在）; patch row id = `dsh-web-mobile`（DOM 标记 `data-mobile-nav` 与 `?mobile-nav-debug=1` 参数刻意保留旧词根，见 Pitfalls）。
 - 已被 [DSHA](https://github.com/qiannianhuanxiang/DSHA)（Android 启动器）内置为移动端适配（README 已致谢 @qiannianhuanxiang，commit ffb61b5）——DSHA 用户装 APK 即用。
-- **v3.1.0 起重建线已并回主线**：2026-10-12 那段「改本仓库不影响线上页面」的判断**已失效**——v3.1.0（tag `v3.1.0` = `origin/main`）就是本仓库发的版，本机 web profile 已改回单插件形态（只跑 `dsh-web-mobile`），故**在本仓库改源码 + `pnpm build` 会直接影响用户正在用的页面**。那段并行分支 `dsh-web-mobile-host-test`（源码 `~/dsh-web-mobile-host-test`）是 v3.1.0 的**前身快照**，已不再装载，仅留作回滚件。发版口径：v3.1.0 走 GitHub Release，**未发 npm**（npm 仍停在 3.0.6）。
+- **在本仓库改源码 + `pnpm build` 会直接影响用户正在用的页面**（v3.1.0 起本仓库就是线上版本，本机 web profile 只跑 `dsh-web-mobile`）。发版口径：v3.1.0 走 GitHub Release，**未发 npm**（npm 仍停在 3.0.6）。回滚件 `~/dsh-web-mobile-host-test` 是 v3.1.0 前身快照，已不装载。
 - No monorepo, no application server, no workspace layer.
-- Real entrypoints:
-  - `cordis.patch.yml` inserts the single host plugin row.
-  - `src/index.ts` is the host half: `apply()` makes the row visible to the host Loader, installs transparent gzip/brotli compression for large JSON responses (`src/compress.ts`), registers the session-delete endpoint `/api/mobile-nav.session.delete` (work in `src/delete-session.ts`), and installs the default thinking-level fill for hand-declared `llm-pi-ai` models (work in `src/reasoning-effort.ts`).
-  - `package.json` exposes `./client` and declares `dsh.client.platform: "web"`; DSH discovers the browser half from `src/client/index.tsx`.
+- Real entrypoints: `cordis.patch.yml`（唯一的宿主插件行）；`src/index.ts`（宿主半区入口，`apply()` 让该行对宿主 Loader 可见）；`package.json` 暴露 `./client` 并声明 `dsh.client.platform: "web"`，浏览器半区由 DSH 从 `src/client/index.tsx` 发现。宿主侧端点 `/api/mobile-nav.session.delete`。
 - Key layout（注释版仓库树；`(不入库)` = gitignore，外部 clone 不可见）:
 
   ```text
@@ -21,6 +18,7 @@
   │  ├─ delete-session.ts    ← 会话删除纯核（DI、分代适配、可单测）
   │  ├─ reasoning-effort.ts  ← 手写模型默认思考档位纯核 + settings 读写面（可单测）
   │  └─ client/
+  │     ├─ AGENTS.md         ← 客户端半区披露层（改该目录文件时自动进入上下文）
   │     ├─ index.tsx         ← 浏览器半区入口（注册 3 个 slot；另有 file-share.ts 的 2 个官方 slot）
   │     ├─ debug.ts          ← ?mobile-nav-debug=1 诊断徽章
   │     ├─ components/       ← MobileNavToggle / MobileDrawerFooter / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
@@ -51,7 +49,8 @@
   ├─ tests/                  ← 59 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
-  │  ├─ maintenance/pitfalls.md · upstream/（runbook + compat-contracts.json + host-jank-feedback.md）← 入库
+  │  ├─ maintenance/         ← pitfalls.md（67 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md ← 入库
+  │  ├─ upstream/            ← runbook + compat-contracts.json + host-jank-feedback.md ← 入库
   │  └─ audits/ · fork-wzxmt-zhc/ · debug/ · superpowers/ ← 本地不入库（2026-10-13 起 docs 下只上传 maintenance 与 debug）
   ├─ .github/workflows/ci.yml ← verify → test:core → build → bundle smoke → git diff --exit-code lib
   ├─ assets/                 ← README 用图
@@ -62,18 +61,22 @@
 
 文档路由表——遇到下述场景先读对应文档，不要重新摸索；新增长效文档必须在此挂触发行，目标没了删行防死链。
 
-- 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP；§8=0.1.7-rc.1 复测、§9=rc.2 portal 换锚对照）
+- 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP；§8=rc.1 复测、§9=rc.2 portal 换锚对照）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
 - 动手改某块代码前 → `docs/maintenance/pitfalls.md`（67 坑原文，名字=锚点，索引在下方 Pitfalls 节）
-- 改手势/面板退出等行为契约 → `docs/specs/`（8 篇权威 spec；手势参数与状态机在 2026-08-27-sidebar-swipe-gestures.md，不可破）
+- 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约：slot/reconciler/样式/选择器/风格；改该目录文件时自动进入上下文）
+- 做验收或起探针环境 → `docs/maintenance/verification-playbook.md`（三档验收场景 + CDP/Playwright MCP/Termux 配方）
+- 拉起团队、派令、做审查或写交接 → `docs/maintenance/collaboration-rules.md`（审查路线与两层验收、三岗 SOP、lead 终审铁律）
+- 写 Release notes → `docs/maintenance/release-notes-spec.md`（七段体例与署名三路核对）
+- 改手势/面板退出等行为契约 → `docs/specs/`（8 篇；手势参数与状态机在 `2026-08-27-sidebar-swipe-gestures.md`，不可破）
 - 宿主升级前 → `docs/upstream/upgrade-runbook.md`（对账清单与验收电池）+ `node scripts/cdp-compat-contracts.mjs`（机读契约自动对账，无需 SESSION_ID）
-- 评估宿主代际兼容面 → `docs/upstream/2026-09-23-dsh-0.1.7-alpha.2-compat-audit.md`（28 条对账 0 改的先例与方法）；升 0.1.6-alpha.2 系前必读 `docs/upstream/2026-09-19-dsh-0.1.6-alpha.2-compat-audit.md` §10（升级前必修 3 项 + 电池 15 项）
-- 宿主会话切换卡顿/性能归因 → `docs/upstream/host-jank-feedback.md`（上游反馈通道，tokenizeTimeLimit 更正在此；完整归因含止血/上游两条路线在本地 audits 目录的同名 handover，该目录不上传）
-- 0.1.7-rc.1 手机端适配待办 → 本地 audits 目录的同名 handover（容器内 chromium 取证通道 + A/B 与真机读数；audits 目录不上传，仅本机可读）
+- 评估宿主代际兼容面 → `docs/upstream/2026-09-23-dsh-0.1.7-alpha.2-compat-audit.md`（28 条对账 0 改的先例）；升 0.1.6-alpha.2 系前必读 `docs/upstream/2026-09-19-dsh-0.1.6-alpha.2-compat-audit.md` §10（升级前必修 3 项 + 电池 15 项）
+- 宿主会话切换卡顿/性能归因 → `docs/upstream/host-jank-feedback.md`（上游反馈通道；完整归因含止血/上游两条路线在本地 audits 目录同名 handover，不上传）
+- 0.1.7-rc.1 手机端适配待办 → 本地 audits 目录同名 handover（容器内 chromium 取证 + A/B 与真机读数；不上传）
 - 手机端会话头部/输入框 0.1.6 适配 → `docs/upstream/2026-09-19-mobile-header-0.1.6-adaptation.md`（16 条，14 已并入 layout 移动块）
 - 新增或修改兼容补丁 → `docs/maintenance/patch-registry.md`（每个补丁必须在源码用 @patch 块自报 for/why/until/test；表由 `node scripts/patch-registry-check.mjs --write` 生成，手改即红）
 - CSS 结构回归 → 结构检测器已接入 `test:core`（基线 0 fatal / 5 info；缩进/媒体查询/选择器拆分回归会红），完整审计在本地 audits 目录（不上传）
-- 接手 fork wzxmt-zhc 摘抄专项 → 本地 `docs/fork-wzxmt-zhc/README.md`（先读接手协议，动手前重新 fetch fork；该目录不上传，仅本机可读）
+- 接手 fork wzxmt-zhc 摘抄专项 → 本地 `docs/fork-wzxmt-zhc/README.md`（先读接手协议；该目录不上传，仅本机可读）
 
 ## Commands
 
@@ -102,7 +105,7 @@ DSH_PROBE_SESSION_ID=<id> pnpm smoke:cdp
 - Bundle load smoke（不接真机也能跑，热装载前的必过关）: `node scripts/client-bundle-smoke.mjs [lib/client.js]` —— 用桩 `window.__ModuleLoader__` 在 Node 里加载产物并执行 entry factory；语法错/缺模块键/顶层抛错都会在这里红（2026-10-06 白屏事故后补）。
 - Focused unit test: `node --test tests/sidebar-swipe.test.ts` (any single file in `tests/`).
 - Direct swipe regression probes (not the general `smoke:cdp`): `node scripts/cdp-swipe-probe.mjs` and `node scripts/cdp-swipe-failures.mjs`; same `DSH_PROBE_URL`/`DSH_PROBE_CHROME` env vars, and on Termux add writable `TMPDIR`/`XDG_RUNTIME_DIR`.
-- iOS 聚焦放大守卫探针（#45 / #46，23 断言）：`node scripts/cdp-zoom-probe.mjs`（同组 env）。三场景：手机+Chromium UA（无 iOS 标记、第三方 13px 输入框不变、注入的 14px 可编辑域不被抬高）、手机+iPhone UA（标记就位、所有可见文本输入域 >=16px、composer 三件套同尺寸、控件类 input/select 未被改、注入的 14px contenteditable 抬到 16px 而其 `contenteditable="false"` 装饰节点保持 12px）、桌面（标记缺席、字号零影响）；兼验根/抽屉 `touch-action` 含 `pinch-zoom` 且不含 `pan-x`、`gesturestart` 不再被 preventDefault。A7/B6 注入的形状就是 dsh 0.1.2-rc.1 的 Lexical composer，用来在旧宿主上前瞻验证下一版。A11/B7 守 D-1 决策：`_customInput`/`_customTextarea`/`dsfv-*-input` 只在 iOS 抬到 16px（读计算值；旧 bundle 上 A11 实测红 ⇒ 非空转）。A8-A10 守 viewport meta 的所有权（#46 合并部分）：武装期内容必须恰好 `width=device-width, initial-scale=1, viewport-fit=cover`（**出现 maximum-scale/user-scalable 即回归**），宿主改写与整节点替换都要被重申回来。
+- iOS 聚焦放大守卫探针（#45 / #46，23 断言）：`node scripts/cdp-zoom-probe.mjs`（同组 env）。三场景 = 手机+Chromium UA / 手机+iPhone UA / 桌面；守 iOS 16px 下限、`touch-action` 含 `pinch-zoom` 且不含 `pan-x`、`gesturestart` 不被 preventDefault、viewport meta 所有权（出现 `maximum-scale`/`user-scalable` 即回归）。逐条断言编号（A7/B6/A11/A8-A10 等）见脚本文件头。
 
 - Local DSH profile workflow:
 
@@ -114,107 +117,39 @@ dsh web
 
 ## Architecture
 
-- Host/client split is load-bearing. All browser behavior lives in `src/client/`; the host half installs the response-compression patch plus the session-delete endpoint (deletion work in the DI pure core `src/delete-session.ts`, generation-adapted per host) and fills the default thinking-level set for hand-declared `llm-pi-ai` models (pure core `src/reasoning-effort.ts`).
-- `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions']`. `inject` is a hard dependency, so the list carries only services the entry actually reads (`workspaces` was removed in #86). Its `apply()` registers locale dictionaries, injects one `<style data-plugin>` tag, installs effects, and registers three slots:
-  - `conversation.session.header.actions` → `MobileNavToggle` (`order: 10`): drawer toggle + Files button.
-  - `conversation.input.left` → `ComposerFileButton` (`id: mobile-nav-file-upload`, `order: 10`): the permanent composer file entry. Host 0.1.6 deleted the paperclip attach button, leaving the 「文件」row inside the "+" listbox as the only entry; this control sits in the tools lane beside the plus button. Since 2026-10-06 its tap opens the plugin's two-option sheet (`effects/composer-file-picker.ts`: 上传图片 / 上传附件) which hands the choice back to the host's own hidden `input[type=file]`, so intake validation, upload and availability stay host-owned. Session-scoped — the hero/blank phase keeps the "+" menu as its only file entry.
-  - `sidebar.footer.action` → `MobileDrawerFooter` (`id: mobile-nav-session-log`, `order: 5`): the session-log export pill only — the Files entry that used to sit beside it was removed on 2026-09-17 (with the drawer open neither the host nor the third-party dismiss shim lets a click reach the right-sidebar opener; contract in `docs/specs/2026-09-17-sidebar-files-coexistence-design.md`). Order 5 keeps them below the remote icon row (order default 0) and above usage badges (order 10). Do not tie with usage stats.
-  - There is **no settings slot** anymore; the haptic feedback feature was removed.
-- Shared full-tree reconciler:
-  - `src/client/core/reconciler-core.ts` is a DOM-free engine with **zero imports**. It owns task registry, dirty-key routing (`scopes`), coalesced rAF flush scheduling, and per-task error isolation.
-  - `src/client/effects/phone-chrome.ts` is the thin browser adapter: one `MutationObserver` on `document.documentElement` maps records to dirty keys (`attributeName`, or `'*'` for tree changes), feeds `core.note()`, and drives activation/deactivation via `installMobileEffect`.
-  - Tasks only run while the mobile breakpoint is active, coalesced to one pass per animation frame. `stats-line` keeps `scopes: ['*', 'characterData']` — the tree key because its slots are rebuilt with the tree, and the text key because TPS updates can arrive as in-place `nodeValue` rewrites. Adding a key is safe; REMOVING the tree key is the failure mode this line exists to prevent (2026-10-13).
-  - Registered tasks: `frame-marker`, `header-metrics`, `preview-fullscreen-toggle`, `preview-close-sync`, `sheet-rise-replay`, `file-viewer-open-marker`, `stats-line`, `overlay-backdrop-fab`, `panel-back-exit`.
-- `src/client/platform/` holds the browser-infrastructure primitives every effect shares — `frame.ts` (`getFrame`/`findFrame` + the memoized marker lookup), `breakpoints.ts` (`MOBILE_QUERY`/`DESKTOP_QUERY`/`TOUCH_QUERY`, `installMobileEffect`), `device.ts` (`detectIosWebKit`). It has no feature semantics and no DOM-marker ownership. **Dependency direction is `index.tsx → effects → platform → core`**; `components/` may use `platform/` + `core/` but never `effects/`, and `effects/` never imports another effect for infrastructure — `tests/architecture.test.ts` enforces precisely that (runtime cycles, layer direction, `core/` DOM purity, line budget, module-level state, entry inline queries) against a debt ledger that may only shrink. `test:core` runs it, so a new cycle or a new oversize file is red CI, not a review comment.
-- Effects:
-  - `phone-chrome.ts` — status bar/theme-color（`<meta name="theme-color">` 跟随 `body[data-ds-dark-theme]`）、the lazy dismiss-shadow, and the frame-marker reconciler task（viewport meta / iOS marker / 稳定视口高度第五片搬进 `viewport-meta.ts`，reconciler 实例与任务注册面第四片搬进 `reconciler-adapter.ts`）. 2026-10-12 起五片逐字搬出后只剩这三件事。
-  - `drawer-close.ts` — 抽屉关闭的三条监听路（Escape / 遮罩与导航目标的捕获 click / DSHA 的 `dsha-session-open`）与所有非手势关闭共用的那一个 `toggleDrawer`（晚提交关闭）。P1 拆分第一块，2026-10-12 由 phone-chrome.ts 逐字搬出。
-  - `header-metrics.ts` — 顶栏高度 → CSS 变量 `--mobile-nav-header-h` 的 reconciler 任务（`scopes:['*']`）。P1 拆分第二片，2026-10-12 由 phone-chrome.ts 逐字搬出；形状沿用本仓既有的 task 工厂模式（导出 `createHeaderMetricsTask()`）。
-  - `selection-chrome.ts` — 会话内非折叠选区存在期间给 `<html>` 挂 `data-mobile-nav-selecting`，CSS 借此把顶栏移出命中测试（原生手柄拖拽的选区终点否则会命中顶栏、Blink 顺 DOM 往后找到流首项并 reveal，视口瞬移）。P1 拆分第三片，2026-10-12 由 phone-chrome.ts 逐字搬出。
-  - `reconciler-adapter.ts` — 那一个全树 `MutationObserver`（记录 → 脏键 → `core.note()`）、任务注册面 `addReconcilerTask`，以及本插件注册的全部 reconciler 任务（`registerReconcileTasks`：`createOverlayTask` 收 `toggleDrawer`，故它 import drawer-close.ts）。P1 拆分第四片，2026-10-12 由 phone-chrome.ts 逐字搬出。
-  - `viewport-meta.ts` — viewport meta 所有权（宿主改写 / 换节点 / 晚注入都重申 `width=device-width, initial-scale=1, viewport-fit=cover`；dispose 只在仍是我们写的串时交还宿主原值）、不含键盘的视口高度 `--dsh-web-mobile-vh`（单调规则 + 同值不重写），以及 iOS 的 `html[data-mobile-nav-ios]` 标记。P1 拆分第五片，2026-10-12 由 phone-chrome.ts 逐字搬出。**形状（2026-10-12 修正后）**：本模块**不自起 effect**，只导出三个**返回 disposer 的普通函数**（`preserveViewportMeta()` / `syncStableViewportHeight()` / `applyIosMarker(isIosWebKit)`）；调用方是 phone-chrome 里**唯一那个** status-bar `installMobileEffect`，它按 876 行原始版的顺序武装（viewport meta → iOS 标记 → 稳定视口高度）并**逐位**合成清理（稳定视口 → theme observer → 恢复 meta → 摘 themeMeta → 摘 iOS 标记）。⚠️ **禁止**再把这几个函数改成各自 `installMobileEffect` 的 installer：那会让外层 effect 每次重新武装都往 ctx 上再注册三个子 effect 且外层收不到（实测孤例，非本仓范式）。
-  - `sidebar-swipe.ts` + `gesture-guard.ts` — drawer swipe gestures：开=8px 锁轴**提前提交**（inline `-101%` 百分比基线跟随 + arm 帧 `content-visibility:hidden` 拆挂载）；关=**晚提交**（inline 280ms 滑到自身宽×110% px 槽位后翻 marker，防 React 中途换子树）；遮罩经 `fadeOverlayOut` 渐隐；右缘 files 手势与抽屉手势同层双族路由（判定矩阵与已踩坑见 Pitfalls「files 手势」）；`gesture-guard.ts` supplies the host-yield consume marks + stroke axis lock.
-  - `aionui-compat.ts` — dsh-web-ui explorer/preview markers and sheet rise animation.
-  - `stats-line.ts` — marks the official status row; the context ring and TPS readout stay where React rendered them and are overlaid on plugin-owned placeholder slots（#104：宿主 React 节点禁搬，见 Pitfalls「搬宿主 React 节点」）.
-  - `debug.ts` — opt-in `?mobile-nav-debug=1` live diagnostic badge (no-op without the query param).
-  - `subagent-chip-touch.ts` — touch compatibility for the subagent count chip and touch nav-arm close (see Pitfalls).
-  - `composer-keyboard-guard.ts` — iOS-only: tapping the composer's send/stop/+ buttons must not re-raise a dismissed keyboard (upstream `keepFocus` focuses the editor on `mousedown`, PR #48; DOM-contract notes in the file header).
-  - `composer-keyboard-lift.ts` — iOS-only（#149）：宿主 Lexical 选区滚动助手把布局坐标可视带和视口坐标 caret rect 比对，iOS 键盘的非零窗口滚动让它每次击键误发 `window.scrollBy`，composer 整块沉进系统辅助条。本效果在编辑器持焦期间用 screen-space-only 的 `translateY(−overlap)`（seat rect.bottom vs `vv.height`）把 seat 钉回键盘顶；pinch 或双通道分歧时 fail-open；纯核 `computeComposerLift` 由测试钉死。
-  - `composer-file-picker.ts` — 手机档回形针入口（2026-10-06 报障）：宿主自带的两选项入口 0.1.6 起已删除，直点隐藏 input 只弹系统选择器（形态不可控、也无法「只挑图片」）。本效果吞掉入口的 click，弹插件自绘的两选项**贴锚点小浮层**（上传图片 / 上传附件；同日店主否掉了整宽底部弹层形态，改为按回形针 rect 定位、上方优先、夹进视口，行高 34px / 行间距 0，无「取消」行，点浮层外或返回键关闭），选完仍点宿主那个 hidden input —— 按选项**临时**写 accept（图片 `image/*`、附件显式 `*/*`，`click()` 返回后立刻还原；附件那路 2026-10-07 从「不改属性」改成显式 `*/*` 是**待真机确认的实验**：空 acceptTypes 在 DSHA 上起的是文档选择器而不是「打开方式」应用列表）；浮层挂 `document.body`（同 delete-dialog 的取舍），CSS 在 base.css.ts。**定位必须重锚定**（2026-10-07 真机报障：点回形针会让软键盘收起、布局整体下移一个键盘高，只在打开时算一次坐标的 `position:fixed` 浮层就停在会话中部）：视口一变（`resize` / `orientationchange` / `visualViewport` 的 `resize`+`scroll`）重算 top/left，开完再跟 12 帧 rAF 追键盘动画，锚点脱离文档时收起。
-  - `workspace-chip-toggle.ts` — hero 工作区 chip 的「再点关闭」：宿主把选择器菜单开成
-    `<Menu anchor={null} portal>`，触发器在 Menu 子树外，于是它的「外部 pointerdown 关闭」
-    把 chip 自己的第二击也吃掉；本效果只吞那一击 click，让宿主的关闭成为唯一结果
-    （同型：`composer-plus-toggle.ts`；见 Pitfalls「工作区 chip 再点关闭」）。
-  - `team-chip-toggle.ts` — 智能体团队 chip 的「再点关闭」：宿主 agent-team 插件的触发器
-    onClick 只在关闭时 `changeOpen(true)`、开态时仅 focus 面板，**永不 toggle**；关闭只靠
-    outside pointerdown / Escape。本效果开态时先替用户向 `document.body` 派发一次合成
-    pointerdown（走宿主自己的 dismiss），再吞掉那颗 click（顺序不可换）。见 Pitfalls「header 拥挤」。
-  - `session-menu.ts` — touch-gated injection of a 「删除会话」 item into the workspace session-row ⋯ menu (clone-and-inject from the fork wzxmt-zhc v2.7.0): guard = TOUCH_QUERY (`(pointer: coarse)` at EVERY width — large tablets in landscape included, v2.4.1) + row/menu/label selectors present; inert on hosts whose drawer renders the rail variant (rc.2), activates on hosts rendering session rows in the drawer (0.1.3) or on the ≥1024px desktop panel; after deleting the current session `toggleDrawer(ctx)` only runs on the mobile query (desktop panels must not collapse); confirmation dialog markup/styles live in base.css.ts (wide-touch card capped 420px centered) with corrected animation names.
-  - `panel-exit.ts` — 侧边栏面板的退出：系统返回键/手势（popstate 记账）、再点已选中的面板行、以及面板视图下左上角按钮的语义切换；三条路共用一个 `exit`。`core/layout-compat.ts` 探测 `ctx.layout.selectPanel` 是否存在于本代宿主（rc.6 没有），缺失则整条特性惰性化。**退场是「先动画后提交」**（2026-10-07 店主报障「退出像掉帧、直接回聊天界面」）：给面板元素挂 `data-mobile-panel-leaving` → CSS `dsh-web-mobile-panel-out`（220ms，合成器跑）→ `animationend` 之后才 `selectPanel()`。旧顺序（先标记后提交）下宿主在同一次 commit 就卸载面板，退场动画落在 0×0 空槽上（逐帧实测：点返回第一帧面板元素已消失）；兜底计时 `PANEL_OUT_MS + 80` 防 reduced-motion 或宿主提前换元素把用户困在面板里。
-  - `shortcut-modal-keyboard-guard.ts` — 手机档：快捷键弹层（宿主 `dsh-client-ui-shortcuts` 的
-    `data-shortcut-modal="shortcuts"`）打开时会把焦点抢到搜索框，手机随即弹软键盘 —— 用户是来编辑
-    快捷键的，键盘却盖掉半屏，而且弹层按 `100dvh` 定高、键盘一压就整体缩一截（实测 844→520 时
-    600px→496px，就是「打开就闪」）。这里通过共享管理器 `core/prototype-focus-shadow.ts`（#84）给
-    `HTMLInputElement.prototype.focus` 注册一条「这个搜索框不聚焦」的谓词：宿主的 `focusWithoutRing`
-    落到影子上、输入框不获得焦点、键盘不起；点击不受影响（浏览器原生聚焦不经过 JS 方法），搜一次仍是
-    一次点按。谓词只在弹层存在期间注册，最后一个守卫卸载时真实方法才被放回（两个守卫同装时互不覆盖）。影子在
-    MutationObserver（只盯 `document.body` 的 childList）里安装 —— 微任务早于 React 的被动 effect，
-    所以第一帧抢焦也拦得住；弹层移除时 `delete` 还原。
-  - `session-focus-guard.ts` — 手机档：进入会话不自动弹软键盘（issue #140）。宿主 InputBar 在
-    每次切会话时程序化聚焦编辑器；本效果订阅 `ctx.sessions.list` 快照、仅在当前会话 id 变化时开
-    一个 800ms 影子窗口（复用 `composer-keyboard-guard.ts` 的 own no-op focus 影子与标记），
-    窗口内 MutationObserver 微任务给新挂载的 `[data-composer-input]` 装影子；宿主聚焦实测跑在
-    commit 同步相（早于微任务，headless t=314ms 无影子焦点实锤），窗口期另有 focusin 捕获
-    **同步 blur** 兜底（composer guard 2026-09-23 同型）；用户点输入框当场解除窗口，原生点按
-    永远不受影响。
-  - Reconciler task modules: `preview-fullscreen.ts`, `overlay-backdrop-fab.ts`, `panel-exit.ts`.
-- Styles: `src/client/styles/index.ts` concatenates `base → layout → compat → misc` in that load-bearing order and injects one `<style data-plugin>` tag. Mobile rules target `(max-width: 1023px) and (pointer: coarse)` (keep every top-level media block in sync with `MOBILE_QUERY`); the desktop hide block in misc.css.ts is its exact complement and must preserve the uninstalled layout.
+- Host/client split is load-bearing. 浏览器行为全在 `src/client/`——客户端半区的实现契约（slot 注册、reconciler、分层、样式、选择器与 DOM 标记、资源纪律、代码风格）见 **`src/client/AGENTS.md`**（披露层：改该目录下文件时自动进入上下文）。宿主半区只做三件事：响应压缩、会话删除端点（纯核 `src/delete-session.ts`，按宿主代际适配）、手写 `llm-pi-ai` 模型的默认思考档位补齐（纯核 `src/reasoning-effort.ts`）。
+- **依赖方向 `index.tsx → effects → platform → core`**，`tests/architecture.test.ts` 逐条强制（运行时环、层方向、`core/` DOM 纯净、行预算、模块级状态、entry inline 查询），台账只许缩不许涨，`test:core` 会跑它——新增环或超行文件是红 CI。
+- **Effects（33 个模块）** — 逐个模块的背景、根因与易踩点见 **`src/client/effects/AGENTS.md`**（披露层：改动该目录下任意文件时自动进入上下文）。本文件只留三条跨模块契约：①分层不可破；②全树 `MutationObserver` 在 `reconciler-adapter.ts`（不是 `phone-chrome.ts`），任务注册面 `addReconcilerTask`；③形状禁令三则——`viewport-meta.ts` 的三个函数保持「返回 disposer 的普通函数」（改成各自 `installMobileEffect` 会让外层每次重武装都多注册三个收不到的子 effect）、武装顺序 viewport meta → iOS 标记 → 稳定视口高度是行为、`panel-exit.ts` 退场先动画后提交。
 - Third-party compatibility is implemented through scoped DOM markers, stable `data-*` attributes, `MutationObserver`, and carefully scoped class/text anchors. Never modify third-party source packages.
 - Authoritative design docs: `docs/specs/2026-08-27-sidebar-swipe-gestures.md` (gesture parameters/state machine; the gesture defect baseline lives in the local-only audits directory).
 
 ## Workflow
 
-- **「全面更新」类指令默认按增量理解（用户要求，2026-09-25）**：用户说「全面更新」某文档 ≠ 推倒重写——口径是「该更新的更新（失效处就地小改）、该新增的新增（文末追加带日期增补节）」，原文结构与编号保留；实测纠偏发生后再问就晚了，文档类任务一律按此执行。
-- **main 已启用 PR-only 保护（2026-09-25 实测 GH013 拒直推，含 docs 小改）**：一切变更（含文档）走 分支→PR→CI→merge；**合并后立即删远端分支**（`git push origin --delete <branch>`；#118/#119/#120 漏删堆出 28 个陈旧分支，已清理）。本工作区有未提交改动时合并 PR 不要带 `--delete-branch`（会触发本地分支切换）。
-- **外部制作人 PR 主张独立验证（用户要求，2026-09-27）**：另一制作人的 PR/修复主张（如 #128 的「三道防线」）不当事实采信——以仓库实测（CDP 动态探针/锚测试/亲读代码路径）与用户真机验收为准；「桌面实测通过」对真机只有旁证力（2026-09-27 会话三次实锤：CDP 绿 ≠ 真机好）。
-- **开场模糊指令先问再动（用户要求，2026-09-24）**：新开会话收到「跟进一下 X」「继续」等未给目标的指令时，**直接一句话问用户要目标与范围**，禁止自行展开 recall + 多路探测的重建调查链（浪费上下文与 token，用户点名批评）；团队协作同理——派成员干活前先问清目标，不派成员替我猜。例外：用户明说「自己找/搜刮」时仍先搜不反问。
-- **动手前自行调用 karpathy-guidelines（用户要求，2026-09-24）**：每次开始实际工作（写码/改码/排查/审查）前，先自行调用 `karpathy-guidelines` 技能加载完整准则再动手，不凭印象裸跑；不着急，先摸清再动手。
-- **Bug 定位先报告、确认后再修（用户要求，2026-09-19）**：需要跟踪定位的 bug——多步调查、根因不明、现象与成因相距远的那种——定位到根因后**不要立刻动手修**，先给出清晰报告：症状、根因、证据链、影响范围、拟议修复（有取舍时列选项），等用户确认再执行。一眼即明的简单修复不在此列。
-- **用户协作偏好自动入库（用户要求，2026-09-19）**：用户在对话中提出的协作偏好/工作流要求（如上一条这类），**当场写进本文件对应节**，不必等用户点名「写进 AGENTS.md」；入库后在回复里提一句写到了哪里。记忆只做跨会话备份，不能替代本文件。
-- **宿主升级必须用户单独确认（用户要求，2026-09-19）**：默认只做源码/静态对账，**不动宿主**；alpha 通道一律不上机（隐藏 bug 风险 + 会话格式迁移不可逆）。真要升级先备份 `~/.dsh/sessions`，升级后按 runbook 电池验收。
-- **发版动作必须用户单独同意（用户要求，2026-09-25）**：版本 bump + tag + npm publish + GitHub Release 属对外发布动作，收口闭环走到发版步时**停下来等用户点头**再执行。
+- **「全面更新」类指令默认按增量理解（用户要求，2026-09-25）**：用户说「全面更新」某文档 ≠ 推倒重写——口径是「该更新的更新（失效处就地小改）、该新增的新增（文末追加带日期增补节）」，原文结构与编号保留。文档类任务一律按此执行。
+- **main 已启用 PR-only 保护（2026-09-25 实测 GH013 拒直推，含 docs 小改）**：一切变更（含文档）走 分支→PR→CI→merge；**合并后立即删远端分支**（`git push origin --delete <branch>`）。本工作区有未提交改动时合并 PR 不要带 `--delete-branch`（会触发本地分支切换）。
+- **外部制作人 PR 主张独立验证（用户要求，2026-09-27）**：另一制作人的 PR/修复主张不当事实采信——以仓库实测（CDP 动态探针/锚测试/亲读代码路径）与用户真机验收为准；「桌面实测通过」对真机只有旁证力（CDP 绿 ≠ 真机好）。
+- **开场模糊指令先问再动（用户要求，2026-09-24）**：新开会话收到「跟进一下 X」「继续」等未给目标的指令时，**直接一句话问用户要目标与范围**，禁止自行展开 recall + 多路探测的重建调查链。例外：用户明说「自己找/搜刮」时仍先搜不反问。
+- **动手前自行调用 karpathy-guidelines（用户要求，2026-09-24）**：每次开始实际工作（写码/改码/排查/审查）前，先自行调用 `karpathy-guidelines` 技能加载完整准则再动手；不着急，先摸清再动手。
+- **Bug 定位先报告、确认后再修（用户要求，2026-09-19）**：多步调查/根因不明/现象与成因相距远的 bug，定位到根因后**不要立刻动手修**，先给报告（症状、根因、证据链、影响范围、拟议修复），等用户确认再执行。一眼即明的简单修复不在此列。
+- **用户协作偏好自动入库（用户要求，2026-09-19）**：用户在对话中提出的协作偏好/工作流要求，**当场写进本文件对应节**，不必等用户点名；入库后在回复里提一句写到了哪里。记忆只做跨会话备份，不能替代本文件。
+- **宿主升级必须用户单独确认（用户要求，2026-09-19）**：默认只做源码/静态对账，**不动宿主**；alpha 通道一律不上机。真要升级先备份 `~/.dsh/sessions`，升级后按 runbook 电池验收。
+- **发版动作必须用户单独同意（用户要求，2026-09-25）**：版本 bump + tag + npm publish + GitHub Release 属对外发布动作，走到发版步时**停下来等用户点头**。
 - **push + PR + merge 必须用户批准（用户要求，2026-09-27，覆盖旧口径）**：本地 commit 可自主（工作区可逆），但 **push 远端、开 PR、merge 一律先报用户等点头**——用户原话「没我批准你不许直接发PR」；网络重试自动合并的后台循环同样禁止。
-- **公开 PR/issue 文本卫生（用户要求，2026-09-30）**：私聊里的验收口语、内部对话引用（如原话引语）、自封的验收者头衔**一律不进** PR 正文/issue 回复等公开文本——公开文字只写事实（改了什么、为何这样改、门验结果）；验收状态用一句中性的「已在真机验证」即可，不贴内部原话。**合并 ≠ 可更新**：修复合进 main 后用户仍吃不到（npm/Release 还在旧版），对外回复必须区分「已合并」与「已发布」两个状态，未发版前明说「等下个 release」，不发「已处理」式表述（实测：#140 回复曾把合并说成可更新，用户拍板纠正）。
-- **审查/验证必须交付路线 + 跑满两层（用户要求，2026-09-30）**：给审查/验证结论时**必须附可复走的路线**（每步的命令与证据锚点，弯路如实摆出），不装一路直达；「说了要写文档/要跑检查」必须真的执行，禁止口头交付。**单测层 ≠ 行为层**：本仓 test:core 是源码不变式审计（无 DOM 无真渲染），审查路线跑完单测只算半程——必须补运行时层（`pnpm smoke:cdp` 探针电池，需活宿主 + 向用户索 token）与真机验收（收口判据），缺层要明说（实测：PR #141 审查首版只到单测层，用户点名「单凭测试文件不够周全」）。
-- **CI/长任务不空等（用户要求，2026-10-01）**：push/merge 后的 CI、探针、后台任务一律不 sleep 轮询等待——发起后用即时命令查一次状态（如 `gh run list -L 1`）就收口，「啥时候返回啥时候结束」；后续状态等用户要看时再查，禁止 `sleep N && …` 式长等待（实测：merge 后 sleep 90 连等两轮 CI，用户点名纠正）。
-- **审查规模与改动成正比（用户要求，2026-09-19）**：PR/改动审查默认**自己一遍过**（CI 状态 + 静态对账 + 抽读核心 diff），不为流程排场派多代理；只有真大范围改动（跨多模块 / 数百行 diff / 触碰手势与宿主契约）才考虑拆专项，且派前先问用户。**团队在场时例外（用户要求，2026-09-23）**：已拉起成员（chief-checker / content-retriever 等）时，检查、取证、复查类工作直接 send_message 派给成员完成，lead 不再亲自重做；成员报告仍按 lead 终审铁律亲验关键证据。
-- **团队岗位分离 SOP（用户要求，2026-09-19）**：多代理协作按三岗走——**实施岗**唯一写代码（接规格令→落码→自检→报告，不跑浏览器）；**验收岗（QA）**唯一接收 bug 与执行测试（browser-review 技能清单 + 探针电池 + 标准报告，不写代码）；**lead** 分诊/拍板/三门+build/对用户。每件 bug 固定回路：报告→定位令→落码→门验→QA 标准报告→PASS 收口 / FAIL 回炉（修复轮 ≤3 记台账）→用户验收。端侧资源纪律：headless chromium 先批后跑、单实例、合并多场景采集、跑完即杀（2026-09-19 OOM 实锤）。
-- **lead 终审铁律（2026-09-19 深查事故后补）**：合并/提交前 lead 全量亲验，禁止只看报告数字：①diff 的**删除行必读**（grep 过滤 `+` 行会漏掉 context 里被删的承载代码，实测造出过伪证）；②QA/子代理的**证据文件必亲读**（报告可能漏报自身缺陷，实测探针结尾崩溃未披露）；③「零残留/exit 0」类自证声明要有脚本外旁证；④报告与证据文件不一致处必须声明（报告纪律）。
-- **成员完工落盘交接文档（用户要求，2026-09-24）**：每个成员（scout/worker/checker）完成任务后，除聊天回执外必须把完整结果写成 Markdown 落盘 `docs/handover/`（本地不入库，见 .gitignore）：`YYYY-MM-DD-<令号或主题>-<岗位>.md`，内容 = Status + 与规格/现象对照 + 证据（文件:行号）+ 变更/取证清单 + 残留风险。lead 终审与后续成员接力以该文档为准，聊天消息只作通知，不以「简单谈话」作交接载体。
-- **改动必须落在源码层，不打补丁（用户要求，2026-10-06）**：一切修复/功能都改 `src/`（配套 `tests/`），再由 `pnpm build` 生成 `lib/`；**禁止**手改 `lib/`、禁止运行时补丁/热补丁、禁止在源码里留 `TEMP`/`TODO-DIAG` 之类的一次性 hack（诊断代码必须还原后才允许构建）。真机诊断优先走既有通道（`?mobile-nav-debug=1` + beacon），**不得**为了取证把插件改成「强制开诊断面板/强制上报」的变体版本——2026-10-06 实测后果：诊断变体 + 连续多次 touch 触发重载，把店主正在用的页面刷坏，只能重启 App（内置目录同时被写回工厂版，热装载全丢）。
-- **热装载前必须过四道自检（2026-10-06 白屏 + 2026-10-07 未定义名 + 2026-10-07 entry 激活事故后补）**：①`--noEmitOnError false` 的构建**必须**再确认 `src/client` 内 `error TS1xxx`（语法类）= 0 —— 事故真因就是 CSS 注释里写了**未转义的反引号**（这些 `.css.ts` 是模板字符串，注释里一律用「」引号，既有代码 0 处反引号），TS 只在有语法错的情况下照样写出了产物；②`node scripts/client-bundle-smoke.mjs` 在 Node 里用桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory，拦住「语法/顶层运行期错误导致整页白屏」；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0** —— 2026-10-07 实测：一个漏掉的 `import`（`hasWebShare`）让产物里出现裸标识符，TS1xxx 门、smoke、286 条单测**全部拦不住**，只有运行时渲染到那个按钮才炸 ReferenceError；④`node --test tests/client-inject-surface.test.ts` —— **`src/client` 里任何 `ctx.<service>` 读取都必须在 `export const inject` 名单内**（含 `(ctx as …).x` 形态）。2026-10-07 实测：为订阅宿主事件在效果里读了一次 `ctx.remote`，客户端运行时服务代理直接抛 `cannot get property "remote" without inject`，而该读取发生在 `apply()` 期间 ⇒ **整个 entry 激活失败**，页面变成「Failed to load plugins / dsh-web-mobile: failed」白屏（前三个门全绿也拦不住：类型合法、smoke 只跑 factory、单测只做字符串断言）。跨 `inject` 取服务一律走 `ctx.get(name)`。**连续重载也要克制**：每次 hot-load 都会让页面重载一次，不要在用户正在使用或 App 处于后台时连续触发。
+- **公开 PR/issue 文本卫生（用户要求，2026-09-30）**：私聊验收口语、内部对话引用、自封头衔**一律不进**公开文本——只写事实（改了什么、为何这样改、门验结果）；验收状态用中性的「已在真机验证」。**合并 ≠ 可更新**：修复合进 main 后 npm/Release 可能仍是旧版，对外回复必须区分「已合并」与「已发布」，未发版前明说「等下个 release」。
+- **CI/长任务不空等（用户要求，2026-10-01）**：push/merge 后的 CI、探针、后台任务一律不 sleep 轮询等待——发起后用即时命令查一次状态（如 `gh run list -L 1`）就收口；禁止 `sleep N && …` 式长等待。
+- **改动必须落在源码层，不打补丁（用户要求，2026-10-06）**：一切修复/功能都改 `src/`（配套 `tests/`），再由 `pnpm build` 生成 `lib/`；**禁止**手改 `lib/`、禁止运行时补丁/热补丁、禁止在源码里留 `TEMP`/`TODO-DIAG` 之类一次性 hack。真机诊断走既有通道（`?mobile-nav-debug=1` + beacon），**不得**为取证把插件改成「强制开诊断面板/强制上报」的变体版本。
+- **热装载前必须过四道自检（2026-10-06/07 三次事故后补）**：①`src/client` 内 `error TS1xxx`（语法类）= 0（`.css.ts` 是模板字符串，注释里一律用「」不用反引号）；②`node scripts/client-bundle-smoke.mjs` 过（桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory）；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0**；④`node --test tests/client-inject-surface.test.ts`——`src/client` 里任何 `ctx.<service>` 读取都必须在 `export const inject` 名单内，跨 `inject` 取服务一律走 `ctx.get(name)`。**连续重载也要克制**：每次 hot-load 都会重载页面，别在用户正在使用或 App 在后台时连续触发。
+- **团队与审查流程**（审查路线与两层验收、审查规模与改动成正比、三岗分离 SOP、lead 终审铁律、成员完工落盘交接文档）见 **`docs/maintenance/collaboration-rules.md`**——拉起团队或做审查前先读它。
 
 ## Conventions
 
+- 客户端半区的全部实现契约（slot 注册、reconciler 分层、样式承载顺序、选择器与 DOM 标记契约、效果/资源纪律、TypeScript 风格、locale 命名空间前缀、弹层优先级）见 **`src/client/AGENTS.md`**——**改 `src/client/` 下任何文件前先读它**（披露层，改该目录文件时自动进入上下文）。
 - Keep the host/client split intact: the host half owns exactly three host-side jobs — response compression, the session-delete endpoint, and the reasoning-level fill for hand-declared `llm-pi-ai` models (`src/reasoning-effort.ts`). Anything browser-facing belongs in `src/client/`.
-- Use stable `data-*` markers and structural selectors before hashed classes. For unavoidable hashed classes use substring matching (`[class*=_frag]`), never attribute-suffix (`[class$=…]`) — the class attribute often carries extra tokens or trailing spaces, and a suffix test runs against the whole attribute value, so it silently misses (verified in the full-codebase migration). Scope the selector to its owning region and guard prefix-overlapping fragments with `:not`; for tree rows use `[class*="_treeRow"]` and exclude `[class*="_treeArrowEmpty"]` when distinguishing directories from files.
-- Put every long-lived style tag, listener, timer, or `MutationObserver` inside `ctx.effect(() => { ...; return disposer }, label)`. Re-arm width-sensitive effects on `matchMedia(MOBILE_QUERY)` changes via `installMobileEffect` so wide→narrow transitions work; import the constant from `platform/breakpoints.ts` instead of hardcoding query strings.
-- Treat DOM markers as the cross-module state contract: `data-mobile-nav="frame"`, `data-sidebar-collapsed`, `data-aionui-explorer-open`, `data-aionui-preview-open`, `data-mobile-preview-full`, `data-mobile-nav="stats"`, `data-mobile-nav="stats-ring"` + overlay 体系五标记（`stats-ring-reserve` / `stats-tps-reserve` / `stats-tps` / `stats-ring-dock` / `stats-tps-row`，#104）， `data-file-viewer-open` (frame-level gate for the dsh-file-viewer compat layout, keyed on `.dsfv-panel`), `data-mobile-nav="session-delete"` (menu-item probe key), `delete-dialog-backdrop` + `delete-dialog` (confirmation dialog), and `data-mobile-nav-ios` (on `<html>`, iOS-only CSS gate).
-- Use idempotent `ensure()`/reparent logic when injecting nodes into third-party React-owned DOM. Clean up moved nodes, observers, attributes, and listeners on disposal.
-- Obtain DSH services through the declared fiber `inject` list and slot `inject` props; use React state for local mirrors and `data-*` markers for cross-effect state.
-- Client runtime effects are currently synchronous DOM work; follow that pattern unless a new contract requires async behavior. Use the debug badge's captured `error`/`unhandledrejection` output when diagnosing failures instead of swallowing exceptions.
-- TypeScript style: single quotes, no semicolons, explicit exported return types, installer names `install<Domain>`.
-- Client-local relative imports must include `.ts`/`.tsx` extensions; `tsconfig.client.json` rewrites them for CommonJS emit. Use type-only imports for DSH module augmentation and SlotMap/Context typing.
-- **`src/client/effects/` 的 `../` import：原禁令已证伪（2026-09-14 A/B 实测）**。曾被记为「自定义打包器无法解析 effects 向父级的相对 require，会把 `../x.ts` 误解析为同目录 `x.js` 并报 `client module not found`」——实测**不成立**：`phone-chrome.ts` 的值导入 `import { createReconcilerCore } from '../core/reconciler-core.ts'` 一直正常，A/B 把 `const NS` 镜像换成 `import { NS } from '../i18n/locales.ts'` 后 `pnpm build` 通过、bundle 里落成 `require("./i18n/locales.js")` + `__modules["i18n/locales.js"]`（26 模块内联不变），已还原。所以**跨目录导入本身可用**；当年报错的 `../locales.ts`（`locales.ts` 后迁到 `i18n/`）已无法复现，具体触发条件未定（不排除当时是源码/构建产物不同步，须再撞到才能定论——别把这条当已解释的历史）。**仍然要守的既有事实**：`reconciler-core.ts` 保持零 import；task 模块拿 `ReconcilerTask` 类型：`reconciler-core.ts` 导出类型、`phone-chrome.ts` 是适配器（现为 `import type`，编译期擦除、不进 bundle）。新代码不必为「禁令」绕路加镜像常量——能 import 就直接 import。
-- Add locale keys to `zh` first, then mirror the same keys in typed `en`; `MobileNavKey` is derived from `zh`. **Namespace ids carry the package prefix** (`dshWebMobileNav`, `dshWebMobileNav.attachments`, `dshWebMobileNavFileShare`): the host's `locale.register` THROWS on a duplicate namespace and that throw fails the whole entry, killing the web boot — and downstream forks copy our source files wholesale (dsh-pocket did, #165). Any new namespace starts with `dshWebMobileNav`; `tests/locale-namespace.test.ts` anchors the family.
-- Keep CSS in `src/client/styles/`, not in component files. Preserve the `base → layout → compat → misc` concatenation order and complete CSS comments/section boundaries. **该顺序是行为契约，不是排版偏好**：aionui 探索器/预览两列的平板档「居中不铺满」压在 compat 的铺满规则之上（两者同 (0,1,0) 且都 `!important`，只靠 misc 在后分胜负——把顺序翻过来就退回铺满，2026-09-16 用 `order-flip.mjs` 复现）。
-- Preserve mobile-only behavior and modal precedence: capture-phase drawer handlers must yield to `[aria-modal="true"]` dialogs and ignore session-row action buttons. `transform: none`, rather than an identity `translateX(0)`, is required for the open drawer so fixed descendants keep the correct containing block.
 - Do not edit `lib/` directly; rebuild and include generated artifacts after any source/config change.
 
 ## Pitfalls
 
-- **67 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md` 末尾「2026-09-18 迁入原文」节，锚点 `### <名字>`，顺序与下面一一对应。**动手改某块代码前，先按名字读对应条目**——里面是踩过的坑、最硬铁律、实测数据、探针断言与被否决方案；不看就改等于重踩。
-- 本文件只放名字，正文一律进 `docs/`（见 Maintenance「体积门槛」）：新增坑位 = 名字加进下面清单 + 原文写进该档并补 `### 同名` 锚点。
+- **67 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md`，锚点 `### <名字>`；新增坑位 = 名字加进下面清单 + 原文写进该档并补同名锚点。**动手改某块代码前先按名字读对应条目**——里面是最硬铁律、实测数据与被否决方案。
 
 - `手势层`
 - `files 手势`
@@ -286,42 +221,29 @@ dsh web
 
 ## Testing & QA
 
-- Automated gates: `pnpm verify` (typecheck) and `pnpm test:core`（59 个测试文件，glob 覆盖 `tests/` 全部）. 其中 `test:core` 另含两道结构门：`css-structure-check.mjs`（CSS 结构）与 `patch-registry-check.mjs`（兼容补丁四要素与登记表一致性，2026-10-13 接入）——两者都由 `tests/css-structure.test.ts` 驱动，且都带变异用例（缺字段/指向不存在的测试必须红），不做摆设门。 `pnpm build` additionally exercises the custom client bundler. Use `git diff --check` for whitespace hygiene.
-- There is no linter, formatter, or coverage setup; the CI workflow (`.github/workflows/ci.yml`) additionally runs the bundle smoke (`node scripts/client-bundle-smoke.mjs`) and the lib freshness gate `git diff --exit-code lib`.
-- After source/layout changes, install the linked plugin in a real DSH Web profile, restart `dsh web`, and check both sides of the breakpoint:
-  - **Narrow phone (~390px):** rail hidden; drawer/FAB/backdrop open and close; Escape; session-row action menus do not close the drawer; settings remains usable; Files opens explorer/preview sheets; session-log/footer actions work; preview fullscreen opens and resets.
-  - **Tablet (768–1023px):** verify the intended centered and width-constrained sheet geometry separately from phone behavior.
-  - **Desktop (≥1024px) and narrow desktop windows (mouse pointer, e.g. 900×700 split view):** compare with the plugin disabled; there must be no layout or interaction change at ANY width — the pointer guard keeps mouse-driven windows desktop even below 1024px (headless: do NOT enable touch emulation for these scenes). One exception (v2.4.1): wide touch (≥1024px, pointer coarse, e.g. a tablet in landscape) intentionally gains the injected 「删除会话」 item + confirm dialog (session-delete probe scenes 16a-16d); mouse-driven windows must still show none (scenes 15c/15d).
-- For phone-side debugging, add `?mobile-nav-debug=1` to display live viewport, frame/marker, floating-panel, and captured-JavaScript-error state. The optional `pnpm smoke:cdp` is a targeted smoke probe, not a replacement for real-profile checks.
-- **真机读数通道（2026-09-14）**：`?mobile-nav-debug=1` 除了页面徽章，还会把同一份读数 POST 到本机监听器（默认 `http://127.0.0.1:3199/diag`，`?beacon=<url>` 可覆盖）——「看不到设备屏幕」时用它取证：本机起一个把 body 追加到 `~/tmp/mobile-nav-diag.jsonl` 的小服务即可，页面侧无需人工念数字/截图（截图也读不了，模型无图像输入）。payload 含 `build` 字段（2026-10-10 起 = 运行时 bundle `rev`，解析不出时为 `?`；**此前是写死的常量串，判版本一律走产物前缀 sha1，别信这个字段**）、`framePad`（= 解析后的 `env(safe-area-inset-top)`，headless 恒 0）、`rightPanel` 形态/padding/rect、`toggle`/`files`/`header`/`titleCluster` 的 rect、UA 与 visualViewport。no-cors + 文本 body 是简单请求（无预检），没有监听器时静默失败。
-- Playwright 验证 DSH Web 移动端布局必须用**全新 browser context**，并通过 `addInitScript` 写入 `localStorage['dsh.sessions.current'] = JSON.stringify({sessionId})`；复用长活 context 会出现「fence-only」假象（见 Pitfalls「bundle 校验」）。点 backdrop 关抽屉时默认点元素中心会被抽屉盖住，改用 `page.mouse.click(x, y)` 点抽屉右侧露出区域。
-- 不要用 Playwright route 拦截插件 `client.js` 并 fulfill 空 body 做 A/B 实验：空响应被缓存后 boot 会报「loaded without registering」并挂起。A/B 用 `git show <commit>:lib/client.js > lib/client.js` 换文件。
-- **认证 token 向用户索要（用户要求，2026-09-21）**：需要认证访问本机 dsh web（浏览器审查、HTTP 取证）时，**先向用户要 token**（重启输出的 `?token=…` URL 即可用），**不要自行跑 `.local-tests/mint-cookie.mjs` 铸 cookie**——mjs 路径依赖签名文件与路径正确，容易卡死；仅在用户明说可用时才作后备。
-- **设备仿真验证优先用 Playwright MCP（本机已装），脚本化回归走原生 CDP**：MCP 自带 Chromium 能起真浏览器打 `127.0.0.1` 的 DSH Web，`browser_run_code_unsafe` 里 `browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })` + 复制 cookie + `addInitScript` 写 `localStorage['dsh.sessions.current']` 就是一台手机；**被桌面布局隐藏的元素必须用 `document.querySelector(sel).click()`，`page.click()` 的可见性检查必失败**；`~/tmp/pw-dsh-tmp` 需先存在，且无 `setSafeAreaInsets`。`playwright-core` 在 android 抛 `Unsupported platform`，所以仓库内脚本一律原生 CDP（`scripts/cdp-probe.mjs` 的 `createCdpClient`）。完整步骤/坑 → `docs/maintenance/pitfalls.md` §探针运行环境。
-- **Termux 上 headless chromium 必须给可写的 `TMPDIR` 与 `XDG_RUNTIME_DIR`**（指到 `~/tmp` 下自建目录），否则 ProcessSingleton 建 socket 失败、CDP 端口永不上线；探针的 `DSH_PROBE_CHROME` 可用 `chromium-browser`（2026-09-18 契约探针整跑实测），异常时直指真实 ELF；临时脚本/截图放 `~/tmp/` 用完清理。完整命令与 cookie TTL → `docs/maintenance/pitfalls.md` §探针运行环境。
-- Validate compatible third-party versions when exercising integrations（2026-09-19 修正）：**判据是 `~/.dsh/profiles/web/cordis.patch.yml` 的行启用状态，不是 node_modules 里装没装**——2026-09-19 实测 25+ 行全部 `disabled: true`（market/usage-stats/genui/task-board/pet/ssh/skin-center…），唯一启用的 web-all 行是 git-graph；包在树里 ≠ DOM 在场。当前实装：`dsh-web-mobile`、`@dsh-external/seshat`、`@linxin666/dsh-web-all`（仅 git-graph 行）。@omdsh-dev/dsh-genui 与 @changfenhuang/dsh-genui 包逐字节相同（迁移副车）。行状态变更后先重跑 `docs/debug/settings-market-debug-map.md` §5。
-- **未安装的第三方插件不做实机复现（用户要求，2026-09-22）**：修复目标插件本机从未安装时（如 #60 的 @hytime/dsh-thinking-effort），验证止步于静态对账 + 单元锚 + 报障者实测数据交叉验证，不装插件、不上机索 token；用户装好后主动要实机验收再说。
-
-- **外部贡献合并前必须过「与既有体系冲突」检查**（#47 教训，2026-09-06 补课）：外部贡献者不知道仓库已有什么——PR #47 的 iOS floor 方案与仓库既有 16px 下限体系（misc.css `html[data-mobile-nav-ios]` 门控）冗余且会引入第二次 viewport 改写。合并 fork/PR 前先盘点与本改动同域的既有机制（viewport 所有权、16px 下限、手势让位、marker 契约清单、composer 固定控件三件套），逐一判断贡献是冗余、冲突还是互补；冗余部分砍掉、冲突部分以仓库体系为准，互补才并入。
+- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（59 个测试文件，另含 CSS 结构与补丁登记两道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
+- **验收场景（窄手机 ~390 / 平板 768–1023 / 桌面 ≥1024 与窄桌面窗口）+ 探针环境（Playwright MCP 配方、全新 context、Termux TMPDIR、真机读数通道）见 `docs/maintenance/verification-playbook.md`**；探针环境的坑 → `docs/maintenance/pitfalls.md` §探针运行环境。
+- 手机端调试加 `?mobile-nav-debug=1`；`pnpm smoke:cdp` 是定点冒烟探针，**不能替代**真实 profile 验收。
+- **认证 token 向用户索要（用户要求，2026-09-21）**：需认证访问本机 dsh web 时**先向用户要 token**（重启输出的 `?token=…` URL 即可用），**不要自行跑 `.local-tests/mint-cookie.mjs` 铸 cookie**。
+- Validate compatible third-party versions：**判据是 `~/.dsh/profiles/web/cordis.patch.yml` 的行启用状态，不是 node_modules 里装没装**。行状态变更后先重跑 `docs/debug/settings-market-debug-map.md` §5。
+- **未安装的第三方插件不做实机复现（用户要求，2026-09-22）**：修复目标插件本机从未安装时，验证止步于静态对账 + 单元锚 + 报障者实测数据交叉验证，不装插件、不上机索 token。
+- **外部贡献合并前必须过「与既有体系冲突」检查**（#47 教训）：合并 fork/PR 前先盘点同域既有机制，逐一判断冗余/冲突/互补；冗余砍掉、冲突以仓库体系为准、互补才并入。
 
 ## Maintenance
 
-- **fork wzxmt-zhc 对账/摘抄专项文档（本地不上传）**：`docs/fork-wzxmt-zhc/` —— README（对账快照 + 接手协议）、`backlog.md`（摘抄清单与决策，三档：直接摘/对账合并/参考不摘）、`log.md`（推进日志，做完一步记一条）。接手该专项先读 README；动手前必须重新 fetch fork（未配置 remote，命令在 README 接手协议里），快照会过时。**该目录 2026-10-13 起不进 git**（用户要求 docs 下只上传 maintenance 与 debug），只在本机可读。
-- This file is a living reference. Whenever you discover a new repo-specific command, convention, or pitfall, update it in place.
-- **体积门槛（2026-09-18 起）**：本文件受工作区指令预算 ~64 KB 限制，超了会被**静默截尾**（末尾内容每轮丢失；实测 65,443 B 时 `## 维护入口` 末条长期读不到）。所以这里只写命令、约定、契约、触发词索引与一两行的铁律；凡是「说不清、要摆证据」的内容一律进 `docs/`（坑位 → `docs/maintenance/pitfalls.md`，设计 → `docs/specs/`，审计 → `docs/audits/`），本文件只留一行指针。
-- **知识去向（用户偏好，2026-09-18 拍板）**：零碎的规矩 / 要求 / 偏好 → **写进本文件对应节**，不要只存进记忆（记忆跨会话，但它不能替代仓库文档，而本文件是每个会话都必然读到的那份）；需要推导 / 证据 / 大段流程 / 实测数字的内容 → `docs/`（坑位 → `pitfalls.md`，设计 → `specs/`，审计 → `audits/`，调试考古 → `debug/`，上游契约 → `upstream/`）。记忆只留「跨会话需要主动回忆的教训」，且不得成为某条规矩的唯一存放处。
-- **同一 worktree 有并发写者时**：别人可能把你**未提交**的工作区改动一起提交走（症状：`git status` 突然变空、`git diff --exit-code HEAD -- lib` 返回 0 却不是你的提交）。别据此重做改动或补空提交——先 `git show HEAD:<file>` 确认内容已在；提交只 `git add` 自己点名的路径，**绝不 `git add -A`**。
-- **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：本仓有高频并发的另一制作人（提交与合并是两个账号），本地 `main` 可能落后几十个提交而毫无提示——`git log main` 看着「没有」的修复，其实早已随别人的 PR 落地（2026-10-10 实测：本地 `main` 落后 30 个提交、自认「未上 main」的多行粘贴修复实际已在）。判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`（纯本地，不动远端）。**反方向同样成立且更阴**：本地 `main` 也可能**领先**，领先的提交里夹着「本地合并的、GitHub 上仍 OPEN 的 PR」（2026-10-11 实测：PR #201 在 GitHub 是 OPEN，本地 `main` 却已有一条纯本地的 `Merge pull request #201`，从未推送）。**开新分支一律从 `origin/main` 起**（`git checkout -b <branch> origin/main`），别从本地 `main` 起——否则未合并 PR 的内容会被无声带进新 PR（实测代价：PR #203 首版 9 个提交，其中 7 个是 #201 的，只能 force-push 重做）。
-- **监督者不要在写者运行期间改它范围内的文件（2026-10-12 实测，方向危险但本次无害）**：派出去的写者仍在跑验证时，监督者改了 `tests/architecture.test.ts` 的一条台账（6 → 5，方向是收紧）。写者随后把该改动判定为「**外部并发写者**」并写进回执、选择不回改——处置是对的，但它只差一步就可能把我的修正**覆盖回去**，或据此怀疑自己的验证结果。判据：**「最近 3 分钟有文件改动」= 写者还在干活，不是已停**（本次就是据此误判的）。要改它范围内的东西，必须**等它产出完工回执之后**再动；一次性 `subagent` 不可寻址（`send_message` 报 `active teammate not found`），所以**约束必须一次写进首次任务书**，事后没有补救通道。
-- **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：本仓有高频并发的另一制作人（提交与合并是两个账号），本地 `main` 可能落后几十个提交而毫无提示——`git log main` 看着「没有」的修复，其实早已随别人的 PR 落地（2026-10-10 实测：本地 `main` 落后 30 个提交、自认「未上 main」的多行粘贴修复实际已在）。判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`（纯本地，不动远端）。
-- **文档写法（用户偏好，每次写文档都适用）**：变更条目只描述结果、不写过程；功能不列举特点细节；README「更新内容」条目按 v3.0.0 段样式写结果导向一句话，机制与根因细节只进 Release notes（2026-10-03 用户裁定）；计数条目（探针 / 测试 / spec 篇数）在 README 与 AGENTS.md 两处必须同步——`tests/` 文件数由 `tests/docs-consistency.test.ts` 在 `test:core` 里强制（新增测试文件的提交必须同改 AGENTS.md 树行与 Testing 节两处，否则计数门直接红）；README「未发布」段参数定稿前先对源码常量核对。
-- Keep it accurate and concise; remove stale entries as the codebase changes (e.g. removed features, renamed files, new scripts).
-- Verify claims against source before writing them; do not preserve guidance that no longer matches the current tree.
+- **fork wzxmt-zhc 专项（本地不上传）**：`docs/fork-wzxmt-zhc/` —— README（对账快照 + 接手协议）、`backlog.md`（三档：直接摘/对账合并/参考不摘）、`log.md`。接手先读 README；快照会过时。**该目录 2026-10-13 起不进 git**，只在本机可读。
+- **体积门槛（2026-10-14 定档）**：工作区指令预算是**共享的 65,536 B**——`~/.dsh/AGENTS.md`（全局，33,266 B）+ 本文件 + 嵌套 AGENTS.md 一起算，超了从**最不具体的一端整份丢弃**（实测：本文件 45,513 B 时全局那份每轮被丢）。所以**本文件硬顶 30,000 B**（`tests/docs-consistency.test.ts` 强制）。只写命令、约定、契约、触发词索引与一两行铁律；**per-item 描述下沉披露层**（`src/client/AGENTS.md`、`src/client/effects/AGENTS.md`，改该目录文件时自动进入上下文）；推导/证据/大段流程/实测数字进 `docs/`（坑位 → `pitfalls.md`，验证流程 → `verification-playbook.md`，协作流程 → `collaboration-rules.md`，设计 → `specs/`），一次性事故复盘进 `docs/handover/`。
+- **知识去向（用户偏好，2026-09-18 拍板）**：零碎的规矩 / 要求 / 偏好 → **写进本文件对应节**，不要只存进记忆（记忆跨会话，但不能替代仓库文档）；需要推导 / 证据 / 大段流程 / 实测数字的内容 → `docs/`。记忆只留「跨会话需要主动回忆的教训」，且不得成为某条规矩的唯一存放处。
+- **同一 worktree 有并发写者时**：别人可能把你**未提交**的工作区改动一起提交走。别据此重做改动或补空提交——先 `git show HEAD:<file>` 确认内容已在；提交只 `git add` 自己点名的路径，**绝不 `git add -A`**。
+- **判断「某修复在不在 main 上」一律以 `origin/main` 为基准，别信本地 `main` ref**：判前先 `git fetch origin --prune`，用 `git rev-list --left-right --count origin/main...HEAD` 看真实时差；对齐 = `git checkout main && git merge --ff-only origin/main`。**开新分支一律从 `origin/main` 起**（`git checkout -b <branch> origin/main`）。
+- **监督者不要在写者运行期间改它范围内的文件**：要改写者范围内的东西，**等它产出完工回执之后**再动。一次性 `subagent` 不可寻址（`send_message` 报 `active teammate not found`），所以约束必须一次写进首次任务书，事后没有补救通道。
+- **文档写法（用户偏好，每次写文档都适用）**：变更条目只描述结果、不写过程；功能不列举特点细节；README「更新内容」条目按 v3.0.0 段样式写结果导向一句话，机制与根因细节只进 Release notes（2026-10-03 用户裁定）；计数条目（探针 / 测试 / spec 篇数）在 README 与 AGENTS.md 两处必须同步——`tests/` 文件数由 `tests/docs-consistency.test.ts` 在 `test:core` 里强制（新增测试文件必须同改树行与 Testing 节两处）；README「未发布」段参数定稿前先对源码常量核对。
+- Keep it accurate and concise; remove stale entries（见体积门槛条）. Verify claims against source before writing them.
+- 一次性事故复盘（AGENTS.md 瘦身、v3.1.0 并线判断、并发写者、PR #203 带错提交、热装载三次事故）见 `docs/handover/2026-10-14-agents-md-slim-oneoffs.md`（本地不入库）。
 
 ## 维护入口
 
-- **GitHub Release 文案规格（用户要求，2026-09-20）**：Release notes 照 v2.4.1/v2.3.0 文章体例，不许直接贴 README 段落——`## vX.Y.Z · 一句话摘要` 开头 + 导语段（本版是什么、桌面 no-op 承诺、旧宿主回退建议）+ **致谢行必写**（v2.4.0 体例：「特别感谢合作人 @x（PR #63/#65：具体贡献）」+ 社区贡献与报障逐个 `@handle（#NN 报障 / PR #NN）`；条目标题带 `（#NN by @handle）`归属。署名从 GitHub 实测取：PR author + commit author + issue reporter，且只列修复确实落在本 tag 区间的——用 close 日期、closed_by 提交、`git log vA..vB` 引用三路核对，未合并的 PR 与仍 open 的报障不计）+ `### 安装`（DSHA 一句 + npm 代码块 + GitHub 直装行 + 旧名迁移提示）+ `### 新功能` / `### 修复`（`**症状**：根因 + 修法` 句式）+ `### 兼容`（宿主代际范围 + 已实装验证的第三方版本号）+ `### 完整提交`（提交少时逐条 short-hash；大版本列里程碑提交，收尾必带 `compare/vA...vB` 完整变更对比链接）。**README「更新内容」段发版时同步写**（2026-09-25 用户拍板；版本合并补发时按「上游 tag 之后所有改动并入本版」口径整理，Release notes 仍单独写、不贴 README 段落）。
-- **README 版本段必须覆盖同一版本线的全部 pre-release（用户要求，2026-10-13 纠错）**：Release notes 是按 tag 分页的（`.../releases/tag/vX.Y.Z` 与 `.../releases/tag/vX.Y.Z-rc.N` 是两页），写某一版的 README「更新内容」前，先把该版本线的**每个 tag 页都取回**（rc / beta / alpha 逐个），与最高版本那页做 diff —— 多数情况下后者是前者的超集，这时按最高版写即可；**只要 diff 出 pre-release 独占条目，就必须一并写进该版的段里**（2026-10-13 实测：v3.1.0 页相对 v3.1.0-rc.1 页仅多一条 C08，零删除行 = rc.1 是其真子集）。不许只读最高版那一页就动笔，也不许凭「我是按 Release 写的」推定已覆盖——推定不算数，要 diff。
-
-- CI：`.github/workflows/ci.yml`——verify → test:core → build → **`node scripts/client-bundle-smoke.mjs`（白屏门，2026-10-07 接入）** → `git diff --exit-code lib`（lib 新鲜度门）。**本地照抄这条会假绿**：它比的是**工作区↔索引**，`git add` 之后恒真，源码没提交也能过（本分支出过两个只装 `lib/` 的提交）。本地正确判据＝源码与 `lib/` 同一提交 → 再 `pnpm build` → `git diff --exit-code HEAD -- lib`；另加 `git status --porcelain --ignored lib` 必须为空（`git diff` 看不见未跟踪孤儿产物，而 tsc 从不清理 outDir）。**推 `fix/*` 分支不触发任何 CI**（workflow 只监听 main + PR），所以「推上去了」≠「被检查过」。
+- **GitHub Release 文案规格（用户要求，2026-09-20）**：Release notes 照 v2.4.1/v2.3.0 文章体例，不许直接贴 README 段落——完整规格（七段写法 + 署名三路核对法）见 `docs/maintenance/release-notes-spec.md`。【README「更新内容」段发版时同步写】（2026-09-25 用户拍板）。
+- **README 版本段必须覆盖同一版本线的全部 pre-release（用户要求，2026-10-13 纠错）**：Release notes 按 tag 分页（`.../releases/tag/vX.Y.Z` 与 `.../releases/tag/vX.Y.Z-rc.N` 是两页），写某版 README「更新内容」前先把该版本线**每个 tag 页都取回**（rc/beta/alpha 逐个）与最高版那页做 diff；**只要 diff 出 pre-release 独占条目就必须一并写进**。不许只读最高版那一页就动笔，也不许凭「我是按 Release 写的」推定已覆盖——推定不算数，要 diff。
+- CI：`.github/workflows/ci.yml`——verify → test:core → build → `node scripts/client-bundle-smoke.mjs`（白屏门）→ `git diff --exit-code lib`（lib 新鲜度门）。**本地照抄这条会假绿**（比的是工作区↔索引，`git add` 后恒真）：本地正确判据＝源码与 `lib/` 同一提交 → 再 `pnpm build` → `git diff --exit-code HEAD -- lib`，另加 `git status --porcelain --ignored lib` 必须为空。**推 `fix/*` 分支不触发任何 CI**（workflow 只监听 main + PR），所以「推上去了」≠「被检查过」。
 - 引擎底线：`package.json` engines `node >=24.0.0`（tests 依赖 Node 原生 TS type-stripping）。

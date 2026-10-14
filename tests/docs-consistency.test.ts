@@ -3,8 +3,9 @@
 // Keeps four drift classes out of the tree:
 // 1. AGENTS.md must reference only tracked assets that actually exist
 //    (dead-reference class — the original multi-maintainer audit P0-1).
-// 2. AGENTS.md must stay within the session-instruction budget (65536
-//    bytes); narrative overflow belongs in docs/maintenance/pitfalls.md.
+// 2. AGENTS.md must stay within the shared workspace-instruction budget
+//    (65,536 bytes across the global ~/.dsh/AGENTS.md, this root file and any
+//    nested AGENTS.md); narrative overflow belongs in docs/.
 // 3. The machine-readable contract layer (docs/upstream/compat-contracts.json)
 //    and the pitfalls archive (docs/maintenance/pitfalls.md) must stay
 //    parseable and non-empty, because the condensed AGENTS.md entries point
@@ -25,7 +26,15 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const readRepoFile = (relPath: string) => readFile(join(root, relPath), 'utf8')
 
-const SESSION_INSTRUCTION_BUDGET_BYTES = 65_536
+// The 65,536-byte workspace-instruction budget is SHARED: the renderer batches
+// the global ~/.dsh/AGENTS.md (33,266 B), this root file and any nested
+// AGENTS.md under one ceiling and drops whole files from the least specific
+// end once the batch stops fitting — so an oversized root file silently evicts
+// the global instructions every turn (measured 2026-10-14: 45,513 + 33,266 =
+// 78,779 B, global file dropped). The ceiling is derived from that sum, not
+// from this file alone: 30,000 keeps the global file plus framing overhead
+// inside the budget with ~2 KB to spare.
+const SESSION_INSTRUCTION_BUDGET_BYTES = 30_000
 
 const REFERENCED_PATH_PATTERN =
   /(scripts\/probes\/[\w.-]+\.mjs|scripts\/cdp-[\w-]+\.mjs|docs\/specs\/[\w-]+\.md|docs\/audits\/[\w-]+\.md|docs\/upstream\/[\w-]+\.(?:md|json)|docs\/maintenance\/[\w-]+\.md)/g
