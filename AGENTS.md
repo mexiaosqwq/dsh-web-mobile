@@ -39,10 +39,10 @@
   │  ├─ patch-registry-check.mjs ← 补丁登记门禁：@patch 四要素（for/why/until/test）+ 表↔码双向一致（已接入 test:core）
   │  ├─ lib/                 ← 探针共用模块（错误基线匹配、CDP 客户端、宿主场景、判定）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 59 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 60 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
-  │  ├─ maintenance/         ← pitfalls.md（67 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md ← 入库
+  │  ├─ maintenance/         ← pitfalls.md（68 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md ← 入库
   │  ├─ upstream/            ← runbook + 2 篇 compat audit + compat-contracts.json + host-jank-feedback.md ← 入库
   │  └─ audits/ · handover/ · fork-wzxmt-zhc/ · debug/ · superpowers/ ← 本地不入库（docs 下只上传 maintenance 与 debug）
   ├─ .github/workflows/ci.yml ← verify → test:core → build → bundle smoke → git diff --exit-code lib
@@ -56,7 +56,7 @@
 
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP；§8=rc.1 复测、§9=rc.2 portal 换锚对照）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
-- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（67 坑原文，名字=锚点，索引在下方 Pitfalls 节）
+- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（68 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约：slot/reconciler/样式/选择器/风格；改该目录文件时自动进入上下文）
 - 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（跨模块形状约束 + 模块索引 + 源码未覆盖的细节；逐模块背景在各自文件内文档块）
 - 做验收或起探针环境 → `docs/maintenance/verification-playbook.md`（三档验收场景 + CDP/Playwright MCP/Termux 配方）
@@ -142,7 +142,7 @@ dsh web
 
 ## Pitfalls
 
-- **67 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md`，锚点 `### <名字>`；新增坑位 = 名字加进下面清单 + 原文写进该档并补同名锚点。**动手改某块代码前先按名字读对应条目**——里面是最硬铁律、实测数据与被否决方案。
+- **68 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md`，锚点 `### <名字>`；新增坑位 = 名字加进下面清单 + 原文写进该档并补同名锚点。**动手改某块代码前先按名字读对应条目**——里面是最硬铁律、实测数据与被否决方案。
 
 - `手势层`
 - `files 手势`
@@ -211,10 +211,11 @@ dsh web
 - `双层底`
 - `卡片命中`
 - `header 座位归属`
+- `第三方成本上限`
 
 ## Testing & QA
 
-- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（59 个测试文件，另含 CSS 结构与补丁登记两道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
+- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（60 个测试文件，另含 CSS 结构与补丁登记两道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
 - **验收场景（窄手机 ~390 / 平板 768–1023 / 桌面 ≥1024 与窄桌面窗口）+ 探针环境（Playwright MCP 配方、全新 context、Termux TMPDIR、真机读数通道）见 `docs/maintenance/verification-playbook.md`**；探针环境的坑 → `docs/maintenance/pitfalls.md` §探针运行环境。
 - 手机端调试加 `?mobile-nav-debug=1`；`pnpm smoke:cdp` 是定点冒烟探针，**不能替代**真实 profile 验收。
 - **认证 token 向用户索要（用户要求）**：需认证访问本机 dsh web 时**先向用户要 token**（重启输出的 `?token=…` URL 即可用），**不要自行跑 `.local-tests/mint-cookie.mjs` 铸 cookie**。
