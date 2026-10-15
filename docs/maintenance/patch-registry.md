@@ -31,7 +31,7 @@
 | 模块 | `!important` | 哈希子串选择器 | `:has(` |
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 478 | 508 | 258 |
-| `src/client/styles/compat.css.ts` | 386 | 113 | 20 |
+| `src/client/styles/compat.css.ts` | 385 | 113 | 20 |
 | `src/client/styles/misc.css.ts` | 51 | 18 | 12 |
 | `src/client/styles/base.css.ts` | 15 | 2 | 11 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
@@ -51,6 +51,6 @@
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
-| **合计** | **939** | **705** | **304** |
+| **合计** | **938** | **705** | **304** |
 
 <!-- END:inventory -->

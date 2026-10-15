@@ -1306,78 +1306,29 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   /* @patch
      id: ofm-mobile-cost-ceiling
      for: dsh-our-free-model 2.0.0 的 ofm_ 私有类名（毛玻璃表面 + 极光层 + 装饰动画）
-     why: 上游把设置页做成一张 11135px 的 backdrop-filter 大面 + 常驻全屏极光，DPR 2 下模糊表面超出驱动 MAX_TEXTURE_SIZE；插件侧没有手机档成本降级，本插件只能用自己的手机档样式兜
+     why: 上游把设置页做成一张超长 backdrop-filter 大面 + 常驻全屏极光，插件侧没有手机档成本降级，本插件只能用自己的手机档样式兜
      until: 上游自己给手机档出成本降级（或拿掉极光层与 blur 表面）——届时本块整节删除
      test: tests/our-free-model-cost.test.ts
   */
   /* ---------- dsh-our-free-model: mobile cost ceiling ----------
-     The plugin's own settings page is one very tall translucent sheet
-     (measured: a single .ofm_panel 11135px high once the announcement
-     centre expands) plus a fixed full-screen aurora of three 40vw+
-     circles under filter: blur(70px), 5 backdrop-filter rules (8
-     selectors) and 18 keyframes, 15 of them driven by
-     animation: ... infinite. We neutralise the decorative ones -- the
-     keyframes behind .ofm_aurora i / .ofm_wave / .ofm_tankrays /
-     .ofm_fish / .ofm_bubble, i.e. ofmdrift / ofmwave / ofmrays /
-     ofmswim / ofmbub -- and deliberately keep the stateful ones:
-     ofmpulse + ofm-skel-shine (loading skeleton and the busy/over pool
-     dot), ofm-dot-breathe (the ok status dot), ofm-prog-slide +
-     ofm-prog-shine (progress bar), ofm-btn-spin (aria-busy button).
-     Those report state, not decoration.
+     该插件设置页在手机上卡顿掉帧。实测数字、驱动限制与验证方法见
+     docs/maintenance/pitfalls.md「第三方成本上限」——这里只记为什么这么写。
 
-     .ofm_scanline is NOT in that list. Its only mount point is the
-     login-wait hint, h('p', { className: 'ofm_note ofm_scanline' },
-     t('chan.login.waiting')) -- it says "waiting for authorization",
-     and upstream's own prefers-reduced-motion block stops only wave /
-     bubble / fish / tankrays. Killing it would remove the only motion
-     cue from a state the user is actively waiting on.
+     选择器用裸的 ofm_ 前缀类名，不加任何祖先锚。设置页经 createPortal 挂到
+     document.body，[data-mobile-nav="frame"] 后代选择器一个都不命中；而
+     .ofm_scrim 与 .ofm_toast 也 portal 到 body，锚 .ofm_root 同样漏。前缀是
+     本插件独占（宿主与全仓 0 命中），锚根买不到隔离，只赔掉 portal 出去的那几块。
 
-     Cost, in order of weight:
-     1. The tall backdrop-filter surface. At DPR 2 an 11135px panel asks
-        for a ~700x22270 blur surface, past the 16384 MAX_TEXTURE_SIZE
-        the Adreno/Turnip driver reports -> the blur is rasterised the
-        slow way, and every scroll tick re-clips it. This is the "卡".
-     2. The aurora layer: position:fixed inset:0, always present,
-        carrying three large blurred circles that never stop moving.
-     3. .ofm_tankrays animates a repeating-linear-gradient under
-        mix-blend-mode:soft-light, which repaints its whole stacking
-        context every frame; .ofm_wave animates background-position,
-        which is not compositor-accelerated either.
+     只砍装饰，且按「遮罩 vs 表面」分两组——同一个「去 blur」动作，两类需要相反
+     的补法：表面按半透明设计，只摘 filter 会让页面从下面透出来，故补不透明底；
+     .ofm_scrim 是蒙层，补底等于把整页涂黑，故只摘 filter。
 
-     Scope, in both directions. The settings sheet is rendered through
-     createPortal into document.body (rc.2), so it is NOT inside
-     [data-mobile-nav="frame"] -- a frame-scoped rule silently misses it
-     (verified live: .ofm_root -> ... -> BODY). But .ofm_root is not a
-     safe anchor either: .ofm_scrim (urgent + login modals) is appended
-     straight to document.body, and .ofm_toast lives on a .ofm_toasts
-     host the plugin also attaches to body. So these rules key on the
-     bare ofm_-prefixed class names -- the prefix is unique to this
-     plugin (grep: 0 hits in the DSH host, 0 elsewhere in this repo), so
-     anchoring on .ofm_root would buy nothing and lose the portaled
-     surfaces.
+     带状态的动画一律保留（loading 骨架、池子 busy/over 点、状态点、进度条、
+     aria-busy 按钮）。.ofm_scanline 看着像装饰，实则挂在登录等待提示上，上游
+     自己的 prefers-reduced-motion 块也不杀它。
 
-     Tier note: this block sits in the TOP-LEVEL mobile query
-     (max-width: 1023px + pointer: coarse), so touch tablets 768-1023
-     get it too -- deliberately. This is a COST fix, not a layout fix:
-     MAX_TEXTURE_SIZE caps a single dimension, and an 11135px panel at
-     DPR 2 asks for 22270px no matter how wide the screen is (a wider
-     tablet asks for MORE blurred area, not less). The 767px tier right
-     below this one is a LAYOUT rule (cell width vs screen width) and
-     carries its own narrower bound for that reason.
-
-     We only trade away decoration: no content, control, or layout
-     changes. Upstream already ships the same degradation for
-     prefers-reduced-motion, so this is their intent, not a fight
-     against it. The 4 !important declarations OFM itself uses are
-     aria-busy + reduced-motion, neither competes with these.
-
-     Two groups, because a mask and a surface need opposite fixes:
-     - surfaces (nav / glass / hero / panel / ann / modal / toast) are
-       translucent by design; dropping the filter alone leaves the page
-       scrolling through them (screenshot-verified ghosting), so they
-       get an opaque background instead.
-     - .ofm_scrim is a modal mask: it must stay translucent, so it only
-       loses the filter. */
+     本块在顶层手机档（≤1023px + pointer: coarse），触屏平板也吃到——有意为之：
+     这是成本修复不是布局修复，与屏宽无关。 */
   .ofm_aurora {
     display: none !important;
   }
