@@ -167,22 +167,18 @@ test('header chips (2026-10-12 换位后，手机档作用域): jobs dot in the 
   // ⓪ 前提：本批的顶栏改动确实都在手机档作用域里（不是散在共用档）
   assert.ok(scoped.some(inPhone), '手机档作用域统一条件缺失')
 
-  // ① 后台任务 chip：手机档进标题行（static + order 9 + 2px 左间隔），按钮去掉贴底的 9px
-  assert.equal(phoneDecl(scoped, 'QsffPG_root', 'position: static !important'), true,
-    'jobs chip 应已进标题行（static），且写在手机档作用域里')
-  assert.equal(phoneDecl(scoped, 'QsffPG_root', 'order: 9 !important'), true,
-    'jobs chip 的 order:9 必须在手机档作用域里')
-  assert.equal(phoneDecl(scoped, 'QsffPG_root', 'margin: 0 0 0 2px !important'), true,
-    'jobs chip 的 2px 左间隔必须在手机档作用域里')
-  assert.equal(phoneDecl(scoped, 'QsffPG_root', 'padding: 0 2px !important'), true,
-    'jobs 按钮要去掉贴底用的 9px 下内边距（那是标签行形态），且只在手机档')
-  // 共用档（= 平板档）必须还是本批之前的「标签行右端」形态
-  assert.equal(sharedDecl(scoped, 'QsffPG_root', 'position: absolute !important'), true,
-    '共用移动档里 jobs chip 必须是本批之前的 absolute（标签行右端）')
-  assert.equal(sharedDecl(scoped, 'QsffPG_root', 'bottom: 0 !important'), true,
-    '共用移动档里 jobs chip 必须保留本批之前的 bottom:0')
-  assert.equal(sharedDecl(scoped, 'QsffPG_root', 'padding: 0 2px 9px !important'), true,
-    '共用移动档里 jobs 按钮必须保留本批之前的 9px 下内边距')
+  // ① 后台任务 chip：宿主 0.2.1 起包裹 div 无类名，QsffPG_root 那套座位规则已整块
+  //    删除（2026-10-17）。现行规则按「trigger 直接挂 _count」的形状锚收窄，钉在
+  //    文件末那条「job chip collapses by shape」里；这里只守「旧钥匙不得复活」。
+  //     唯一的合法残留是命中盒归零规则里的 :not(...) 排除项（它的特异性承重，不能删），
+  //     故这里只禁「正向锚」：注释挖空后每一处出现都必须紧跟在 :not( 之后。
+  const css = layoutSource().replace(/\/\*[\s\S]*?\*\//g, '')
+  for (let i = css.indexOf('[class*="QsffPG_root"]'); i !== -1; i = css.indexOf('[class*="QsffPG_root"]', i + 1)) {
+    assert.equal(css.slice(Math.max(0, i - 5), i), ':not(',
+      'QsffPG_root 只能作为 :not() 排除项存在；正向座位规则复活即静默死代码')
+  }
+  assert.doesNotMatch(css, /\[class\*="_root"\][^{]*\[class\*="_count"\]/,
+    '宽度门控的冗长计数隐藏规则已被形状锚规则取代，不得复活')
 
   // ② 子智能体 chip：标签行右端；top 值手机档 42 / 共用档 48
   assert.equal(sharedDecl(scoped, 'ZKlsPq_root', 'top: 48px !important'), true,
@@ -263,8 +259,10 @@ test('tablet tier keeps the pre-batch geometry through the shared mobile block (
   assert.doesNotMatch(layout, /padding-right: 118px !important/, '惰性预留规则不得回来')
 
   // 共用移动档 = 本批之前的值：这几条是「平板档不变」的源码级锚
-  assert.equal(sharedDecl(scoped, 'wSkVaW_titleCluster', 'padding-right: 46px !important'), true,
+  assert.equal(sharedDecl(scoped, 'wSkVaW_titleCluster', 'margin-right: 46px !important'), true,
     '共用档标题簇预留必须是本批之前的 46px')
+  assert.equal(sharedDecl(scoped, 'wSkVaW_titleCluster', 'padding-right: 0 !important'), true,
+    '预留必须记在 margin 上：padding 预留挡不住溢出（滚动容器的裁剪线在 padding box）')
   assert.equal(sharedDecl(scoped, '[data-mobile-nav="files"]', 'right: 8px !important'), true,
     '共用档文件夹按钮必须是本批之前的 right:8px')
   assert.equal(sharedDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'flex: 0 0 36px !important'), true,
@@ -276,8 +274,32 @@ test('tablet tier keeps the pre-batch geometry through the shared mobile block (
   assert.equal(sharedDecl(scoped, '_headerActions', 'gap: 4px !important'), true,
     '共用档动作行间距必须是本批之前的 4px')
   // 手机档的四个新值必须与共用档成对存在（否则就是漏搬，平板会被迫吃新值）
-  assert.equal(phoneDecl(scoped, 'wSkVaW_titleCluster', 'padding-right: 34px !important'), true)
+  assert.equal(phoneDecl(scoped, 'wSkVaW_titleCluster', 'margin-right: 34px !important'), true)
   assert.equal(phoneDecl(scoped, '_titleCluster', 'gap: 0 6px !important'), true)
   assert.equal(phoneDecl(scoped, '_headerActions', 'gap: 6px !important'), true)
   assert.equal(phoneDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'flex: 0 0 30px !important'), true)
+})
+
+// 2026-10-17 真机：宿主 0.2.1 的后台任务 chip 只渲染一个**无类名**包裹 div
+// (旧代是 QsffPG_root)。全库以那个 root 为钥匙的规则（隐藏冗长计数 / absolute
+// 座位 / order 搬位）因此全部静默失配 —— 8 字文案回到标题行，标题簇 scrollWidth
+// 372 > clientWidth 342，溢出的 30px 画进文件按钮的预留带、被文件夹图标压住。
+// 这条测试把「不依赖包裹类名」的选择器形状钉住：谁把锚改回 [_root]，手机端就
+// 会再长回那颗长文案 chip。
+test('the job chip collapses by shape, not by the host root class', () => {
+  const scoped = scopedRules(layoutSource())
+  const orderRule = scoped.find((r) => inPhone(r) && r.sel.includes('_headerActions') && r.sel.includes('div:has(> button[class*="_trigger"] > [class*="_count"])'))
+  assert.ok(orderRule !== undefined, 'job chip order rule missing (phone scope)')
+  assert.ok(orderRule.body.includes('order: 9 !important'), 'job chip must sort after the team chip (order 2)')
+  assert.equal(orderRule.sel.includes('_root'), false, 'the 0.2.1 wrapper has no class: do not key on _root')
+
+  const hideRule = scoped.find((r) => inPhone(r) && r.sel.includes('[class*="_headerActions"] button[class*="_trigger"] > [class*="_count"]'))
+  assert.ok(hideRule !== undefined, 'job chip label-collapse rule missing (phone scope)')
+  assert.ok(hideRule.body.includes('display: none !important'), 'the verbose count label must be hidden')
+  assert.equal(hideRule.sel.includes('_root'), false, 'the 0.2.1 wrapper has no class: do not key on _root')
+
+  // 预留必须记在 margin 上：标题簇是滚动容器，padding 预留挡不住溢出。
+  for (const r of scoped.filter((x) => x.sel.includes('wSkVaW_titleCluster'))) {
+    assert.equal(/padding-right:\s*(?!0)[0-9]+px/.test(r.body), false, `reservation must not ride on padding: ${r.sel}`)
+  }
 })
