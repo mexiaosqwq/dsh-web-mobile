@@ -23,7 +23,6 @@ import { installModelMenuKeyboardGuard } from './effects/model-menu-keyboard-gua
 import { installPluginCardTap } from './effects/plugin-card-tap.ts'
 import { installInstalledListRows } from './effects/installed-list.ts'
 import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
-import { installReasoningDefaults } from './effects/reasoning-defaults.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
 import { installComposerFilePicker } from './effects/composer-file-picker.ts'
@@ -226,7 +225,6 @@ export function apply(ctx: ClientContext): void {
   // shadow-focus window per observed session switch swallows that one
   // autofocus; real taps are unaffected.
   installSessionFocusGuard(ctx)
-  installReasoningDefaults(ctx)
 
   // Multi-line paste after an IME commit keeps only the first line (host
   // Lexical routes Android's insertText paste through the text-insertion

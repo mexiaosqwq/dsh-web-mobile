@@ -752,6 +752,7 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 
 ### 手写模型档位补齐
 
+- **2026-10-17 已退休（代码删除，坑位留档）**：上游 0.2.1-alpha.4 起「模型」设置页内置逐模型推理等级编辑器（开关关闭 = 删除字段，见 `@deepseek-ai/dsh-client-ui-settings-models/lib/client.js:303-311,396-403`），自动填充与其开关语义冲突——用户关掉后会被 10s sweep / `document-updated` 补回；两半区实现与三份测试已删除。profile 用户层已写入的档位块保留不动（属用户配置，不是代码）。下方为退休前原文，留作判据与失败面参考。
 - **能力落点：宿主半区给「用户自己声明」的 `llm-pi-ai` 模型补默认思考档位**（2026-10-07）。官方「模型」设置页源码里明确写着 `There is deliberately no reasoning-effort control, here or on the editor card`——档位是 per-MODEL 能力、同一 provider 下各模型不一致，provider 级控件会被部分模型拒绝；于是自定义 API 的模型在 composer 里没有「推理等级」，只能手写真值（profile patch 的 `providers.<route>.models[].reasoningEfforts`）。`src/reasoning-effort.ts` 在 `apply()` 里注册一次填充：`settings.describe()` 取 `llm-pi-ai` 描述符，`value`（合并后的活配置）决定**哪里缺**、`user`（profile patch 层）决定**能写什么**；缺档位的用户条目补 `{ off: null, high: 'high', max: 'max' }`，一次 `settings.mutate('llm-pi-ai', ops, revision)` 落盘；`settings/document-updated` 命中 `llm-pi-ai` 时再跑一次 ⇒ 在「模型」页新加的自定义模型立刻有档位，不用重启。
 - **三条硬边界（每条都有依据，不许放宽）**：①**只写用户层**——`models` 是数组，配置分层对数组是**整段替换**（`mergeLayers`：`if (!isPlainObject(under) || !isPlainObject(over)) return over`），把下层（组合 base / 已安装目录）的条目物化进用户层会**丢掉它的 `name`/`contextWindow`/`input`/`compat`**，所以下层模型只计数、不写；②**已声明档位的一律不碰**（用户条目与其解析后条目都查），手写的 wire 拼写（把 `high` 映射成网关的 `ultra`）必须存活；③**settings 服务缺席（老宿主）整条惰性化**，写失败只回 `failed` 状态、绝不 throw 进宿主事件链。
 - **写入带 `describe()` 同一次读到的 `revision`**：用户可能正在「模型」页编辑，`mutate` 的 `expectedRevision` 让并发编辑以 conflict 被拒绝，而不是互相覆盖（被拒绝只是晚一轮，`document-updated` 会再触发）。
@@ -795,3 +796,13 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 - **验证必须做反事实对照**：同一套规则，手机档（390×844 + touch）实测 `.ofm_panel` 计算 `backdrop-filter: none` + 不透明底、`.ofm_aurora` `display:none`、`.ofm_wave` `animation-name: none`；桌面档（1280×900，无 touch 仿真）注入同 class 元素实测**仍保留 `blur(18px) saturate(1.55)`、极光仍 `block`**——只报「手机上生效」证明不了桌面没被误伤。CSS 结构检测器（`scripts/css-structure-check.mjs`，已接入 `test:core`）同时守住缩进/媒体查询嵌套。
 - **档位说明**：本块在**顶层**手机档（`max-width:1023px` + `pointer: coarse`），故 768–1023 触屏平板也吃到——**这是有意的**。这是**成本**修复不是**布局**修复：`MAX_TEXTURE_SIZE` 限制单个维度，11135px 面板在 DPR 2 下就是要 22270px，与屏宽无关（平板更宽 → 模糊面积更大 → 成本只增不减）。紧邻的 767px 档是布局规则（列宽 vs 屏宽），才需要更窄的界。
 - 锚：`tests/our-free-model-cost.test.ts`（块在移动媒体查询内、**未**被 frame/根锚住、极光被移除、装饰动画停而状态动画留、表面补底而遮罩不补、@patch 四要素齐全）；`src/client/styles/compat.css.ts` 的 `dsh-our-free-model: mobile cost ceiling` 节。
+
+### 统计条被宿主拆条
+
+- **宿主把 composer 底部那条统计条拆成两个 slot 条目后，`stats-line` 的候选集判据静默失效——标记打不上，整条 stats 与上下文环的 CSS 集体哑火，UI 退回宿主原生形态（2026-10-17，0.2.1-rc.1 实测）**。旧代 `dsh-client-ui-chat` 把 `turns/steps/tok-s` 与 `tok/缓存命中` 渲染进**同一个** `div.bOPqQW_root[data-composer-stats]`；0.2.1 拆成 `ActivityPill` + `UsagePill` 两个 slot 条目，各自是 `span.bOPqQW_anchor[data-composer-stat=…]`，**composerStack 内不再有任何共同的 `_root`**。而 `stats-line.ts` 慢路径的候选集是 `stack.querySelectorAll('[class*="_root"]')`——于是四个候选（输入卡 / Full access / 模型名 / 环）全被下游判据（含 textarea、无 metrics 文本）筛掉，`data-mobile-nav="stats"` 永远打不上，`measureRing` 因拿不到 stats 也挂不上环标记。**症状签名**：统计条回到 12px 药丸、行高 22px、百分比数字露出（`74%` 而非只有环）、环退回 16×20 原生触发器。
+- **判据：宿主升级对账不能只验「规则文本还在」——要验「标记有没有真的打上」**。本次所有 CSS 规则一个字都没坏：手工在活页面补上 `stats` / `stats-ring` 两个标记，28px 行高 / 10px 药丸 / 18px 环 / `inset:-4px` 命中盒**立刻全部复活**。所以「CSS 层零损伤、坏的是 JS 标记判据」这个结论可以用「补标记 A/B」一次性证实或证伪——比逐条读 CSS 快得多，也是这类「静默降级」最快的定位手法。
+- **修法＝候选集分两档、先旧代后新代**（`[class*="_root"]` 先查，`[data-slot]` 兜底），**不要合成一条选择器**：`querySelectorAll` 按文档序返回，而 slot 包装在旧代里是统计条的**祖先**，合成一条会让标记从 `bOPqQW_root` 挪到外层包装，改掉历代验收过的旧代几何。判据本体（metrics 文本锚 / popover 按钮白名单 / textarea 排除）一个字都不用动。
+- **环到 dock 的层数不能写死**：旧实现是 `stats.parentElement.parentElement`。新代标记落在 slot 包装上，两级上溯会**越过 dock 指到 composer 根**（`uV2eYG_root`），环永远找不到。正解是 `locateRing()` 按「谁的 children 里有环候选」向上找，包装层几层都不影响；`measureRing` 与零查询身份校验 `ringIdentitySettled` 共用它（两处判据不许漂移）。
+- **别指望用新代的 `data-composer-stat` 做跨代锚**（这是我提方案时踩的坑）：七代宿主缓存包实测，`data-composer-stats`（复数，挂 `_root`）只在 0.1.5/0.1.7/0.2.0 有，`data-composer-stat`（单数，挂 `_anchor`）**只在 0.2.1 有**，0.1.6-alpha.2 两者皆无。跨代真正稳定的是 pill 的类名子串 `bOPqQW_pill`（七代未变）；`_anchor` 也不能用来判容器（旧代它只出现在 TimePill 内部）。
+- **同型排查**：全仓 effects 里只有 `stats-line` 用 `_root` 做候选集（`subagent-chip-touch` 用的是硬编码 `ZKlsPq`/`h8S2Va` 前缀，另一族；`model-menu-anchor` 仅在注释提及）。下次宿主大版本对账时，`[class*="_root"]` 与任何「父级第 N 层」假设都要重新实测。
+- 锚：`tests/stats-line-fastpath.test.ts`（身份校验必须走 `locateRing` 且判据本体只许一处）+ `tests/architecture.test.ts` 行预算台账；`src/client/effects/stats-line.ts` 的 `locateRing` 与 `mark()` 候选集。
