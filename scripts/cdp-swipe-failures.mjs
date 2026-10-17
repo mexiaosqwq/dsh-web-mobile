@@ -643,6 +643,39 @@ async function main() {
   })
   await ensureClosed()
 
+  // ===== G. 轴锁定前不得 preventDefault（issue #222）=====
+  // headless 对 CDP 合成触摸的纵向手势一律判不可取消（实测注入 touch-action:
+  // none 的固定层也一样：13 个 touchmove 只有 0-1 个 cancelable），手势层先走
+  // !cancelable 的 abort 分支，所以拿真实触摸序列测不到「锁定前是否拦」。这里
+  // 用真实 touchstart 建立 stroke 状态（trackingPointer），再用合成 TouchEvent
+  // （cancelable 可控）直接打真实 handler：未锁轴不得取消，锁轴后必须取消。
+  // 真实滚动后果只能真机验收（headless 不产原生滚动）。
+  const syntheticTouchMovePrevented = (x, y) => `(() => {
+    const t = new Touch({ identifier: 1, target: document.body, clientX: ${x}, clientY: ${y}, screenX: ${x}, screenY: ${y} })
+    const ev = new TouchEvent('touchmove', { cancelable: true, bubbles: true, composed: true, touches: [t], targetTouches: [t], changedTouches: [t] })
+    document.body.dispatchEvent(ev)
+    return ev.defaultPrevented
+  })()`
+
+  await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 40, y: 400 }] })
+  await sleep(60)
+  const gBeforeLock = await evalv(syntheticTouchMovePrevented(40, 340))
+  await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 160, y: 400 }] })
+  await sleep(80)
+  const gAfterLock = await evalv(syntheticTouchMovePrevented(160, 400))
+  await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await sleep(700)
+  const g = await state()
+  record('G1 未锁轴的 touchmove 不被取消(#222)', {
+    ok: gBeforeLock === false,
+    text: `defaultPrevented=${gBeforeLock} (期望 false: 锁定前拦=整笔触摸失去滚动)`,
+  })
+  record('G2 对照:同笔锁轴后的 touchmove 仍被取消', {
+    ok: gAfterLock === true && g.open === true,
+    text: `defaultPrevented=${gAfterLock} (期望 true) open=${g.open} (期望 true: 同一笔已锁轴并提交)`,
+  })
+  await ensureClosed()
+
   // ===== D. 浏览器滚动行为观察 =====
   const diag = await evalv(`({
     cancels: window.__diag.cancels,

@@ -74,7 +74,7 @@ export DSH_PROBE_URL=http://127.0.0.1:3080/
 export DSH_PROBE_CHROME=chromium-browser   # 2026-09-18 实测可 spawn；异常时直指真实 ELF /data/data/com.termux/files/usr/lib/chromium/chrome
 node scripts/cdp-compat-contracts.mjs          # 契约对账（无需 SESSION_ID）；miss=0 才算过，SKIP 按提示手动复扫
 DSH_PROBE_SESSION_ID=<id> pnpm smoke:cdp      # SUMMARY new=0 才算过；BASELINE 见探针内 EXPECTED_FAILURES
-node scripts/cdp-swipe-failures.mjs           # 16 场景手势门
+node scripts/cdp-swipe-failures.mjs           # 18 场景手势门
 node scripts/cdp-zoom-probe.mjs               # 23 断言 iOS/viewport 守卫
 for f in scripts/probes/*.mjs; do node "$f" || echo "FAIL $f"; done
 ```
