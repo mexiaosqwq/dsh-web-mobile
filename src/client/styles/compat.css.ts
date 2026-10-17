@@ -1306,6 +1306,35 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
       min-width: 4.5em !important;
     }
   }
+
+  /* @patch
+     id: ofm-toast-above-drawer
+     for: dsh-our-free-model 2.0.0 的 .ofm_toasts（公告 toast，portal 到 document.body）
+     why: 该插件把 toast 钉在 z-index 1200 并自称浮在所有层之上，但本插件移动抽屉是 1300、遮罩 1250、宿主原生侧栏 1100 —— 打开抽屉时整条 toast 既不可见也不可点，插件侧没有可调的层级接口
+     until: 上游把 toast 抬到宿主弹层之上（1400+）或宿主提供官方通知层 —— 届时本块删除
+     test: tests/our-free-model-toast-layer.test.ts
+  */
+  /* ---------- dsh-our-free-model: announcement toast above the drawer ----------
+     2026-10-17 店主报障：打开侧边栏时左下角的官方推送消息被抽屉挡住。
+     实测（390×844 触屏仿真）：toast .ofm_toasts rect(18,738,354×88) z1200；
+     本插件 backdrop z1250、抽屉列 z1300 ⇒ elementFromPoint(195,780) 命中抽屉
+     里的 Usage/Balance 按钮、(330,780) 命中遮罩 —— 整条与点击一起没了。
+
+     选择器用 body 直子锚：插件 toastHost() 把 .ofm_toasts 挂在 document.body
+     （不存在才建），.ofm_ 前缀又是本插件独占（宿主与全仓 0 命中，见上一节），
+     所以这层锚既精确又不会误伤。
+
+     1310 的取值：高于抽屉 1300（否则被盖），低于本插件自己的弹层 1400 与
+     file-share toast 1500（公告 toast 不该压过模态）。桌面档没有抽屉，问题
+     只在手机档出现，规则因此留在本顶层手机媒体查询内。
+
+     代价（店主 2026-10-17 选定 A 方案时知情）：toast 通栏 354px 比抽屉 280px
+     宽，浮起后会压住抽屉底部约 88px（用户行/设置按钮区）约 10 秒（插件
+     holdMs 默认 10000），期间那几颗按钮点不到 —— 这是「推送可见」与「抽屉
+     底部可点」的二选一，本次选了前者。 */
+  body > .ofm_toasts {
+    z-index: 1310 !important;
+  }
 }
 
 `
