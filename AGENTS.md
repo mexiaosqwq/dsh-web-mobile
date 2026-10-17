@@ -238,6 +238,7 @@ dsh web
 ## 维护入口
 
 - **GitHub Release 文案规格（用户要求）**：Release notes 照 v2.4.1/v2.3.0 文章体例，不许直接贴 README 段落——完整规格（七段写法 + 署名三路核对法）见 `docs/maintenance/release-notes-spec.md`。【README「更新内容」段发版时同步写】（用户拍板）。
+- **PR 正文体例**（main 是 PR-only，每次开 PR 都适用）：标题 `fix|refactor|docs(scope): 中文一句话`；正文五段 `## 症状`（行为类可写 `## 问题`）→ `## 根因`（含实测表格）→ `## 修法`/`## 改动` → `## 验证`（门禁命令与数字、变异验证、未真机项如实写「待真机验收」）→ `## 备注`（改动边界：动了哪些文件、没动什么）。体例范例见 #214。
 - **README 版本段必须覆盖同一版本线的全部 pre-release（用户要求，纠错）**：Release notes 按 tag 分页（`.../releases/tag/vX.Y.Z` 与 `.../releases/tag/vX.Y.Z-rc.N` 是两页），写某版 README「更新内容」前先把该版本线**每个 tag 页都取回**（rc/beta/alpha 逐个）与最高版那页做 diff；**只要 diff 出 pre-release 独占条目就必须一并写进**。不许只读最高版那一页就动笔，也不许凭「我是按 Release 写的」推定已覆盖——推定不算数，要 diff。
 - CI：`.github/workflows/ci.yml`——verify → test:core → build → `node scripts/client-bundle-smoke.mjs`（白屏门）→ `git diff --exit-code lib`（lib 新鲜度门）。**本地照抄这条会假绿**（比的是工作区↔索引，`git add` 后恒真）：本地正确判据＝源码与 `lib/` 同一提交 → 再 `pnpm build` → `git diff --exit-code HEAD -- lib`，另加 `git status --porcelain --ignored lib` 必须为空。**推 `fix/*` 分支不触发任何 CI**（workflow 只监听 main + PR），所以「推上去了」≠「被检查过」。
 - 引擎底线：`package.json` engines `node >=24.0.0`（tests 依赖 Node 原生 TS type-stripping）。
