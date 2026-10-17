@@ -122,8 +122,11 @@ test('快路径形状：locateTps 只在短路之后被调用，且跳过判定�
   )
   const witness = src.slice(src.indexOf('const ringIdentitySettled ='), src.indexOf('const mark = '))
   assert.doesNotMatch(witness, /querySelector/, '身份校验必须零查询（只扫 dock 的 children）')
-  assert.match(witness, /isRingCandidate\(child, stats\)/, '与 measureRing 共用同一条选取判据')
-  assert.equal((src.match(/isRingCandidate\(child, stats\)/g) ?? []).length, 2, '判据只许有 measureRing 与身份校验两处使用点')
+  // 2026-10-17：判据本体收敛进 locateRing 一处。0.2.1 起统计条标记可能落在 slot 包装上，
+  // 环到 dock 的层数不再固定，两处写死的两级上溯由同一个助手取代。本条要钉的语义是
+  // 「身份校验与 measureRing 共用同一条选取判据」——所以校验必须走那个助手。
+  assert.match(witness, /locateRing\(stats\)/, '与 measureRing 共用同一条选取判据')
+  assert.equal((src.match(/isRingCandidate\(child, stats\)/g) ?? []).length, 1, '判据本体只许有一处（locateRing 内）')
   // 定态判据走纯函数（上面那条 transition table 钉的就是它）。
   assert.match(fast, /const tpsSettled = tpsSlotsSettled\(/)
   // 注释里记下来的两个硬指标口径必须与代码一致（免得下一位只改一半）。

@@ -42,7 +42,7 @@
   ├─ tests/                  ← 60 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 8 篇权威设计文档（入库）
-  │  ├─ maintenance/         ← pitfalls.md（68 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md ← 入库
+  │  ├─ maintenance/         ← pitfalls.md（69 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md ← 入库
   │  ├─ upstream/            ← runbook + 2 篇 compat audit + compat-contracts.json + host-jank-feedback.md ← 入库
   │  └─ audits/ · handover/ · fork-wzxmt-zhc/ · debug/ · superpowers/ ← 本地不入库（docs 下只上传 maintenance 与 debug）
   ├─ .github/workflows/ci.yml ← verify → test:core → build → bundle smoke → git diff --exit-code lib
@@ -56,7 +56,7 @@
 
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP；§8=rc.1 复测、§9=rc.2 portal 换锚对照）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
-- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（68 坑原文，名字=锚点，索引在下方 Pitfalls 节）
+- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（69 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约：slot/reconciler/样式/选择器/风格；改该目录文件时自动进入上下文）
 - 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（跨模块形状约束 + 模块索引 + 源码未覆盖的细节；逐模块背景在各自文件内文档块）
 - 做验收或起探针环境 → `docs/maintenance/verification-playbook.md`（三档验收场景 + CDP/Playwright MCP/Termux 配方）
@@ -142,7 +142,7 @@ dsh web
 
 ## Pitfalls
 
-- **68 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md`，锚点 `### <名字>`；新增坑位 = 名字加进下面清单 + 原文写进该档并补同名锚点。**动手改某块代码前先按名字读对应条目**——里面是最硬铁律、实测数据与被否决方案。
+- **69 个坑的索引：名字 = 触发词 = 锚点**。每条原文在 `docs/maintenance/pitfalls.md`，锚点 `### <名字>`；新增坑位 = 名字加进下面清单 + 原文写进该档并补同名锚点。**动手改某块代码前先按名字读对应条目**——里面是最硬铁律、实测数据与被否决方案。
 
 - `手势层`
 - `files 手势`
@@ -212,6 +212,7 @@ dsh web
 - `卡片命中`
 - `header 座位归属`
 - `第三方成本上限`
+- `统计条被宿主拆条`
 
 ## Testing & QA
 

@@ -42,7 +42,14 @@ const DEBT = {
     // 可能仍连着，liveness 看不出来；旧版靠「TPS 缺席永不 skip」这条副作用兜住，
     // 现在缺席也能 skip，必须自己验身份）+ 两处 key/跳过判据的理由注释。
     // 数值口径同本门：`split('\n').length`（= `wc -l` + 1）。
-    'src/client/effects/stats-line.ts': 564,
+    // 2026-10-17 +23（564 → 587）：0.2.1 把 StatsPills 拆成 activity/usage 两个 slot 条目，
+    // composerStack 内不再有共同的 `_root`，只认 `_root` 的候选集让标记永远打不上（整条 stats
+    // 与环的 CSS 集体哑火）。新增行 = 抽出 locateRing（按「谁的 children 里有环候选」向上找
+    // dock，取代 measureRing / ringIdentitySettled 两处写死的两级上溯；0.2.1 标记落在 slot 包装
+    // 上，固定两级会越过 dock；并封顶在 composerStack，否则一路扫到 body 会把会话正文里带
+    // 「50%」的块误判成环）+ 候选集改两档的循环壳 + 三段理由注释。判据本体（文本锚 /
+    // popover 按钮 / 输入框排除）一个字未动，旧代标记落点也不变（`_root` 档先查）。
+    'src/client/effects/stats-line.ts': 587,
     // 2026-10-13 +90（399 → 489）：浮层落位的三处去重（写前比较 / 几何改读 visualViewport /
     // 12 帧 follow 期间不重复排程）。新增行全部是：抽出的落位纯核 computePickerPlacement
     // （+ PickerAnchorBox / PickerSize / PickerVisibleBand 三个类型 + 可见带解析 visibleBand()，
