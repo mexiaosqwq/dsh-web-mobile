@@ -70,3 +70,18 @@ test('only the PHONE branch drops the search row; tablet keeps it', () => {
   assert.doesNotMatch(LAYOUT.slice(phoneQuery, at), /\}\s*\}\s*$/, 'the query must still enclose the rule')
   assert.ok(at - phoneQuery < 200, 'the narrow query must be the rule\'s nearest block')
 })
+
+test('the viewport meta asks Chromium for the WebView keyboard model', () => {
+  // Chrome for Android defaults to `interactive-widget=resizes-visual`: the
+  // keyboard only shrinks the VISUAL viewport, the layout viewport (what
+  // `100%` / `100dvh` sizing follows) keeps the full screen height, and the
+  // browser pans the document up to reveal the focused composer — the frame
+  // and its header slide off the top. Android WebView (`adjustResize`), the
+  // engine every keyboard measurement in this repo was taken on, resizes the
+  // LAYOUT viewport instead, which is why this never reproduced there.
+  // Asking for `resizes-content` puts Chromium browsers on that same model.
+  assert.match(
+    VIEWPORT,
+    /const VIEWPORT_CONTENT =\s*'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content'/,
+  )
+})

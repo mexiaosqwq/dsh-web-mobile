@@ -290,7 +290,7 @@ async function main() {
   const armed = await viewportOf()
   check(
     'A8 武装期 viewport 由插件拥有且无缩放锁',
-    armed === 'width=device-width, initial-scale=1, viewport-fit=cover',
+    armed === 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
     `content=${JSON.stringify(armed)} (期望恰好 width/initial-scale/viewport-fit: 出现 maximum-scale 或 user-scalable 即 WCAG 1.4.4 回归)`,
   )
   await evalv(`(() => { document.querySelector('meta[name="viewport"]').content = 'width=device-width, initial-scale=1, maximum-scale=1' })()`)
@@ -298,7 +298,7 @@ async function main() {
   const rewritten = await viewportOf()
   check(
     'A9 宿主改写被重申回来',
-    rewritten === 'width=device-width, initial-scale=1, viewport-fit=cover',
+    rewritten === 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
     `content=${JSON.stringify(rewritten)} (期望重申: 否则 viewport-fit=cover 静默失效、安全区归零)`,
   )
   await evalv(`(() => {
@@ -313,7 +313,7 @@ async function main() {
   const replaced = await viewportOf()
   check(
     'A10 换节点后新 meta 也被接管',
-    replaced === 'width=device-width, initial-scale=1, viewport-fit=cover',
+    replaced === 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
     `content=${JSON.stringify(replaced)} (期望重申: head childList observer 必须重新绑定到新节点)`,
   )
 
