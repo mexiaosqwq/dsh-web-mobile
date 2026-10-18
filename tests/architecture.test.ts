@@ -133,22 +133,22 @@ function cycles() {
 // R3 的**机检口径要说清楚**（2026-10-11 B1 后补，免得下一位读者以为「effects 互不
 // import」已经被全量拦住）：本门拦的是「运行时环」（SCC > 1）+ 那条 7 文件白名单，
 // **不拦非环的 effects → effects 边**。B1 清掉的是环（6 条回边）与 components→effects
-// 越界；剩下的 **19 条非环边**（P1 拆分第三/四/五片 2026-10-12 后逐条实扫；第一片后
+// 越界；剩下的 **20 条非环边**（P1 拆分第三/四/五片 2026-10-12 后逐条实扫；第一片后
 // 16 条。第四片把 registerReconcileTasks 连同它的 6 条 effects 依赖移到
 // reconciler-adapter（phone-chrome 的 7 条只剩 header-metrics 1 条），第三/四/五片
-// 又各给 phone-chrome 添 1 条新边 → 3 条；reconciler-adapter 自己 7 条）仍在，
+// 又各给 phone-chrome 添 1 条新边 → 3 条；reconciler-adapter 自己 8 条，含 2026-10-18 的 drawer-session-log）仍在，
 // 尚未机检：
 //
 //   effects/reconciler-adapter.ts → aionui-compat·drawer-close(toggleDrawer)·
 //                             file-viewer-compat·overlay-backdrop-fab·panel-exit·
-//                             preview-fullscreen·stats-line                       (7)
+//                             preview-fullscreen·stats-line·drawer-session-log    (8)
 //   effects/drawer-close.ts → gesture-guard·session-row-fiber·sidebar-swipe       (3)
 //   effects/phone-chrome.ts → header-metrics·reconciler-adapter·viewport-meta     (3)
 //   effects/session-menu.ts → drawer-close(toggleDrawer)·session-row-fiber        (2)
 //   effects/sidebar-swipe.ts → gesture-guard·overlay-backdrop-fab                 (2)
 //   effects/overlay-backdrop-fab.ts → panel-exit(类型)                            (1)
 //   effects/session-focus-guard.ts → composer-keyboard-guard                      (1)
-//                                                                   合计 19 条（实测）
+//                                                                   合计 20 条（实测）
 //
 // 清法就是架构标准 P1 的第 ③ 步「跨特性工厂由组装根注入」：把 toggleDrawer /
 // fadeOverlayOut / 共享类型提到 platform/，或由 index.tsx 注入；清完再把本门收紧成

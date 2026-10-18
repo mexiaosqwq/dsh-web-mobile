@@ -6,11 +6,11 @@
 
 来源：原根 `AGENTS.md` 的「Architecture / Conventions」两节（从根 AGENTS.md 下沉，原文未改写）。
 
-## 入口与三个 slot
+## 入口与两个 slot
 
 `src/client/index.tsx` injects `['slots', 'layout', 'locale', 'sessionLogDownload', 'sessions']`。
 `inject` 是硬依赖，名单只放 entry 真读的服务（`workspaces` 已在 #86 移除）。`apply()` 注册 locale 字典、
-注入一个 `<style data-plugin>` 标签、装效果、注册三个 slot：
+注入一个 `<style data-plugin>` 标签、装效果、注册两个 slot：
 
 - `conversation.session.header.actions` → `MobileNavToggle`（`order: 10`）：抽屉开关 + Files 按钮。
 - `conversation.input.left` → `ComposerFileButton`（`id: mobile-nav-file-upload`，`order: 10`）：常驻的
@@ -18,10 +18,11 @@
   加号旁的 tools 车道。它的 tap 弹插件的两选项小浮层（`effects/composer-file-picker.ts`：
   上传图片 / 上传附件），把选择交回宿主自己的隐藏 `input[type=file]`——intake 校验、上传与可用性都
   仍归宿主。会话作用域——hero/空白相位仍以 "+" 菜单为唯一文件入口。
-- `sidebar.footer.action` → `MobileDrawerFooter`（`id: mobile-nav-session-log`，`order: 5`）：只留会话
-  日志导出胶囊——原先并排的 Files 入口已移除（抽屉开着时宿主与第三方 dismiss shim 都不让点击
-  到达右侧栏 opener；契约见 `docs/specs/2026-09-17-sidebar-files-coexistence-design.md`）。order 5 让它
-  排在远程图标行（order 默认 0）之下、用量徽章（order 10）之上。**不要与用量统计并列同 order**。
+- 会话日志导出**不在 slot 里**：宿主没有顶部动作槽位（`sidebar.brand.mark` / `.name` /
+  `toggle.badge` 都是 single 且被品牌占用），所以 `effects/drawer-session-log.ts` 往抽屉品牌行
+  （`[class*="sidebarCol"] [class*="logoRow"]`）注入一颗 `data-mobile-nav="session-log"` 的图标按钮
+  （2026-10-18 issue #225 起，见 `docs/specs/2026-10-18-drawer-session-log-icon.md`）。原来的
+  `sidebar.footer.action` 胶囊已删除——不要再把整行控件挂回抽屉页脚。
 - 已经没有 settings slot；触感反馈特性已移除。
 
 ## 全树协调器（reconciler）
@@ -35,7 +36,8 @@
   树键因为它的槽随树重建，文本键因为 TPS 更新可能以原地 `nodeValue` 改写到达。**加键安全；删掉树键
   正是这行要防的失效模式**。
 - 已注册任务：`frame-marker`、`header-metrics`、`preview-fullscreen-toggle`、`preview-close-sync`、
-  `sheet-rise-replay`、`file-viewer-open-marker`、`stats-line`、`overlay-backdrop-fab`、`panel-back-exit`。
+  `sheet-rise-replay`、`file-viewer-open-marker`、`stats-line`、`overlay-backdrop-fab`、`panel-back-exit`、
+  `drawer-session-log`。
 
 ## 分层与依赖
 

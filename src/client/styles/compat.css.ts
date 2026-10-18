@@ -529,23 +529,14 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   }
 
   /* ---------- dsh-web-ui polish: drawer footer ----------
-     The single injected footer action (the session-log download) becomes a
-     full-width pill instead of a text-width capsule. */
-
-  /* The official footerActions row also hosts the remote-web-ui entry
-     row (two icon buttons); without wrapping the two groups squeeze each
-     other on one line. Wrap so each group gets its own full-width row. */
+     The official footerActions row also hosts the remote-web-ui entry row
+     (two icon buttons) and the usage/balance badge; without wrapping the
+     groups squeeze each other on one line. Wrap so each group gets its own
+     row. (The plugin's own footer pill was removed on 2026-10-18 — the
+     session-log entry now lives in the drawer brand row.) */
   [data-mobile-nav="frame"] [class*="_footerActions"] {
     flex-wrap: wrap !important;
     gap: 6px !important;
-  }
-  [data-mobile-nav="drawer-actions"] {
-    width: 100% !important;
-  }
-  [data-mobile-nav="drawer-actions"] > button {
-    flex: 1 1 0 !important;
-    padding: 0 8px !important;
-    white-space: nowrap !important;
   }
 
   /* ---------- dsh-web-ui polish: floating pet ----------

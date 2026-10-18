@@ -18,7 +18,8 @@ import {
 } from '../src/client/core/sessions-compat.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const FOOTER = readFileSync(join(ROOT, 'src/client/components/MobileDrawerFooter.tsx'), 'utf8')
+// The footer pill moved into the drawer brand-row task (issue #225).
+const LOG = readFileSync(join(ROOT, 'src/client/effects/drawer-session-log.ts'), 'utf8')
 const MENU = readFileSync(join(ROOT, 'src/client/effects/session-menu.ts'), 'utf8')
 // P1 拆分（2026-10-12）：两处 currentSessionIdOf/sessionsCanOpen 读取随
 // installOverlayInteractions 搬到 drawer-close.ts；仍读两半，负向断言保持原有覆盖面积。
@@ -54,11 +55,13 @@ test('sessionsCanClear / sessionsCanOpen feature-detect the a2 removals', () => 
   assert.equal(sessionsCanOpen({}), false)
 })
 
-test('all four current reads go through currentSessionIdOf', () => {
-  assert.match(FOOTER, /useSessions\(\(state\) => currentSessionIdOf\(state\)\)/)
-  assert.doesNotMatch(FOOTER, /state\.current/)
+test('every current-session read goes through currentSessionIdOf', () => {
+  assert.match(LOG, /currentSessionIdOf\(ctx\.sessions\.list\.getSnapshot\(\)\)/)
+  assert.doesNotMatch(LOG, /getSnapshot\(\)\.current/)
+  const logReads = LOG.match(/currentSessionIdOf\(ctx\.sessions\.list\.getSnapshot\(\)\)/g) ?? []
   const snapshotReads = MENU.match(/currentSessionIdOf\(ctx\.sessions\.list\.getSnapshot\(\)\)/g) ?? []
   const chromeReads = CHROME.match(/currentSessionIdOf\(ctx\.sessions\.list\.getSnapshot\(\)\)/g) ?? []
+  assert.ok(logReads.length >= 1, 'drawer-session-log reads via helper')
   assert.ok(snapshotReads.length >= 1, 'session-menu reads via helper')
   assert.ok(chromeReads.length >= 2, 'phone-chrome reads via helper (tappedRowSessionId + closeOnNavigation)')
   assert.doesNotMatch(CHROME, /getSnapshot\(\)\.current/)

@@ -32,37 +32,41 @@ export const BASE_CSS = `
   outline-offset: 1px;
 }
 
-/* Drawer footer action: the relocated Session log download. The Files entry
-   was removed on 2026-09-17 (see
-   docs/specs/2026-09-17-sidebar-files-coexistence-design.md). */
-[data-mobile-nav="drawer-actions"] {
+/* Drawer brand-row session-log icon (issue #225): the plugin-owned button is
+   injected into the host's logo row by effects/drawer-session-log.ts, so it
+   sizes as a compact icon control instead of the old footer pill. The host
+   brand button is flex:1 and gives up exactly this width. The wrapper keeps the
+   button out of the row's direct-button set: the third-party dsh-web-all layer
+   adopts that row's last direct button as its sidebar toggle (see
+   effects/drawer-session-log.ts#mount). */
+[data-mobile-nav="session-log-wrap"] {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
 }
 [data-mobile-nav="session-log"] {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, .12));
-  border-radius: 12px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-md, 8px);
   background: transparent;
-  color: var(--dsw-alias-label-primary, inherit);
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 20px;
+  color: var(--dsw-alias-label-secondary, inherit);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-[data-mobile-nav="session-log"]:hover:not(:disabled) {
+[data-mobile-nav="session-log"]:hover:not(:disabled),
+[data-mobile-nav="session-log"]:active:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
 }
 [data-mobile-nav="session-log"]:disabled {
   color: var(--dsw-alias-label-dimmed, rgba(0, 0, 0, .35));
   cursor: default;
+  background: transparent;
 }
 
 [data-mobile-nav="delete-confirm-title"] {

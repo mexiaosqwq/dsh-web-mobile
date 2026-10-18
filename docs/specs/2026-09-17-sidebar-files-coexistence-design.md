@@ -68,6 +68,9 @@
 
 删除抽屉底部 `[data-mobile-nav="drawer-actions"]` 内的 Files 入口（`[data-mobile-nav="explorer"]`），`sidebar.footer.action` 只保留「会话日志」；随之移除 `MobileDrawerFooter` 的 `toggleSidebar` prop 与 `openFilesPanel` import。
 
+> **2026-10-18 更新**：会话日志入口已从抽屉页脚移到抽屉品牌行的图标按钮，`MobileDrawerFooter` 与
+> 页脚胶囊的描述随 `docs/specs/2026-10-18-drawer-session-log-icon.md` 作废；本 spec 其余条目（Files 入口、层叠、手势）不变。
+
 理由（两条独立机制都指向同一结论）：
 
 1. 抽屉开着时，任何指向 `[data-sidebar-right-expand]` 的点击都会被第三方 shim 吞掉（§2 证据）；
