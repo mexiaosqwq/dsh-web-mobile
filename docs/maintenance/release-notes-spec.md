@@ -36,10 +36,10 @@ Vite 的固定分类词表与「一行一条 + 逐条挂 PR/hash」，GitHub CLI
 
 ### 安装
 
-固定形态（照 v2.4.1 抄）：
+固定形态（照 v2.4.1 抄；DSHA 行按 2026-10-18 更正口径，见下）：
 
 ````markdown
-[DSHA](https://github.com/qiannianhuanxiang/DSHA) 用户无需单独安装，装 APK 即用。
+[DSHA](https://github.com/qiannianhuanxiang/DSHA) 用户无需单独安装：App 内置的是打包时的快照，本版要等 DSHA 重新拉取源码并发布更新后才带上。
 
 ```sh
 dsh plugin --profile web add dsh-web-mobile
@@ -121,7 +121,7 @@ GitHub 直装：`dsh plugin --profile web add github:mexiaosqwq/dsh-web-mobile`
 ```markdown
 | 你是什么用户 | 本版建议 |
 | --- | --- |
-| DSHA（装 APK） | 更新 App 即得 |
+| DSHA（装 APK） | 随 App 更新；DSHA 未重新拉取源码前仍停在旧版 |
 | npm 用户 | 本版未走 npm，npm 仍停在 x.y.z |
 | GitHub 直装 | 可升，装完重启 `dsh web` |
 | 宿主 < 0.1.7-rc.1 | 留在 v3.0.6 |

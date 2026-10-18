@@ -10,7 +10,7 @@
   <a href="https://awesome-dsh-plugin.com/p/mexiaosqwq/dsh-web-mobile/"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="awesome · DSH plugin" /></a>
 </p>
 
-> 📦 **已内置于 [DSHA](https://github.com/qiannianhuanxiang/DSHA)** —— DeepSeek Harness 安卓启动器把本插件作为内置移动端适配，装 APK 开箱即用。感谢作者 [@qiannianhuanxiang](https://github.com/qiannianhuanxiang) 的集成与推广 🙏
+> 📦 **已内置于 [DSHA](https://github.com/qiannianhuanxiang/DSHA)** —— DeepSeek Harness 安卓启动器把本插件作为内置移动端适配（打包时的源码快照），装 APK 开箱即用；本仓库之后的更新要等 DSHA 重新拉取源码并发布 App。感谢作者 [@qiannianhuanxiang](https://github.com/qiannianhuanxiang) 的集成与推广 🙏
 
 ---
 
@@ -31,6 +31,24 @@
 | ![移动端会话主页](assets/hero.png) | ![目录抽屉](assets/drawer.png) | ![移动端设置界面](assets/settings.png) |
 
 ## 更新内容
+
+### v3.2.0 (兼容 0.2.1 及以后)
+
+- 手机端一批真机报障修复：浏览器里点输入框不再把整页顶出屏幕、iOS 侧区能正常起手滚动、抽屉会话列表多出 40px、开着壁纸不再透明
+- 宿主 0.2.1 适配：统计条与上下文环、后台任务文案重新对齐；第三方「模型能力」面板退场后，为它写的换行适配一并退休
+- 工程侧：仓库文档改分层披露（根指令瘦身，验收、协作与发版文案手册独立成篇），带日期的审计与 fork 对账记录转为本地保留
+- 兼容：0.1.7-rc.1 起仍照常支持，0.1.6-alpha.2 建议维持 3.0.0、0.1.5 之前仍建议 2.4.1
+
+**修复**
+
+- 手机浏览器（Chrome / Edge for Android）点开输入框时整页被顶上去、顶栏一起出屏——内置 WebView 与桌面不受影响（#226, by @FanetheDivine）
+- iOS 上侧边抽屉与文件面板从静止起手时纵向滚动失效，只有屏幕正中一条窄缝能滚（#222, PR #223）
+- 抽屉底部的「导出会话日志」胶囊独占一行、占掉约 1.2 个会话的高度——入口改到抽屉品牌行右端，会话列表多出 40px（#225, PR #227）
+- 开着壁纸插件时抽屉整列与深色顶栏变透明、背后内容透出（#228, PR #229）
+- 宿主 0.2.1 上统计条与上下文环退回原生小药丸、百分比数字外露（#216）
+- 宿主 0.2.1 上后台任务文案挤回标题行、被右上角文件夹图标压住（#217）
+- dsh-our-free-model 的设置页在手机上滚动掉帧，它的公告提示也不再被抽屉盖住（#214、#221）
+- 插件不再自行补写模型的思考档位：改由官方设置页管理，手动关掉的档位不会再被写回，已写入的配置照旧生效（#218）
 
 ### v3.1.0 (兼容 0.1.7-rc.1 及以后)
 
@@ -98,30 +116,15 @@
 - iOS 输入框不再沉到系统辅助条下面（#149, PR #150）
 - 长按选区拖拽手柄不再把视口带到会话顶部，并落地一批手机端修复（PR #155）
 
-## 兼容插件
-
-下列版本为**实装并验证过**的版本（判据是 profile `cordis.patch.yml` 的行启用状态——包在 `node_modules` 里 ≠ 插件生效；profile 用 `^` 范围会静默升 minor，升级后重新对账）。
-
-- [@linxin666/dsh-web-all](https://www.npmjs.com/package/@linxin666/dsh-web-all)——**0.3.20**
-- [@linxin666/dsh-client-ui-market](https://www.npmjs.com/package/@linxin666/dsh-client-ui-market)——**0.3.20**
-- [@ychris12138/dsh-usage-stats](https://www.npmjs.com/package/@ychris12138/dsh-usage-stats)——**0.3.1**
-- [@changfenhuang/dsh-genui](https://www.npmjs.com/package/@changfenhuang/dsh-genui)——**0.10.0**
-- [dsh-meme](https://www.npmjs.com/package/dsh-meme)——**0.1.39**
-- [dsh-file-viewer](https://www.npmjs.com/package/dsh-file-viewer)——**未安装**（0.3.1 时期验证过布局兼容，装回后需复验）
-
-**与 dsh-pocket 同装**：[dsh-pocket](https://github.com/shaobeichen/dsh-pocket) 内嵌了本插件的移动端适配副本（`client/mobile/`，保留 `mobileNav` 命名空间）。与 3.0.5 及更早版本同装时，两者抢同一个 locale 命名空间会让本插件注册抛错、进而把整个 Web 端打成错误页（#165；桌面宽屏不受影响，因为它的移动端适配在 desktop 下会提前 return）。此后版本改用独立命名空间，崩溃不再发生，但两套移动端适配仍会同时生效——**建议二选一**，或给 dsh-pocket 传 `?dsh-layout=desktop` 让它让位。
-
 ## 安装
 
-> [DSHA](https://github.com/qiannianhuanxiang/DSHA) 用户无需单独安装：DSHA 已内置本插件，装 APK 即用。
+> [DSHA](https://github.com/qiannianhuanxiang/DSHA) 用户无需单独安装：DSHA 内置本插件，但内置的是它打包时的源码快照——本仓库之后的新版本要等上游重新拉取并发布 App 更新才会带上，想立刻用上本版仍按下文单独安装。
 
 从 npm 一行装（仓库自带构建产物，无需构建配置），装完重启 `dsh web`：
 
 ```sh
 dsh plugin --profile web add dsh-web-mobile
 ```
-
-> **旧版迁移**：装过旧名 `dsh-mobile-nav`（更早为 `@dsh-external/dsh-mobile-nav`）的用户请**先移除再装新名**——`dsh plugin --profile web rm <旧键名>`；patch 行 id 随包名一起换了，新旧并存会把同一插件注册两份，不迁移也会留下死依赖或加载失败。
 
 GitHub 直装：`dsh plugin --profile web add github:mexiaosqwq/dsh-web-mobile`
 

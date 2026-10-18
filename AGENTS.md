@@ -4,7 +4,7 @@
 
 - Single-package, client-only plugin for the DSH Web UI. Adapts the UI on **touch-primary devices with a viewport below 1024px**（overlay drawer、full-width conversation、settings/explorer/preview sheets、status-bar safe areas、composer row、stats line）. Activation query `MOBILE_QUERY = '(max-width: 1023px) and (pointer: coarse)'`（`platform/breakpoints.ts`）：宽度单独不足以区分手机与窄桌面窗口（分屏与系统缩放会把 PC 的 CSS 视口压到 1024px 以下），所以键鼠窗口（`pointer: fine`）或无指针窗口在**任何**宽度都保持桌面形态；misc.css.ts 的桌面隐藏块是 MOBILE_QUERY 的精确补集（逗号列表）。**唯一例外（v2.4.1）**：会话删除三件套（菜单项 + 确认/错误弹层）按 `TOUCH_QUERY = '(pointer: coarse)'` 在**每个**宽度武装，故横屏大平板保留桌面布局但仍拿到「删除会话」项。
 - Names differ by boundary: README/GitHub project = `dsh-web-mobile`; npm package = `dsh-web-mobile`（由 dsh-mobile-nav 改名而来，旧名连同 2.2.0/2.3.0 已整包 unpublish，npm 上不再存在）; patch row id = `dsh-web-mobile`（DOM 标记 `data-mobile-nav` 与 `?mobile-nav-debug=1` 参数刻意保留旧词根，见 Pitfalls）。
-- 已被 [DSHA](https://github.com/qiannianhuanxiang/DSHA)（Android 启动器）内置为移动端适配（README 已致谢 @qiannianhuanxiang，commit ffb61b5）——DSHA 用户装 APK 即用。
+- 已被 [DSHA](https://github.com/qiannianhuanxiang/DSHA)（Android 启动器）内置为移动端适配（README 已致谢 @qiannianhuanxiang，commit ffb61b5）——**内置的是它打包时的源码快照**：本仓新版本要等上游重新拉取源码并发布 App 更新才生效，README / Release 文案不得写「装 APK 即得本版」。
 - **在本仓库改源码 + `pnpm build` 会直接影响用户正在用的页面**（v3.1.0 起本仓库就是线上版本，本机 web profile 只跑 `dsh-web-mobile`）。发版口径：v3.1.0 走 GitHub Release，**未发 npm**（npm 仍停在 3.0.6）。回滚件 `~/dsh-web-mobile-host-test` 是 v3.1.0 前身快照，已不装载。
 - No monorepo, no application server, no workspace layer.
 - Real entrypoints: `cordis.patch.yml`（唯一的宿主插件行）；`src/index.ts`（宿主半区入口，`apply()` 让该行对宿主 Loader 可见）；`package.json` 暴露 `./client` 并声明 `dsh.client.platform: "web"`，浏览器半区由 DSH 从 `src/client/index.tsx` 发现。宿主侧端点 `/api/mobile-nav.session.delete`。
@@ -139,6 +139,7 @@ dsh web
 - 客户端半区的全部实现契约（slot 注册、reconciler 分层、样式承载顺序、选择器与 DOM 标记契约、效果/资源纪律、TypeScript 风格、locale 命名空间前缀、弹层优先级）见 **`src/client/AGENTS.md`**——**改 `src/client/` 下任何文件前先读它**（披露层，改该目录文件时自动进入上下文）。
 - Keep the host/client split intact: the host half owns exactly two host-side jobs — response compression and the session-delete endpoint. Anything browser-facing belongs in `src/client/`.
 - Do not edit `lib/` directly; rebuild and include generated artifacts after any source/config change.
+- README 不放第三方「已验版本」清单、也不放旧包名迁移指引（2026-10-18 用户决定：不再维护/不再叙述）——别再加回来；迁移契约只留 `docs/maintenance/pitfalls.md`「包改名边界」。
 
 ## Pitfalls
 
