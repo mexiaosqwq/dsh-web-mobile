@@ -372,8 +372,8 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="fab"],
   [data-mobile-nav="backdrop"],
   [data-mobile-nav="session-log"],
-  [data-mobile-nav="preview-full-toggle"],
-  [data-mobile-nav="drawer-actions"] {
+  [data-mobile-nav="session-log-wrap"],
+  [data-mobile-nav="preview-full-toggle"] {
     display: none !important;
   }
 }

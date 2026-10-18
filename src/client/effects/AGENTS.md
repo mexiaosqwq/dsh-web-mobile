@@ -1,7 +1,7 @@
 # effects/ · 效果模块背景
 
 改动 `src/client/effects/` 下任意文件时本文件会自动进入上下文；改别的目录时它不出现。
-每个模块的背景与根因写在**该文件自己的文档块**里（30/32 有，位置在 imports 之后的导出上方），
+每个模块的背景与根因写在**该文件自己的文档块**里（31/33 有，位置在 imports 之后的导出上方），
 这里补的是跨模块共享的形状约束与源码里没写下的细节。
 
 ## 分层与依赖
@@ -38,6 +38,9 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   **不是** phone-chrome.ts。
 - `drawer-close.ts` — 抽屉关闭三条监听路（Escape / 遮罩与导航目标的捕获 click / DSHA
   `dsha-session-open`）与共用的那一个 `toggleDrawer`（晚提交关闭）。
+- `drawer-session-log.ts` — 抽屉品牌行右端的会话日志导出图标（issue #225，替代页脚胶囊）：往
+  `[class*="sidebarCol"] [class*="logoRow"]` 注入 `data-mobile-nav="session-log"` 按钮，
+  `scopes:['*']` 处理宿主重建，`dispose` 退订 + 移除；无当前会话置灰。
 - `header-metrics.ts` — 顶栏高度 → CSS 变量 `--mobile-nav-header-h`（`scopes:['*']`）。
 - `selection-chrome.ts` — 非折叠选区期间给 `<html>` 挂 `data-mobile-nav-selecting`，CSS 借此
   把顶栏移出命中测试。
@@ -63,7 +66,7 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   `model-menu-anchor.ts` / `plugin-card-tap.ts` / `session-row-fiber.ts` /
   `subagent-chip-touch.ts` / `overlay-backdrop-fab.ts`
   — 兼容与定位类，背景见各文件自己的文档块。
-- `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 30 个的
+- `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 31 个的
   背景都在文件内 JSDoc 里）：前者是已安装列表的触摸/布局修补；后者是预览全屏切换按钮的
   reconciler 任务（`preview-fullscreen-toggle`）。
 - `composer-paste-guard.ts` — 手机档多行粘贴只剩首行（2026-10 报障）：输入法上屏后的
@@ -76,7 +79,7 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 
 ## 源码未覆盖的补充背景
 
-上面索引里说的「背景见文件内文档块」对**大多数**模块成立（30/32 有），但有几处细节源码里
+上面索引里说的「背景见文件内文档块」对**大多数**模块成立（31/33 有），但有几处细节源码里
 没有，只能放这里：
 
 - **`shortcut-modal-keyboard-guard.ts`** — 文件里只有一行 JSDoc（导出函数上方），机制与实测数据在此：宿主

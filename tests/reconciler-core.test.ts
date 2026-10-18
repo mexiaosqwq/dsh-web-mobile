@@ -329,6 +329,7 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
     'data-mobile-preview-full',
   ],
   'file-viewer-open-marker': ['*'],
+  'drawer-session-log': ['*'],
   'stats-line': ['*', TEXT_MUTATION_SCOPE],
   'overlay-backdrop-fab': ['*', 'data-sidebar-collapsed', 'data-phase'],
   'panel-back-exit': ['*'],

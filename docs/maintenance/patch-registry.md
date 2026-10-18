@@ -13,8 +13,8 @@
 | `header-job-chip-collapse` | src/client/styles/layout.css.ts:2124 | dsh-client-ui-jobs 的后台任务 chip（0.2.1 起包裹 div 无类名） | 宿主给该 chip 稳定的数据标记，或在手机档自带折叠形态 | `tests/a2-header-gating.test.ts` |
 | `installed-list-chatflow-filter` | src/client/effects/installed-list.ts:158 | 共享协调器的「正文整批丢弃」语义（phone-chrome 侧既有过滤） | 宿主把市场根挂到稳定容器、且协调器把 childList 一并按容器路由（届时可改为按容器早期退出） | `tests/installed-list.test.ts` |
 | `lineage-chip-pinned` | src/client/styles/layout.css.ts:2331 | 宿主 ZKlsPq 子智能体 chip 的绝对定位落点（含包含块） | 宿主为该 chip 提供非绝对定位的稳定槽（届时四边偏移与祖先 static 都可删） | `tests/a2-header-gating.test.ts` |
-| `ofm-mobile-cost-ceiling` | src/client/styles/compat.css.ts:1241 | dsh-our-free-model 2.0.0 的 ofm_ 私有类名（毛玻璃表面 + 极光层 + 装饰动画） | 上游自己给手机档出成本降级（或拿掉极光层与 blur 表面）——届时本块整节删除 | `tests/our-free-model-cost.test.ts` |
-| `ofm-toast-above-drawer` | src/client/styles/compat.css.ts:1310 | dsh-our-free-model 2.0.0 的 .ofm_toasts（公告 toast，portal 到 document.body） | 上游把 toast 抬到宿主弹层之上（1400+）或宿主提供官方通知层 —— 届时本块删除 | `tests/our-free-model-toast-layer.test.ts` |
+| `ofm-mobile-cost-ceiling` | src/client/styles/compat.css.ts:1232 | dsh-our-free-model 2.0.0 的 ofm_ 私有类名（毛玻璃表面 + 极光层 + 装饰动画） | 上游自己给手机档出成本降级（或拿掉极光层与 blur 表面）——届时本块整节删除 | `tests/our-free-model-cost.test.ts` |
+| `ofm-toast-above-drawer` | src/client/styles/compat.css.ts:1301 | dsh-our-free-model 2.0.0 的 .ofm_toasts（公告 toast，portal 到 document.body） | 上游把 toast 抬到宿主弹层之上（1400+）或宿主提供官方通知层 —— 届时本块删除 | `tests/our-free-model-toast-layer.test.ts` |
 | `preset-invisible-capsule` | src/client/styles/layout.css.ts:2394 | 宿主 SVAs4q_label 智能体预设 chip 的外包裹层 | 宿主给预设 chip 自身加上左右内边距（本外壳与 margin 一并删） | `tests/a2-header-gating.test.ts` |
 
 `why`（为何不能用正规写法）逐条写在源码的 @patch 块里 —— 它必须贴着代码，
@@ -33,7 +33,7 @@
 | 模块 | `!important` | 哈希子串选择器 | `:has(` |
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 459 | 494 | 254 |
-| `src/client/styles/compat.css.ts` | 378 | 105 | 20 |
+| `src/client/styles/compat.css.ts` | 374 | 105 | 20 |
 | `src/client/styles/misc.css.ts` | 51 | 18 | 12 |
 | `src/client/styles/base.css.ts` | 15 | 2 | 11 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
@@ -46,6 +46,7 @@
 | `src/client/effects/composer-keyboard-lift.ts` | 0 | 2 | 0 |
 | `src/client/effects/composer-plus-toggle.ts` | 0 | 1 | 0 |
 | `src/client/effects/drawer-close.ts` | 0 | 9 | 0 |
+| `src/client/effects/drawer-session-log.ts` | 0 | 4 | 0 |
 | `src/client/effects/model-menu-anchor.ts` | 0 | 3 | 0 |
 | `src/client/effects/model-menu-keyboard-guard.ts` | 0 | 1 | 0 |
 | `src/client/effects/panel-exit.ts` | 0 | 6 | 0 |
@@ -53,6 +54,6 @@
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
-| **合计** | **912** | **684** | **300** |
+| **合计** | **908** | **688** | **300** |
 
 <!-- END:inventory -->

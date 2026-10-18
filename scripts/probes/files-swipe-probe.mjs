@@ -212,7 +212,7 @@ async function main() {
     const s8 = await state()
     record(s8.panel === false && s8.collapsed === true, '8.mouse-drag-inert', `panel=${s8.panel} collapsed=${s8.collapsed}`)
 
-    // ---- 9. the drawer footer no longer offers a Files entry ----
+    // ---- 9. no plugin entry in the drawer footer; the export icon lives in the brand row ----
     // The hit test needs the drawer on screen: its closed slot sits at a
     // negative x, where elementFromPoint returns null by definition.
     await evaluate(`(() => { document.querySelector('${TOGGLE}')?.click(); return true })()`)
@@ -220,22 +220,22 @@ async function main() {
     await sleep(400)
     const footer = JSON.parse(await evaluate(`(() => {
       const actions = document.querySelector('[data-mobile-nav="drawer-actions"]')
-      const log = actions === null ? null : actions.querySelector('[data-mobile-nav="session-log"]')
-      const buttons = actions === null ? -1 : actions.querySelectorAll('button').length
+      const log = document.querySelector('[data-mobile-nav="session-log"]')
       const r = log === null ? null : log.getBoundingClientRect()
       const hit = r === null ? null : document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
       return JSON.stringify({
         actions: actions !== null,
         explorer: document.querySelector('[data-mobile-nav="explorer"]') !== null,
-        buttons,
         log: log !== null,
+        brandRow: log !== null && log.closest('[class*="logoRow"]') !== null,
         logHit: hit !== null && (hit === log || log.contains(hit)),
       })
     })()`))
     // explorer === false is a revive guard, not a live assertion: no src/ producer remains, so it turns red only if the entry returns.
-    record(footer.actions === true && footer.explorer === false && footer.buttons === 1 && footer.log === true && footer.logHit === true,
-      '9.footer-no-files-entry',
-      `actions=${footer.actions} explorer=${footer.explorer} buttons=${footer.buttons} log=${footer.log} logHit=${footer.logHit}`)
+    // actions === false pins issue #225: the footer no longer carries a plugin row.
+    record(footer.actions === false && footer.explorer === false && footer.log === true && footer.brandRow === true && footer.logHit === true,
+      '9.footer-no-plugin-entry',
+      `actions=${footer.actions} explorer=${footer.explorer} log=${footer.log} brandRow=${footer.brandRow} logHit=${footer.logHit}`)
     // Close with Escape rather than a second TOGGLE click: while the drawer is
     // open the header toggle sits outside the drawer, so dsh-web-all's
     // installMobileSidebarDismiss swallows the click — programmatic ones too —
