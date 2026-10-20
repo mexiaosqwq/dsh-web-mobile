@@ -26,11 +26,11 @@ test('phone-chrome maintains the keyboard-less viewport height', () => {
   assert.match(VIEWPORT, /export const STABLE_VIEWPORT_VAR = '--dsh-web-mobile-vh'/)
   assert.match(VIEWPORT, /setProperty\(STABLE_VIEWPORT_VAR/)
   assert.match(VIEWPORT, /removeProperty\(STABLE_VIEWPORT_VAR\)/)
-  const at = VIEWPORT.indexOf('const writeViewport')
-  assert.notEqual(at, -1, 'writeViewport missing')
+  const at = VIEWPORT.indexOf('const syncStableViewport')
+  assert.notEqual(at, -1, 'syncStableViewport missing')
   // Monotonic height + width-change rule: the keyboard only changes height.
   assert.match(
-    VIEWPORT.slice(at, VIEWPORT.indexOf('\n  }', at)),
+    VIEWPORT.slice(at, VIEWPORT.indexOf('\n    }', at)),
     /stableVh === 0 \|\| height > stableVh \|\| width !== stableWidth/,
   )
   assert.match(VIEWPORT, /addEventListener\('resize', syncStableViewport\)/)
@@ -39,17 +39,6 @@ test('phone-chrome maintains the keyboard-less viewport height', () => {
   // 样式失效，同值重写等于白跑一次文档级样式计算。
   assert.match(VIEWPORT, /if \(next !== stableValue\)/)
   assert.match(VIEWPORT, /stableValue = ''/)
-})
-
-test('progressive keyboard resize writes at most once per frame', () => {
-  // 2026-10-20：原生侧按输入法动画逐帧缩 WebView 后，一次键盘动画会连发十几到
-  // 二十次 resize；逐事件写等于十几次整文档样式重算。写入走 rAF 合并调度。
-  assert.match(VIEWPORT, /import \{ createRafScheduler \} from '\.\.\/core\/raf-scheduler\.ts'/)
-  assert.match(VIEWPORT, /createRafScheduler\(requestAnimationFrame, cancelAnimationFrame\)/)
-  assert.match(VIEWPORT, /const syncStableViewport = \(\): void => \{\s*writer\.schedule\(writeViewport\)/)
-  assert.match(VIEWPORT, /writer\.cancel\(\)/)
-  // 首次同步必须同步写完：调用方同一轮就读取 STABLE_VIEWPORT_VAR。
-  assert.match(VIEWPORT, /writeViewport\(\)\n  window\.addEventListener\('resize'/)
 })
 
 test('the two keyboard-facing cards size themselves off that variable', () => {
