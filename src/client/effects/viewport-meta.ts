@@ -9,6 +9,8 @@
 // 「每次外层重新武装就往 ctx 上再注册三个收不到的 effect」的累积注册，也会把
 // 一段确定的回调顺序拆成三个监听器各自的（规范未定义的）触发顺序。
 
+import { createRafScheduler } from '../core/raf-scheduler.ts'
+
 /** Marker the iOS-only zoom-guard CSS is scoped to (html element). */
 const IOS_MARKER = 'data-mobile-nav-ios'
 
@@ -114,20 +116,33 @@ export function syncStableViewportHeight(): () => void {
   // style pass for an identical string. Measured 2026-10-09 on Android 16
   // WebView: the monotonic rule above already suppresses every keyboard
   // driven write (the keyboard only lowers the height, and a lower height
-  // never passes the growth test), so no per-frame dedup is needed here —
+  // never passes the growth test), so no per-keyboard dedup is needed here —
   // this guard only removes the redundant identical writes.
+  //
+  // 2026-10-20：原生侧开始按输入法动画逐帧缩 WebView 后，一次键盘动画会连发
+  // 十几到二十次 resize / visualViewport 事件；逐事件写 = 一次动画十几次整文档
+  // 样式重算。这里用 rAF 合并成**每帧最多一次**，值没变仍然不写。单次 resize
+  // （现有 Android WebView）行为不变，只是把写从事件回调移到同一帧的 rAF。
   let stableValue = ''
-  const syncStableViewport = (): void => {
+  let visibleValue = ''
+  let topValue = ''
+  const writer = createRafScheduler(requestAnimationFrame, cancelAnimationFrame)
+
+  const writeViewport = (): void => {
     const height = window.innerHeight
     const width = window.innerWidth
     const visible = window.visualViewport
     const available = Math.max(1, Math.min(height, visible?.height ?? height))
-    const visibleValue = `${available}px`
-    const topValue = `${visible?.offsetTop ?? 0}px`
-    if (root.style.getPropertyValue('--dsha-mobile-visible-vh') !== visibleValue)
-      root.style.setProperty('--dsha-mobile-visible-vh', visibleValue)
-    if (root.style.getPropertyValue('--dsha-mobile-viewport-top') !== topValue)
-      root.style.setProperty('--dsha-mobile-viewport-top', topValue)
+    const nextVisible = `${available}px`
+    const nextTop = `${visible?.offsetTop ?? 0}px`
+    if (nextVisible !== visibleValue) {
+      visibleValue = nextVisible
+      root.style.setProperty('--dsha-mobile-visible-vh', nextVisible)
+    }
+    if (nextTop !== topValue) {
+      topValue = nextTop
+      root.style.setProperty('--dsha-mobile-viewport-top', nextTop)
+    }
     if (stableVh === 0 || height > stableVh || width !== stableWidth) {
       stableVh = height
       stableWidth = width
@@ -138,19 +153,27 @@ export function syncStableViewportHeight(): () => void {
       }
     }
   }
+  const syncStableViewport = (): void => {
+    writer.schedule(writeViewport)
+  }
 
-  syncStableViewport()
+  // 首次同步不排帧：调用方（phone-chrome）在 armed 的同一轮里就会读
+  // STABLE_VIEWPORT_VAR，晚一帧会让首屏拿到空值。
+  writeViewport()
   window.addEventListener('resize', syncStableViewport)
   window.visualViewport?.addEventListener('resize', syncStableViewport)
   window.visualViewport?.addEventListener('scroll', syncStableViewport)
 
   return () => {
+    writer.cancel()
     window.removeEventListener('resize', syncStableViewport)
     window.visualViewport?.removeEventListener('resize', syncStableViewport)
     window.visualViewport?.removeEventListener('scroll', syncStableViewport)
     root.style.removeProperty('--dsha-mobile-visible-vh')
     root.style.removeProperty('--dsha-mobile-viewport-top')
     stableValue = ''
+    visibleValue = ''
+    topValue = ''
     root.style.removeProperty(STABLE_VIEWPORT_VAR)
   }
 }
