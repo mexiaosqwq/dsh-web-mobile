@@ -185,13 +185,19 @@ test('header chips (2026-10-12 换位后，手机档作用域): jobs dot in the 
     '共用移动档里聚合 chip 的 top 必须是本批之前的 48px')
   assert.equal(sharedDecl(scoped, 'ZKlsPq_root', 'position: absolute !important'), true,
     '共用移动档里聚合 chip 必须是绝对定位（贴标签行右缘）')
-  assert.equal(phoneDecl(scoped, 'ZKlsPq_root', 'top: 42px !important'), true,
-    '手机档作用域里 chip 的 top 必须是 42px（页签行被压到 26px 后的基线对齐）')
+  // 2026-10-20：页签行收到 21px 后，钉死的 top: 42px 偏低 13px 并压到正文；改为贴
+  // header 底边（bottom: 0 + top: auto），chip 盒与页签按钮同模型，行高一变自动跟随。
+  assert.equal(phoneDecl(scoped, 'ZKlsPq_root', 'bottom: -2px !important'), true,
+    '手机档作用域里 chip 的贴底偏移必须与页签文字同基线（截图实测 -2px）')
+  assert.equal(phoneDecl(scoped, 'ZKlsPq_root', 'top: auto !important'), true,
+    '手机档作用域里 chip 的 top 必须显式 auto，否则共用档的 48px 继续执政')
   assert.doesNotMatch(layoutSource(), /max-width: 124px !important/, '标题行才需要的封顶应随换位撤掉')
   const lineageBtn = phoneRule(scoped, 'ZKlsPq_root')
   assert.ok(lineageBtn !== null, '手机档作用域里子智能体 chip 的规则缺失')
-  assert.match(layoutSource(), /\[class\*="ZKlsPq_root"\] > button \{[^}]*padding: 0 4px 9px !important;/,
-    '子智能体 chip 的按钮要保持贴底对齐的 9px 下内边距')
+  // 2026-10-20：标签条高度收到 21px（16 行高 + 5 下划线位）后，chip 的贴底下内边距
+  // 随之从 9px 改成 5px —— 两者文字底边都离 header 底边 5px，这才是「与对话齐平」。
+  assert.match(layoutSource(), /\[class\*="ZKlsPq_root"\] > button \{[^}]*padding: 0 4px 5px !important;/,
+    '子智能体 chip 的按钮下内边距要与页签的下划线位一致（5px）')
 
   // ③ 标题：手机档可扩展 + 省略号；共用档仍是本批之前的 100px 横滑窗 + 硬切
   const crumb = phoneRule(scoped, '_crumbs')

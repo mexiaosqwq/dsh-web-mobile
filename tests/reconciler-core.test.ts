@@ -333,6 +333,8 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   'stats-line': ['*', TEXT_MUTATION_SCOPE],
   'overlay-backdrop-fab': ['*', 'data-sidebar-collapsed', 'data-phase'],
   'panel-back-exit': ['*'],
+  // 2026-10-20：灯箱缩放层随 portal 挂载/卸载（body 直挂 dialog），故吃树键。
+  'image-lightbox-zoom': ['*'],
 }
 
 const sorted = (list: string[]): string[] => [...list].sort()

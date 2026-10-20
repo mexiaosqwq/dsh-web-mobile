@@ -28,7 +28,25 @@ const DEBT = {
     // 实例 / 任务注册面）→ 147（第五块 viewport-meta 取走 viewport meta 所有权 / 稳定视口高度 /
     // iOS 标记）后回落进 400 行预算，条目按「只许收紧」删除（同 index.tsx 那条先例）。
     'src/client/effects/session-menu.ts': 538, // P1 搬运 import 拆行 +1（getFrame 落 platform/frame，toggleDrawer 留 phone-chrome）
-    'src/client/effects/panel-exit.ts': 485, // P1 搬运 import 拆行 +1（getFrame 与 installMobileEffect 分属 platform 两个模块）
+    'src/client/effects/panel-exit.ts': 651, // P1 搬运 import 拆行 +1（getFrame 与 installMobileEffect 分属 platform 两个模块）
+    // 2026-10-20 +110（485 → 595）：面板子页「返回上一级」。宿主把 列表/更多/详情 做成
+    // 同一个面板里的 view 状态（无 history、无叠层、无服务面），一次 pop 只能整层退出。
+    // 新增行 = PANEL_SUBPAGE_BACK 四条锚点 + 为什么只能点宿主控件（不许跨包拿 store action）
+    // 与三条被否方案的理由注释 + subpageControl/subpageOpen/back 三个闭包 + arm() 从
+    // ensure() 抽出（子页 pop 后必须补回 entry，否则下一次返回直接离开页面）+
+    // createPanelBackExitTask 的第四个参数与子页分支。行为由
+    // tests/panel-exit-animation.test.ts 的 DOM 桩用例钉住（子页只点宿主控件不退出、
+    // 根页才 selectPanel）。
+    // 2026-10-20 +6（595 → 601）：真机复测「子页第二下返回直接退出 web」——
+    // popstate 内发出的 pushState 被 Android WebView 丢弃；补 entry 改由下一帧的
+    // ensure() 做（代码只删掉 popstate 里的 arm()，新增行是这段实测结论的注释）。
+    // 2026-10-20 +9（601 → 610）：退面板会弹键盘 —— exit() 在挂退场标记的同一步同步广播
+    // dsh-mobile-panel-exit，让 composer 焦点窗口赶在会话重挂载的同步聚焦之前打开。
+    // 新增行 = 事件常量 + 广播 + 为什么必须同步（observer 微任务赶不上）的理由注释。
+    // 2026-10-20 +25（610 → 635）：第二下返回仍然离开 web —— 同一个遍历任务里（含
+    // 紧随的 rAF）发出的 pushState 都会丢，补 entry 改排到 setTimeout(0) 的新任务；
+    // 新增行 = scheduleRearm（含幂等与复查）+ dispose 清理 + 两段实测理由注释。
+    // 数值口径同本门：split('\n').length。
     // 2026-10-13 +12（473 → 485）：C02-a/C02-b —— 快照与 frame 标记都改成按归属处理。
     // 新增行全部是理由注释（freezePanel 为什么不能按标记扫全文档、finishMain 为什么
     // 摘标记要过归属判断、dispose 的归属说明）；扫全文档的那 5 行同时被删掉。
@@ -133,22 +151,22 @@ function cycles() {
 // R3 的**机检口径要说清楚**（2026-10-11 B1 后补，免得下一位读者以为「effects 互不
 // import」已经被全量拦住）：本门拦的是「运行时环」（SCC > 1）+ 那条 7 文件白名单，
 // **不拦非环的 effects → effects 边**。B1 清掉的是环（6 条回边）与 components→effects
-// 越界；剩下的 **20 条非环边**（P1 拆分第三/四/五片 2026-10-12 后逐条实扫；第一片后
+// 越界；剩下的 **21 条非环边**（P1 拆分第三/四/五片 2026-10-12 后逐条实扫；第一片后
 // 16 条。第四片把 registerReconcileTasks 连同它的 6 条 effects 依赖移到
 // reconciler-adapter（phone-chrome 的 7 条只剩 header-metrics 1 条），第三/四/五片
-// 又各给 phone-chrome 添 1 条新边 → 3 条；reconciler-adapter 自己 8 条，含 2026-10-18 的 drawer-session-log）仍在，
+// 又各给 phone-chrome 添 1 条新边 → 3 条；reconciler-adapter 自己 9 条，含 2026-10-18 的 drawer-session-log 与 2026-10-20 的 image-lightbox-zoom）仍在，
 // 尚未机检：
 //
 //   effects/reconciler-adapter.ts → aionui-compat·drawer-close(toggleDrawer)·
 //                             file-viewer-compat·overlay-backdrop-fab·panel-exit·
-//                             preview-fullscreen·stats-line·drawer-session-log    (8)
+//                             preview-fullscreen·stats-line·drawer-session-log·image-lightbox-zoom (9)
 //   effects/drawer-close.ts → gesture-guard·session-row-fiber·sidebar-swipe       (3)
 //   effects/phone-chrome.ts → header-metrics·reconciler-adapter·viewport-meta     (3)
 //   effects/session-menu.ts → drawer-close(toggleDrawer)·session-row-fiber        (2)
 //   effects/sidebar-swipe.ts → gesture-guard·overlay-backdrop-fab                 (2)
 //   effects/overlay-backdrop-fab.ts → panel-exit(类型)                            (1)
 //   effects/session-focus-guard.ts → composer-keyboard-guard                      (1)
-//                                                                   合计 20 条（实测）
+//                                                                   合计 21 条（实测）
 //
 // 清法就是架构标准 P1 的第 ③ 步「跨特性工厂由组装根注入」：把 toggleDrawer /
 // fadeOverlayOut / 共享类型提到 platform/，或由 index.tsx 注入；清完再把本门收紧成

@@ -45,7 +45,19 @@ test('the observer re-shadows a freshly mounted editor inside the window', () =>
   // element before the host's passive effect runs.
   assert.match(SOURCE, /new MutationObserver\(/)
   assert.match(SOURCE, /if \(!windowOpen\) return/)
-  assert.match(SOURCE, /observer\.observe\(document\.documentElement, \{ childList: true, subtree: true \}\)/)
+  assert.match(SOURCE, /observer\.observe\(document\.documentElement, \{/)
+  assert.match(SOURCE, /childList: true,/)
+  assert.match(SOURCE, /subtree: true,/)
+})
+
+test('leaving a main-slot panel opens the same window (2026-10-20)', () => {
+  // 店主报障：退出插件面板回会话会弹键盘。面板占住主区时会话被卸载，退场结束时
+  // InputBar 重新挂载、挂载期聚焦再跑一遍。修复复用同一个窗口：panel-exit 在动画
+  // 开始前挂 data-mobile-panel-exit，观察者看到标记就 arm()，会话重挂载时窗口已在。
+  assert.match(SOURCE, /PANEL_EXIT_ATTR = 'data-mobile-panel-exit'/)
+  assert.match(SOURCE, /const hasPanelExitMarker = \(\): boolean =>\s*\n\s*document\.querySelector\(`\[data-mobile-nav="frame"\]\[\$\{PANEL_EXIT_ATTR\}\]`\) !== null/)
+  assert.match(SOURCE, /if \(!windowOpen && hasPanelExitMarker\(\)\) arm\(\)/)
+  assert.match(SOURCE, /attributeFilter: \[PANEL_EXIT_ATTR\]/)
 })
 
 test('the window is finite and restore closes it completely', () => {

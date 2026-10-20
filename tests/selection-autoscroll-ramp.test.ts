@@ -78,7 +78,7 @@ test('the header occludes the lifted flow (opaque + raised, under the overlay ti
   // 三张无头截图（2026-10-07）：透明 → 消息穿过标题行；不透明但未抬升 → 与透明那版逐字节
   // 相同（背景被画在内容下面）；不透明 + 抬升 → 与未改动的顶栏带像素一致。
   const phone = phoneBlock(LAYOUT_CSS)
-  const at = phone.indexOf('\n  [data-mobile-nav="frame"] [data-phase] header {')
+  const at = phone.indexOf('\n  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {')
   const block = bodyAt(phone, at)
   assert.match(block, /background:\s*var\(--dsw-alias-bg-layer-1, #fff\) !important/)
   const z = block.match(/z-index:\s*(\d+) !important/)
@@ -94,7 +94,7 @@ test('the selection marker drops the header out of the hit test', () => {
   // 每一步都对把手位置做命中测试来定选区终点，顶栏虽然不可选但仍是命中目标 ⇒ Blink 顺着 DOM
   // 往后找到第一个可选节点（真宿主实测 = 流的第一个条目「Load earlier」）并 reveal 它 ⇒ 视口瞬移。
   const phone = phoneBlock(LAYOUT_CSS)
-  const sel = 'html[data-mobile-nav-selecting] [data-mobile-nav="frame"] [data-phase] header {'
+  const sel = 'html[data-mobile-nav-selecting] [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {'
   const block = bodyAt(phone, phone.indexOf(sel))
   assert.match(block, /pointer-events:\s*none !important/)
   // 只准动 pointer-events：拖拽中任何布局变化都会打断选区/引起跳动。

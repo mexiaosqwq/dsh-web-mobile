@@ -9,6 +9,11 @@
 // createPanelExit，钉的是「跑起来删谁、摘谁」——源码文本看着对、归属写反的组合
 // 恰好是这两处缺陷的形状，正则拦不住。仍未跨到浏览器行为层（无真实渲染/动画），
 // 那层的读数只能是 cdp 探针一族。
+//
+// 2026-10-20 追加子页「返回上一级」（plugin-panel-subpage-back）：插件管理页的
+// 「更多」列表与三种详情根都带宿主自己的返回控件（moreBack / crumb），子页只是
+// 宿主的组件状态、不产生 history entry。所以 back() 必须只点那个控件，根页才
+// 整层退出；系统返回在子页要补回刚 pop 掉的 entry（backOneLevel() 后紧跟 arm()）。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -133,6 +138,8 @@ class FakeElement {
   readonly children: FakeElement[] = []
   parentElement: FakeElement | null = null
   readonly dataset: Record<string, string>
+  /** 宿主控件被点击的次数：子页返回只允许点那一个真控件。 */
+  clicks = 0
 
   constructor(tagName: string) {
     this.tagName = tagName
@@ -157,6 +164,7 @@ class FakeElement {
   getAttribute(name: string): string | null { return this.attributes.get(name) ?? null }
   hasAttribute(name: string): boolean { return this.attributes.has(name) }
   removeAttribute(name: string): void { this.attributes.delete(name) }
+  click(): void { this.clicks += 1 }
   addEventListener(): void { /* 事件从不派发，登记即可 */ }
   removeEventListener(): void { /* 同上 */ }
   append(...nodes: FakeElement[]): void {
@@ -180,21 +188,57 @@ class FakeElement {
   getAnimations(): unknown[] { return [] }
 }
 
+/**
+ * 夹具选择器：只支持模块真正用到的两种语法 —— 逗号候选（任一命中）与空格分隔
+ * 的后代链（每段 = 可选标签名 + 若干属性选择器）。出现别的语法（类选择器、子代
+ * 组合符等）一律抛错，避免「夹具静默不匹配、测试假绿」。
+ */
 function fakeMatches(element: FakeElement, selector: string): boolean {
-  const parts = selector.match(/\[[^\]]+\]/g)
-  if (parts === null) throw new Error(`夹具不认识的选择器：${selector}`)
-  return parts.every((part) => {
-    const parsed = /^\[([\w-]+)(?:([*^$]?)=(?:"([^"]*)"|([^\]]*)))?\]$/.exec(part)
-    if (parsed === null) throw new Error(`夹具不认识的属性选择器：${part}`)
-    const [, name, operator, quoted, bare] = parsed
-    if (operator === undefined) return element.hasAttribute(name!)
-    const value = quoted ?? bare ?? ''
-    const actual = element.getAttribute(name!) ?? ''
-    if (operator === '*') return actual.includes(value)
-    if (operator === '^') return actual.startsWith(value)
-    if (operator === '$') return actual.endsWith(value)
-    return actual === value
-  })
+  return selector.split(',').some((alternative) => fakeMatchesChain(element, alternative.trim()))
+}
+
+function fakeMatchesChain(element: FakeElement, chain: string): boolean {
+  const segments = chain.split(/\s+/).filter((segment) => segment.length > 0)
+  if (segments.length === 0) throw new Error(`夹具不认识的选择器：${chain}`)
+  if (!fakeMatchesCompound(element, segments[segments.length - 1]!)) return false
+  let ancestor = element.parentElement
+  for (let index = segments.length - 2; index >= 0; index -= 1) {
+    while (ancestor !== null && !fakeMatchesCompound(ancestor, segments[index]!)) {
+      ancestor = ancestor.parentElement
+    }
+    if (ancestor === null) return false
+    ancestor = ancestor.parentElement
+  }
+  return true
+}
+
+function fakeMatchesCompound(element: FakeElement, compound: string): boolean {
+  let rest = compound
+  const tag = /^[a-zA-Z][\w-]*/.exec(rest)
+  if (tag !== null) {
+    if (element.tagName.toLowerCase() !== tag[0].toLowerCase()) return false
+    rest = rest.slice(tag[0].length)
+  }
+  while (rest.length > 0) {
+    const part = /^\[[^\]]+\]/.exec(rest)
+    if (part === null) throw new Error(`夹具不认识的复合选择器：${compound}`)
+    if (!fakeMatchesAttribute(element, part[0])) return false
+    rest = rest.slice(part[0].length)
+  }
+  return true
+}
+
+function fakeMatchesAttribute(element: FakeElement, part: string): boolean {
+  const parsed = /^\[([\w-]+)(?:([*^$]?)=(?:"([^"]*)"|([^\]]*)))?\]$/.exec(part)
+  if (parsed === null) throw new Error(`夹具不认识的属性选择器：${part}`)
+  const [, name, operator, quoted, bare] = parsed
+  if (operator === undefined) return element.hasAttribute(name!)
+  const value = quoted ?? bare ?? ''
+  const actual = element.getAttribute(name!) ?? ''
+  if (operator === '*') return actual.includes(value)
+  if (operator === '^') return actual.startsWith(value)
+  if (operator === '$') return actual.endsWith(value)
+  return actual === value
 }
 
 function fakeWalk(root: FakeElement, visit: (element: FakeElement) => void): void {
@@ -204,6 +248,10 @@ function fakeWalk(root: FakeElement, visit: (element: FakeElement) => void): voi
 
 interface Harness {
   frame: FakeElement
+  /** 面板页本体（宿主 section[data-plugin-panel]）—— 子页控件挂在这里。 */
+  panel: FakeElement
+  /** 宿主自己的「返回上一级」控件（列表更多页的 moreBack）。 */
+  subpageBack: FakeElement
   /** 当前挂在文档里的快照（树序）—— 断言「删了谁的」只看这个。 */
   ghosts: () => FakeElement[]
   /** 交给 createPanelExit 的 layout 面（能力探针要它是个函数）。 */
@@ -221,6 +269,11 @@ function installHarness(): Harness {
   panelRow.setAttribute('class', 'hHd-Xa_panelRow')
   panelRow.setAttribute('aria-current', 'page')
   const panel = new FakeElement('section')
+  panel.setAttribute('data-plugin-panel', '')
+  // 子页在场：宿主的「更多」列表头带 _moreBack 的按钮。
+  const subpageBack = new FakeElement('button')
+  subpageBack.setAttribute('class', 'X_2TxG_moreBack')
+  panel.append(subpageBack)
   body.append(frame, panelRow, panel)
   activeRoot = documentElement
   timers = []
@@ -242,6 +295,7 @@ function installHarness(): Harness {
     return out
   }
 
+  const documentEvents: Event[] = []
   const globals = globalThis as unknown as Record<string, unknown>
   globals.document = {
     body,
@@ -249,6 +303,9 @@ function installHarness(): Harness {
     createElement: (tagName: string) => new FakeElement(tagName),
     querySelector: find,
     querySelectorAll: findAll,
+    // panel-exit 退场时同步广播 'dsh-mobile-panel-exit'（composer focus guard 靠它
+    // 在会话重挂载前开窗）；夹具只做有事件目标的广播，不参与断言。
+    dispatchEvent: (event: Event) => { documentEvents.push(event); return true },
   }
   globals.HTMLElement = FakeElement
   globals.window = {
@@ -263,8 +320,11 @@ function installHarness(): Harness {
   globals.cancelAnimationFrame = (id: number) => { frameQueue = frameQueue.filter((frame) => frame.id !== id) }
 
   let selectPanelCalls = 0
+  ;(globalThis as unknown as Record<string, unknown>).__documentEvents = documentEvents
   return {
     frame,
+    panel,
+    subpageBack,
     ghosts: () => findAll('[data-mobile-nav="panel-ghost"]'),
     layout: { selectPanel: () => { selectPanelCalls += 1 } },
     selectPanelCalls: () => selectPanelCalls,
@@ -336,3 +396,182 @@ test('finishMain only takes off the frame marker it armed itself', () => {
   older.dispose()
   newer.dispose()
 })
+
+test('back() steps one host level on a panel subpage and never exits the panel', () => {
+  // 插件管理页「更多」列表：宿主自带 moreBack（onClick = setView list）。子页不产生
+  // history entry，所以唯一正确的动作是点那个控件；整层 exit 会直接掉回会话。
+  const dom = installHarness()
+  const panelExit = createPanelExit(dom.layout)
+  assert.equal(panelExit.subpageOpen(), true, '夹具里的 _moreBack 应被认成子页控件')
+
+  panelExit.back()
+
+  assert.equal(dom.subpageBack.clicks, 1, '子页返回必须点宿主自己的返回控件，且只点一次')
+  assert.equal(dom.selectPanelCalls(), 0, '子页返回不得调用 selectPanel(null) 整层退出')
+  assert.deepEqual(dom.ghosts(), [], '子页返回不是退场，不应产生冻结快照')
+  panelExit.dispose()
+})
+
+test('back() exits the panel only when the panel root has no host back control', () => {
+  const dom = installHarness()
+  const panelExit = createPanelExit(dom.layout)
+  // 根页：子页控件不在场（回到列表后宿主把它卸载了）。
+  dom.subpageBack.remove()
+  assert.equal(panelExit.subpageOpen(), false)
+
+  panelExit.back()
+
+  assert.equal(dom.subpageBack.clicks, 0, '根页没有子页控件可点')
+  assert.equal(dom.selectPanelCalls(), 1, '根页返回才走 selectPanel(null)')
+  assert.equal(dom.ghosts().length, 1, '根页返回仍走冻结快照退场')
+  panelExit.dispose()
+  assert.deepEqual(dom.ghosts(), [])
+})
+
+test('all three plugin detail roots expose their crumb as the subpage back control', () => {
+  // 三种详情根（内置 / 官方插件 / 市场行）各用各的 crumb button；选择器必须全覆盖。
+  for (const marker of ['data-plugin-detail', 'data-plugin-item-detail', 'data-plugin-row-detail']) {
+    const dom = installHarness()
+    dom.subpageBack.remove()
+    const detail = new FakeElement('div')
+    detail.setAttribute(marker, 'some-plugin')
+    const crumb = new FakeElement('button')
+    crumb.setAttribute('class', 'X_2TxG_crumb')
+    detail.append(crumb)
+    dom.panel.append(detail)
+
+    const panelExit = createPanelExit(dom.layout)
+    assert.equal(panelExit.subpageOpen(), true, `${marker} 的 crumb 未被认成子页控件`)
+    panelExit.back()
+    assert.equal(crumb.clicks, 1, `${marker} 详情页返回必须点 crumb`)
+    assert.equal(dom.selectPanelCalls(), 0, `${marker} 详情页返回不得整层退出`)
+    panelExit.dispose()
+  }
+})
+
+test('subpage levels are pre-armed before a back press, never after one', () => {
+  // 真机三轮实测（2026-10-20）：这个 WebView 会把「与同文档遍历同一任务」里发出的
+  // pushState 丢掉 —— popstate 里、紧随的 rAF 里、再晚一拍的 setTimeout(0) 里都丢。
+  // 所以条目必须**在返回动作之前**就备好：面板自己一条，每进一层子页再预推一条；
+  // 返回只是消费已有条目，绝不在 popstate 里补。
+  const popBody = EXIT.slice(
+    EXIT.indexOf('function onPopState(): void {'),
+    EXIT.indexOf('function listen(): void {'),
+  )
+  assert.doesNotMatch(popBody, /pushEntry\(\)/, 'popstate 里不得再 push entry')
+  assert.match(popBody, /backOneLevel\(\)/, '子页返回仍然只升一级')
+  const ensureBody = EXIT.slice(
+    EXIT.indexOf('ensure: (): void => {'),
+    EXIT.indexOf('dispose: (): void => {'),
+  )
+  assert.match(ensureBody, /armRoot\(\)/, '面板根页保留自己那条 entry')
+  assert.match(ensureBody, /armExtra\(\)/, '进入更深一层时必须预推一条 entry')
+  assert.match(ensureBody, /current > previous/, '按层级比较决定推 / 让')
+  const levelBody = EXIT.slice(
+    EXIT.indexOf('function levelOf('),
+    EXIT.indexOf('function onPopState(): void {'),
+  )
+  assert.match(levelBody, /_moreBack/, '「更多」列表算第 1 级')
+  assert.match(EXIT, /if \(pushEntry\(\)\) extraArmed \+= 1/, '预推成功后必须记账')
+})
+
+test('exit() broadcasts the synchronous composer-focus-guard event', () => {
+  // 2026-10-20：退出面板会让会话重挂载、InputBar 再聚焦一次并弹键盘。焦点窗口必须
+  // 在 commit 之前打开，而 commit 里（layout-effect 阶段）的聚焦早于任何 observer
+  // 微任务——所以 exit() 在挂标记的同一步同步广播一个事件，由 session-focus-guard
+  // 收。标记本身仍保留，作为事件被改名时的兜底。
+  const source = EXIT
+  assert.match(source, /const PANEL_EXIT_EVENT = 'dsh-mobile-panel-exit'/)
+  assert.match(source, /document\.dispatchEvent\(new CustomEvent\(PANEL_EXIT_EVENT\)\)/)
+  assert.ok(
+    source.indexOf("setAttribute(PANEL_EXIT_ATTR, '')") < source.indexOf('dispatchEvent(new CustomEvent(PANEL_EXIT_EVENT))'),
+    '事件必须在挂上退场标记之后、提交 selectPanel 之前发出',
+  )
+  const h = installHarness()
+  const events = (globalThis as unknown as Record<string, Event[]>).__documentEvents
+  events.length = 0
+  const panelExit = createPanelExit(h.layout)
+  panelExit.exit()
+  assert.ok(events.some((event) => event.type === 'dsh-mobile-panel-exit'), '退场时必须广播事件')
+  panelExit.dispose()
+})
+
+test('the system back climbs one subpage level and consumes the level entry', () => {
+  const popBody = EXIT.slice(
+    EXIT.indexOf('function onPopState(): void {'),
+    EXIT.indexOf('function listen(): void {'),
+  )
+  // 消费顺序 LIFO：先扣子页层级的条数，扣完才动面板自己那条。
+  assert.match(popBody, /if \(extraArmed > 0\) extraArmed -= 1\s*\n\s*else if \(rootArmed\) rootArmed = false/,
+    '返回必须先消费子页层级 entries，最后才消费面板 entry')
+  assert.ok(
+    popBody.indexOf('backOneLevel()') > popBody.indexOf('subpageControl()'),
+    '子页分支必须先判定子页在场',
+  )
+  assert.ok(
+    popBody.indexOf('backOneLevel()') < popBody.indexOf('exitPanel()'),
+    '子页分支必须在 exitPanel() 之前 return（否则整层退出）',
+  )
+  // back() 本身：先点宿主控件，根页才落到 exit()。
+  const backBody = EXIT.slice(
+    EXIT.indexOf('const back = (): void => {'),
+    EXIT.indexOf('function dispose(): void {'),
+  )
+  assert.ok(backBody.includes('control.click()'), 'back() 必须点宿主控件')
+  assert.ok(
+    backBody.indexOf('control.click()') < backBody.indexOf('exit()'),
+    'back() 先点子页控件，根页才走 exit',
+  )
+  // FAB 也必须走同一动作，否则两条返回路径会各走各的。
+  const FAB = readFileSync(join(ROOT, 'src/client/effects/overlay-backdrop-fab.ts'), 'utf8')
+  assert.match(FAB, /panelExit\.back\(\)/, 'FAB 的返回必须走 panelExit.back()')
+  assert.doesNotMatch(FAB, /panelExit\.exit\(\)/, 'FAB 不得再直接整层退出')
+})
+
+test('subpage levels are pre-armed before a back press, never after one', () => {
+  // 真机三轮实测（2026-10-20）：这个 WebView 会把「与同文档遍历同一任务」里发出的
+  // pushState 丢掉 —— popstate 里、紧随的 rAF 里、再晚一拍的 setTimeout(0) 里都丢。
+  // 所以条目必须**在返回动作之前**就备好：面板自己一条，每进一层子页再预推一条；
+  // 返回只是消费已有条目，绝不在 popstate 里补。
+  const popBody = EXIT.slice(
+    EXIT.indexOf('function onPopState(): void {'),
+    EXIT.indexOf('function listen(): void {'),
+  )
+  assert.doesNotMatch(popBody, /pushEntry\(\)/, 'popstate 里不得再 push entry')
+  assert.match(popBody, /backOneLevel\(\)/, '子页返回仍然只升一级')
+  const ensureBody = EXIT.slice(
+    EXIT.indexOf('ensure: (): void => {'),
+    EXIT.indexOf('dispose: (): void => {'),
+  )
+  assert.match(ensureBody, /armRoot\(\)/, '面板根页保留自己那条 entry')
+  assert.match(ensureBody, /armExtra\(\)/, '进入更深一层时必须预推一条 entry')
+  assert.match(ensureBody, /current > previous/, '按层级比较决定推 / 让')
+  const levelBody = EXIT.slice(
+    EXIT.indexOf('function levelOf('),
+    EXIT.indexOf('function onPopState(): void {'),
+  )
+  assert.match(levelBody, /_moreBack/, '「更多」列表算第 1 级')
+  assert.match(EXIT, /if \(pushEntry\(\)\) extraArmed \+= 1/, '预推成功后必须记账')
+})
+
+test('exit() broadcasts the synchronous composer-focus-guard event', () => {
+  // 2026-10-20：退出面板会让会话重挂载、InputBar 再聚焦一次并弹键盘。焦点窗口必须
+  // 在 commit 之前打开，而 commit 里（layout-effect 阶段）的聚焦早于任何 observer
+  // 微任务——所以 exit() 在挂标记的同一步同步广播一个事件，由 session-focus-guard
+  // 收。标记本身仍保留，作为事件被改名时的兜底。
+  const source = EXIT
+  assert.match(source, /const PANEL_EXIT_EVENT = 'dsh-mobile-panel-exit'/)
+  assert.match(source, /document\.dispatchEvent\(new CustomEvent\(PANEL_EXIT_EVENT\)\)/)
+  assert.ok(
+    source.indexOf("setAttribute(PANEL_EXIT_ATTR, '')") < source.indexOf('dispatchEvent(new CustomEvent(PANEL_EXIT_EVENT))'),
+    '事件必须在挂上退场标记之后、提交 selectPanel 之前发出',
+  )
+  const h = installHarness()
+  const events = (globalThis as unknown as Record<string, Event[]>).__documentEvents
+  events.length = 0
+  const panelExit = createPanelExit(h.layout)
+  panelExit.exit()
+  assert.ok(events.some((event) => event.type === 'dsh-mobile-panel-exit'), '退场时必须广播事件')
+  panelExit.dispose()
+})
+

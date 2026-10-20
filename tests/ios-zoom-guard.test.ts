@@ -92,8 +92,26 @@ test('the 16px floor is scoped to the iOS marker and to text-entry fields', () =
 test('root and drawer keep pinch-zoom while still refusing horizontal pan', () => {
   const values = [...LAYOUT_CSS.matchAll(/touch-action: ([^;]+);/g)].map((match) => match[1])
   assert.ok(values.length >= 3)
+  // The image lightbox is the ONE surface that deliberately opts out of browser
+  // pan/zoom (its own gesture layer in effects/image-lightbox-zoom.ts owns the
+  // image transform, and the dialog would otherwise pass the pinch on to the
+  // page). Pin that value positively AND count it: any other touch-action:none
+  // in the sheet would still break the #45 contract, so it is red.
+  const lightboxBody = /\n  div\[role="dialog"\]\[aria-modal="true"\]:has\(> :first-child > img\) \{([\s\S]*?)\n  \}/.exec(LAYOUT_CSS)?.[1]
+  assert.ok(lightboxBody, 'the image-lightbox full-bleed rule must exist')
+  assert.match(lightboxBody, /touch-action: none !important;/, 'the lightbox layer must own its gestures')
+  const noneValue = /^\s*none(?:\s*!important)?\s*$/
+  const noneValues = values.filter((value) => noneValue.test(value))
+  const lightboxNone = [...lightboxBody.matchAll(/touch-action: none !important;/g)].length
+  assert.ok(lightboxNone >= 1, 'the lightbox rule must declare a deliberate touch-action:none')
+  assert.equal(
+    noneValues.length,
+    lightboxNone,
+    'touch-action:none is only allowed in the image-lightbox rule',
+  )
   for (const value of values) {
     if (value.includes('pan-x')) continue // the stats strip opts into horizontal pan on purpose
+    if (noneValue.test(value)) continue // the image lightbox, pinned above
     assert.match(value, /pinch-zoom/, 'a vertical-pan surface must still allow pinch-zoom')
   }
   const root = /\n  html,\n  body \{([\s\S]*?)\n  \}/.exec(LAYOUT_CSS)?.[1]

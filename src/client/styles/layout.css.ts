@@ -421,7 +421,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      that live in the conversation (composer/drawer keep their chrome
      interactive); header buttons remain reachable the moment the selection
      collapses, which is also what a tap anywhere else does. */
-  html[data-mobile-nav-selecting] [data-mobile-nav="frame"] [data-phase] header {
+  html[data-mobile-nav-selecting] [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {
     pointer-events: none !important;
   }
   /* A transparent header was harmless while nothing could scroll underneath it;
@@ -914,6 +914,43 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]):has([class*="_primary"] ~ [class*="_primary"]) > [class*="_trailing"] > [class*="_primary"] {
     margin-left: 0;
   }
+  /* 2026-10-20（店主）：「暂停键和发送键……大小缩小，和其他功能键保持一样的大小」。
+     同行三个功能键（+ / 权限 / 📎）的官方标称是 28×28，主键（发送、停止生成）官方
+     是 34×34 —— 手机档把主键压到同一档：盒 28×28、内边距清零、圆角保持正圆，
+     图标仍是 16px，因此圆心与同行按钮落在同一条线上。双主键形态（停止 + 发送）
+     同样命中，两者都收小，8px 的防误触间距规则不受影响。
+     2026-10-20 二轮：App 会往页面注入一张读不到 cssRules 的样式表（见上方页签条
+     注释），第一版没加 !important，真机上尺寸没变。这里按「抗覆盖」写：三项尺寸
+     全部 important，并补一条不依赖 [data-phase] / _card / _row 祖先链的兜底选择器
+     （车道直系子元素即主键），祖先链任一新代断层都不至于整条规则死掉。
+     后续：2026-10-20 四/五轮把**手机档**再改到 30px + 18px 图标并统一颜色，
+     覆盖在文件末尾「输入区功能键尺寸」段；本段仍是 768–1023 平板档的值，别删。 */
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"] {
+    box-sizing: border-box !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+  }
+  [class*="_trailing"] > [class*="_primary"] {
+    box-sizing: border-box !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+  }
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"] svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  [class*="_trailing"] > [class*="_primary"] svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
 
   /* --- ContextMeter hit area on 0.1.7-rc.2+ (issue #140) ---
      The stats-line overlay parks the ring in the composer card's trailing
@@ -1163,8 +1200,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      浅色档宿主两头同为白、本来就没有断层，不参与；桌面档不碰。
      宿主深色标记挂在 body 上（实测设 body[data-ds-dark-theme] 即切到 #151517），
      html 上若也挂同一个标记一并覆盖。 */
-  body[data-ds-dark-theme] [data-mobile-nav="frame"] [data-phase] header,
-  html[data-ds-dark-theme] [data-mobile-nav="frame"] [data-phase] header {
+  body[data-ds-dark-theme] [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header,
+  html[data-ds-dark-theme] [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {
     background-color: var(--dsw-alias-bg-base, #151517) !important;
   }
   /* 壁纸兼容（issue #228）：同一个插件把 --dsw-alias-bg-base 也置为 transparent
@@ -1180,7 +1217,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      until: 上游提供不透明的面板填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除
      test: tests/wallpaper-surface-fill.test.ts
   */
-  body[data-ds-dark-theme][data-dsh-bg] [data-mobile-nav="frame"] [data-phase] header {
+  body[data-ds-dark-theme][data-dsh-bg] [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {
     background-color: var(--dsw-static-neutral-bluish-950, #151517) !important;
   }
   /* 头部 UI 的按下反馈（店主 2026-09-23："是头部 UI，没有触发反馈"）。
@@ -1277,7 +1314,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      x=100 with our rule present, matching and later in source order. The value
      is 0 because our own toggle already occupies that left seat (painted at
      x=8-36), so the host reservation is pure dead space on a phone. */
-  [data-mobile-nav="frame"] [data-phase] header {
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {
     padding-left: 0 !important;
     padding-right: 8px !important;
     position: relative !important;
@@ -1370,17 +1407,45 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       margin-top: 0 !important;
       margin-bottom: 0 !important;
     }
-    [data-mobile-nav="frame"] [data-phase] header [class*="wSkVaW_tabs"] [class*="wSkVaW_tab"] {
-      padding-bottom: 5px !important;
+    /* 2026-10-20 五轮（真机截图实测）：上面那条 5px 一直没生效 —— 宿主按钮自带
+       padding: 0 0 9px，App 注入表又把它钉回 9px，所以文字离下划线 10px、离标题只有
+       7px（店主：「太挤了，把对话那一行移动贴近下面那条线」）。改用宿主稳定的
+       data-conversation-tabs 标记 + html body 前缀把特异性拉满，把下内边距压到 3px：
+       文字随之下沉 6px —— 贴近分隔线，同时标题侧的留白回来。 */
+    html body [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [data-conversation-tabs][role="tablist"] > button[role="tab"],
+    html body [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [data-conversation-tabs] > button[class*="wSkVaW_tab"] {
+      /* 2026-10-20：店主「先把刚刚的改动还原」——回到上一版定稿的 6 / 3
+         （总高仍是 16 + 9 = 25px，文字下沉、下划线不动）。后续再按店主给的目标间距调。 */
+      padding: 6px 0 3px !important;
     }
-    /* 真机诊断：页签条的 margin-top 计算值是 4px，但把 document.styleSheets 里
-       所有能读的规则拿来和它 matches()，命中的 margin/padding 规则是 **0 条**
-       —— 说明这 4px 来自一张读不到 cssRules 的表（跨源，App 自己注入的样式表），
-       普通 !important 平级打不过它。所以这里加码：前缀 html + 钉住 header.wSkVaW_header，
-       特异性抬到 (0,5,1)，实测能压过（页签条 4 → 0）。 */
-    html [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [class*="wSkVaW_tabs"] {
-      margin-top: -4px !important;
+    /* 2026-10-20 修正：页签条的 margin-top **是有效的**（早前判定"无效"是误判 —— 当时
+       与行高改动叠在一起，测到的位移被行高变化掩盖）。经验公式（设备像素）：
+       间距 ≈ 67.5 + 3.81 × (row-gap + margin-top)；基线 margin-top 由本文件下方
+       「header:has(_headerLeading) [role="tablist"] { margin-top: 4px }」 给出。
+       终态 = row-gap 3.5 + margin-top −8 ⇒ 净 −4.5 ⇒ 实测 50（店主定稿）。 */
+    html body [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [data-conversation-tabs][role="tablist"],
+    html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-conversation-tabs][role="tablist"] {
+      /* 必须压过本文件下方 header:has(_headerLeading) [role="tablist"] 的 4px（(0,4,1)），
+         所以这里挂满 data 标记（(0,5,3)）；只写 [role="tablist"] 会输。 */
+      margin-top: -8px !important;
     }
+    /* 2026-10-20（终态）：「标题↔对话」间距的唯一有效旋钮是 header 的 row-gap。
+       两行网格先回到内容高（App 注入表原本钉死 40px + 36px），再由 row-gap 撑缝：
+       页签行整体下移、header 跟着长高 ⇒ 标题侧留白变大、对话到下方黑线的距离不变。
+       实测（设备像素）：auto/0 → 37；+6px → 60；+3.5px → 50（店主定稿值）。
+       页签条自身的 margin-top 被 App 表钉死，-4/-8/0/6px 四个值都无效，已放弃。 */
+    html body [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {
+      grid-template-rows: auto auto !important;
+      row-gap: 3.5px !important;
+    }
+    /* 页签行钉到内容高（16px 行高 + 5px 下划线位 = 21px）：文字与下划线贴住行底，
+       不再在 36px 的老行高里居中，多出来的空白由上面的 row-gap 统一管理。 */
+    html body [data-mobile-nav="frame"] [data-phase] header [role="tablist"] {
+      min-height: 0 !important;
+      height: 21px !important;
+      align-items: flex-end !important;
+    }
+
     /* 真机读数：头部的 grid-template-rows 被钉成固定的 40px 36px（宿主自己没写行高，
        是 DSHA 那张表给的），于是标题行、页签行都各留一截死空间。改成 auto：两行各自
        贴住内容，标题行按 36px 的预设 chip 走、页签行由页签按钮撑开。 */
@@ -1406,7 +1471,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      painted partially outside the viewport), so the reclaim lives in exactly
      one place: the header padding. */
 
-  [data-mobile-nav="frame"] [data-phase] header > :first-child {
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header > :first-child {
     display: flex !important;
     align-items: center;
     box-sizing: border-box;
@@ -1417,7 +1482,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        breathing room; the host's 60px rail reservation is neutralised above. */
     padding-left: 40px;
   }
-  [data-mobile-nav="frame"] [data-phase] header > :first-child > :first-child {
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header > :first-child > :first-child {
     display: flex !important;
     align-items: center;
     flex: 1 1 auto;
@@ -1459,7 +1524,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       right: 4px !important;
     }
   }
-  [data-mobile-nav="frame"] [data-phase] header [class*="_headerActions"] {
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [class*="_headerActions"] {
     display: flex !important;
     align-items: center;
     box-sizing: border-box;
@@ -1593,8 +1658,15 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     width: 28px;
   }
   /* Session log download: gone from the header row on mobile (the utilities
-     seat holds only the session-log-export capsule). */
-  [data-mobile-nav="frame"] [data-phase] header > :first-child > :last-child {
+     seat holds only the session-log-export capsule).
+     ⚠ 作用域必须是会话顶栏本身（header.wSkVaW_header），不能写成裸 header：
+     提问卡（dsh-client-ui-user-questions）的 Mbwy4a_frame 就渲染在 composerSeat 里、
+     也在 [data-phase] 之下，它的 Mbwy4a_header > headingBlock > :last-child 正是问题正文
+     <h2>。裸 header 版本把问题正文整行 display:none —— 店主「你提的问题被吞掉了」即此
+     （2026-10-20 真机 DOM 取证：h2 computed display:none，逐条禁用本样式表内的规则定位到
+     这条）。顶栏的签名类由宿主 ConversationRoot.module.css 的 .header 提供（wSkVaW_header），
+     本文件其它顶栏规则同样以它/其子类作代际锚。 */
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header > :first-child > :last-child {
     display: none !important;
   }
   /* View tabs strip (official [role="tablist"] under the crumbs row).
@@ -2243,8 +2315,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        总高 25px 且贴着 header 底边。chip 也做成 25px 高、bottom:0、下内边距 9px，
        内容区正好落在同一段 16px 里，文字必然与「对话/轨迹」齐平。 */
     bottom: 0 !important;
-    height: 25px !important;
-    min-height: 25px !important;
+    /* 2026-10-20：页签行收到 21px（16px 行高 + 5px 下划线位）后，chip 的 25px 盒
+       会比标签行高出 4px、文字随之上浮。这里镜像标签的盒：21px 高、贴底。 */
+    height: 21px !important;
+    min-height: 21px !important;
     align-items: stretch !important;
     z-index: 3 !important;
     margin: 0 auto !important;
@@ -2259,13 +2333,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      任务 chip 已不在标签行（宿主去了类名、旧座位规则删除），让位更没有存在
      的理由。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"] > button {
-    height: 25px !important;
-    min-height: 25px !important;
+    height: 21px !important;
+    min-height: 21px !important;
     line-height: 16px !important;
     /* 原 9px 下内边距是「贴 header 底边、与标签文字齐平」用的；搬进标题行后要改贴
        预设 chip 的竖直中心（与后台任务 chip 搬上去时同一处理）。 */
     /* 2026-10-12 用户规格：右侧内边距 4 → 2px，让 chip 的文字/箭头更靠近右缘。 */
-    padding: 0 4px 9px !important;
+    /* 下内边距 9 → 5，与页签按钮的 5px 下划线位一致：两者文字底边都离 header 底边 5px。 */
+    padding: 0 4px 5px !important;
     align-items: center !important;
   }
   /* 已知边界：标签行出现第三个标签时，标签总宽约
@@ -2410,7 +2485,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        再靠"后到先得"取胜。 */
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"]:not([class*="_switcherRoot"]),
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"][class*="_switcherRoot"] {
-      top: 42px !important;
+      /* 2026-10-20：原先钉 top: 42px 是按「标题行 40 + 页签行 36」的固定几何推的，
+         本插件这几轮把页签行压到 21px 之后，42 就比「对话」低了一截、还压到正文上。
+         改成贴 header 底边：chip 盒 21px、下内边距 5px，与页签按钮同一个盒模型，
+         页签行再怎么压缩都不会再错位（top 必须显式 auto，否则上面那条 48px 继续执政）。 */
+      top: auto !important;
+      /* 截图实测逐轮校：页签文字本轮下沉后，chip 需再降 5px 才与「对话」同基线
+         （负值不越出 header 视觉范围，chip 高 21、z-index 3）。 */
+      bottom: -2px !important;
     }
   }
   /* 谱系 chip 里的文字（子代理标题 /「N 个子代理」）给一个规矩的省略号窗口：
@@ -2644,6 +2726,44 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [aria-modal="true"]:not(:has(> :first-child > :last-child > button)) {
     max-width: calc(100vw - 32px);
   }
+  /* Image lightbox (dsh-client-ui-primitives ImageLightbox; body-portal
+     div[role=dialog][aria-modal=true] whose stage holds the image and the
+     close button). The export rule directly above only excludes dialogs whose
+     stage's LAST child contains a button; in this lightbox the stage's last
+     child IS the close button (its own child is the icon svg), so the
+     :not(:has(...)) predicate is true and the 100vw - 32px cap hits the
+     backdrop: on a 390 viewport the mask covers [0,358] and the right 32px is
+     neither painted nor hit-testable. The misc.css 720px centered tablet rule
+     hits it the same way. This positive override restores the full-bleed
+     backdrop without editing either of them: the leading div buys the extra
+     specificity point, and that point is load-bearing on the tablet branch —
+     misc.css.ts is concatenated AFTER layout.css.ts, so an equal-specificity
+     override would lose to the 720px centered tablet rule (0,3,1 vs 0,3,1)
+     and leave the 768-1023 lightbox inset on both sides.
+     The :has() arm stays SINGLE-level: a nested :has() is an invalid selector
+     and Chromium would drop the whole rule silently (see the settings mask
+     episode in docs/maintenance/pitfalls.md).
+     touch-action:none keeps the page-level pinch/pan out of this layer (the
+     root rule's pan-y pinch-zoom stays untouched for every other surface);
+     tests/ios-zoom-guard.test.ts pins this deliberate none and
+     effects/image-lightbox-zoom.ts attaches its gesture listeners to this
+     dialog node only, never to document. */
+  /* @patch
+     id: image-lightbox-fullbleed
+     for: dsh-client-ui-primitives ImageLightbox（role=dialog + aria-modal=true，stage 末孩子是关闭按钮）
+     why: 宿主遮罩自身是 fixed inset:0，却被上方「非设置形状弹层」的 max-width 收窄规则与 misc.css 平板档 720px 居中规则命中，右侧漏画且不拦点击
+     until: 宿主给灯箱提供独立的 data-* 标记或自带移动端铺满形态，届时删本块
+     test: tests/css-rules.test.ts
+  */
+  div[role="dialog"][aria-modal="true"]:has(> :first-child > img) {
+    left: 0 !important;
+    right: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    touch-action: none !important;
+  }
   /* Nav bar: hide the "Settings" caption (redundant on a full-width sheet)
      and wrap the tab list so every tab is visible — a horizontal scroll cut
      the last tab ("Plugins") off with no affordance to scroll. */
@@ -2873,8 +2993,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
   /* 页首是宿主滚动盒的直接子元素，宿主给它 width:100%（.X_2TxG_page>*）。
      这种盒子上用 margin 会把整行顶出右缘、给面板加出一条横向滚动条，所以
-     这里用 margin + 等量收窄：margin 盒仍是 100%，左缘让开 FAB，右缘不动
-     （工具栏「添加插件」保持贴右）。 */
+     这里用 margin + 等量收窄：margin 盒仍是 100%，左缘让开 FAB，右缘不再
+     外扩。0.2.1-rc.2 起工具栏已换行且按 flex-start 排布，「添加插件」不再
+     贴右，旧注释里那个「保持贴右」的右缘假设已不成立；规则本身的行为
+     （左缘让位、右缘不越界）不变。 */
   [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHead"] {
     margin-left: var(--dsh-web-mobile-panel-clearance) !important;
     width: calc(100% - var(--dsh-web-mobile-panel-clearance)) !important;
@@ -2910,10 +3032,57 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      首字被整颗压住（2026-10-06 报障截图）。让位量沿用同一口径
      （56px − 宿主自身 padding）；作用对象取 h1：它是 margin:0 的 flex item，
      margin-left 只吃 flex 自由空间，不需要 width 补偿，也不会像整宽盒那样
-     顶出横向滚动条。「_pageHeading」片段在全部宿主 client bundle 里只有这一个
-     渲染者（2026-10-06 全量扫描），不误伤。 */
+     顶出横向滚动条。0.2.1-rc.2 起插件管理页的标题 h1 也命中「_pageHeading」
+     片段（旧注释「全部宿主 bundle 只有这一个渲染者」的假设已不成立），本页
+     会被一起串到；下方嵌套的手机档块把 section[data-plugin-panel] 里的两级
+     margin-left 归零，自动化任务面板仍用本条让位。 */
   [data-mobile-nav="frame"] [class*="_pageHeading"] > h1 {
     margin-left: var(--dsh-web-mobile-panel-clearance, calc(56px - clamp(24px, 4vw, 48px))) !important;
+  }
+  /* 插件管理页页首左对齐（2026-10-20 实测）：插件管理页的页头同时被上面两条
+     「给 FAB 让位」的规则命中 —— 一条给 [class*="_pageHead"] 加 margin-left，
+     另一条给 [class*="_pageHeading"] > h1 加 margin-left。两个片段互为子串，
+     页首容器与标题各自被让位一次，页首于是离左缘远、与左上角浮起的 ← 之间
+     空出一大截。手机档只对 section[data-plugin-panel] 收口：先把 clearance
+     改成 60px 口径（FAB 右缘 48 + 12 间距；390px 视口上算出 36px），再归零被
+     「_pageHead」子串误伤的两级 margin。只影响本页；自动化任务面板与详情
+     crumb 的让位规则照旧。
+     同日按店主参考图再落一档：页首必须「一行内排」——标题+说明在左、刷新键与
+     添加插件按钮在右。宿主 pageHead 是 flex-wrap:wrap，这一步直接禁止换行、让
+     heading 可收缩（min-width:0），工具栏 flex:0 0 auto + margin-left:auto 贴右；
+     说明文字过长时在左列内换行，不再把工具栏挤到第二行。 */
+  /* @patch
+     id: plugin-panel-head-left-align
+     for: dsh-client-ui-plugin-manager 0.2.1-rc.2 的 section[data-plugin-panel] 页首（_pageHead / _pageHeading / h1 三层）
+     why: 两条让位规则靠子串同时命中页首容器与页首标题，叠加后页首离左缘过远；宿主没有区分「页头容器」与「页首标题」的稳定标记
+     until: 宿主给页首容器独立标记，或页首不再需要给 FAB 让位，届时删本块
+     test: tests/css-rules.test.ts
+  */
+  @media (max-width: 767px) and (pointer: coarse) {
+    /* 一行内排：标题 + 说明在左、工具栏（刷新 + 添加插件）在右（2026-10-20 店主参考图）。
+       宿主 pageHead 自己是 flex-wrap:wrap + space-between；内容宽 300 出头时
+       heading(≈154) + gap16 + toolbar(≈172) 放不下一行，就折成三行堆叠。
+       这里禁止换行、把 heading 让成可收缩的 flex 项（min-width:0 才能压到内容宽），
+       toolbar 保持自身宽度贴右；说明过长时在左列内换行，不再把工具栏挤下去。 */
+    [data-mobile-nav="frame"] section[data-plugin-panel] > [class*="_pageHead"] {
+      --dsh-web-mobile-panel-clearance: calc(60px - clamp(24px, 4vw, 48px));
+      flex-wrap: nowrap !important;
+      align-items: flex-start !important;
+      gap: 8px !important;
+    }
+    [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"] {
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+      margin-left: 0 !important;
+      width: auto !important;
+    }
+    [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_toolbar"] {
+      flex: 0 0 auto !important;
+      margin-left: auto !important;
+    }
+    [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"] > h1 {
+      margin-left: 0 !important;
+    }
   }
   /* 快捷键弹层在手机上的落地形态。上面那条 :not([data-shortcut-modal="shortcuts"])
      只是把它从设置面板家族里摘出来、还它官方的内部排版（2026-09-25 实测：纵向列
@@ -3298,6 +3467,135 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   @media (max-width: 767px) and (pointer: coarse) {
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerActions"] {
       gap: 6px !important;
+    }
+  }
+  /* ===== 对话区留白 + 输入框高度（2026-10-20，店主截图定档）=====
+     店主三处「留白太多」＋「输入框太小」，只对真·手机档生效（平板保持上游排布）。
+     真机读数（1380×3036，dpr≈3.83，下同）：
+       · 思考行文字底 → 运行状态分隔线 99 设备px、分隔线 →「深度求索中」文字 59（合计 158）；
+       · 「深度求索中」文字底 → 输入卡片上缘 82；
+       · 回复正文文字底 → 动作行图标顶 112。
+     每条都取宿主自己那一层旋钮，不碰别的间距（一次只动一处，便于逐条回滚）：
+       ① 运行状态是宿主的稳定标记 [data-chat-running]，它自己声明 --dsh-chat-flow-gap:12px
+          给自己的 margin-top 供值；分隔线内距是 8/10。首轮按「旋钮各自减半」落成 6/4/5，
+          真机复测「思考行文字底 → 分隔线」只从 99 降到 63（约 64%，不是 50%）——
+          因为两行文字各自的 29px 行盒里还有约 25 设备px 的固定行距收不掉。于是第二轮按
+          「文字到文字减半」反推：三条边距合计压到 11px（运行状态 margin-top 4、分隔线上 3、
+          下 4），实测 99 → 51、158 → 86，才是店主眼里的「一半」。这一条同时把宿主
+          「turn-process 之后 16px」那一档压平（合计仍是 8px）；header 那套页签规则不参与。
+       ② 「深度求索中」到输入卡片之间没有别的留白，就是聊天滚动区的 padding-bottom；
+          同样是先 16 → 8（实测 82 → 50，只有 61%），再收到 6px（实测 82 → 42）。
+          滚动区用「直接子节点带 data-chat-flow」认 —— 带这个标记的元素不止一处
+          （step-process 的内容容器也带），靠「_scroll 祖先 + 直接子代」两点收窄才不会误伤。
+       ③ 动作行挂在 turn-tail（[data-turn-tail]）里，与正文的间距 = 流间距 12px +
+          动作行自身 margin-top 4px ⇒ 把承载它的 flowItem（data-chat-flow-kind="turn-tail"）
+          的流间距压到 4px，合计 8px，正好一半。
+       ④ 输入卡片内的上下分布（2026-10-20 二轮）：首轮把编辑器 min-height 抬到 40px，
+          真机看「文字 ↔ 功能键」空出 19px（卡片 65 → 77），功能键离卡片底缘却只剩 2px，
+          店主两处都不满意。改成「文字段落回原高 + 给功能键留出底部呼吸」：编辑器回到共用档
+          的 28px（本条覆盖物一并撤掉），行内底部给 6px——功能键相对卡片底缘上移 6px（2 → 8），
+          文字与功能键之间由 19 回到 7px，卡片净高 71px（键行 30px 时为 73px）。
+          会话区底部吸底，长高只往上吃聊天区，底部 stats 行不位移。
+       2026-10-20 十轮（店主：「不行太挤了，还原吧」）：七～九轮对消息流的收紧
+       （turn-tail 内部 gap 0、userRow gap 2 与时间行盒 20、turn-process 5、上下文环命中盒 -3）
+       已整段删除，全部回到宿主默认值（16 / 6 + 28 / 16 / -4）；上面 ①～④ 是本轮之前
+       店主已逐条验收过的值，保留。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [data-phase] [data-chat-running]:not(:first-child) {
+      margin-top: 4px !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] [data-chat-running] [class*="_runningDivider"] {
+      margin: 3px 0 4px !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] [class*="_scroll"]:has(> [data-chat-flow]) {
+      padding-bottom: 6px !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] [data-chat-flow-kind="turn-tail"] {
+      margin-top: 4px !important;
+    }
+    [data-mobile-nav="frame"] [data-phase="active"] [data-composer-card] [class*="_row"]:has(> [class*="_trailing"]) {
+      padding-bottom: 6px !important;
+    }
+  }
+  /* ===== 输入区功能键尺寸（2026-10-20 三轮 → 四轮）=====
+     三轮初版把整行盒子统一抬到 32px，真机看「很不协调：偏中间那几颗（权限 / 模型 /
+     语音）下面很空」——圆键（加号、发送 / 停止）有可见圆底，盒子就是它的可见边界；
+     中间几颗是**无底图标键**，盒子加高只会给图标多垫一圈透明空白，眼睛读到的是
+     「图标变小了、下面还空着」。所以盒子尺寸按元素分档，不再统一：
+       · 有可见圆底的：加号、📎、发送 / 停止 = 30px（比原来 28 大一档，比 32 收一档）；
+         📎 也走这一档，margin-left 由 -8 收到 -9（盒子 +2px 的一半），图标中心原地不动；
+       · 无底图标键（权限 / 模型 chip / 语音）= 盒子不动，靠**图标**变大，一律 18px：
+         加号 14、权限 14（.iWlSmW_triggerIcon svg）、模型 16、📎 与主键 16；
+       · 上下文环不动 —— 它本来就是 18px 的仪表，图标统一到 18 后整行反而齐了。
+     上一轮为「图标键」加的那两条透明 min-height 已删除（就是它们制造的空白）。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) [class*="_add"] {
+      width: 30px !important;
+      min-width: 30px !important;
+      height: 30px !important;
+      min-height: 30px !important;
+    }
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"],
+    [class*="_trailing"] > [class*="_primary"] {
+      width: 30px !important;
+      min-width: 30px !important;
+      height: 30px !important;
+      min-height: 30px !important;
+      /* 宿主 .uV2eYG_primary 自带 transform: translateY(-2px)（给 34px 主键做光学对齐）。
+         现在整排键同高 30px、盒中心对齐，保留 -2px 会让发送/停止键比旁边高 2px
+         （真机实测：蓝键中心 2817、其余图标 2825）。这里归零。 */
+      transform: none !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] [data-composer-card] [data-mobile-nav="file-upload"] {
+      width: 30px !important;
+      min-width: 30px !important;
+      max-width: 30px !important;
+      height: 30px !important;
+      min-height: 30px !important;
+      margin-left: -9px !important;
+    }
+    /* 图标统一 18px（宿主：加号 14、主键 16；📎 是我们自己的控件，也是 16）。 */
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) [class*="_add"] svg,
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"] svg,
+    [class*="_trailing"] > [class*="_primary"] svg,
+    [data-mobile-nav="frame"] [data-phase] [data-composer-card] [data-mobile-nav="file-upload"] svg {
+      width: 18px !important;
+      height: 18px !important;
+    }
+    /* 无底图标键：权限 / 模型 chip / 语音，图标一律 18px（宿主：权限 14 / 模型 16 /
+       语音本来就是 18）。**两种形状都要写**：权限把图标包在 _triggerIcon 包装里
+       （iWlSmW_triggerIcon > svg），模型的 triggerIcon 直接挂在 svg 自己身上
+       （ModelSelect 的 IconDataOutlineRegular 带 className=triggerIcon）—— 只写
+       「… _triggerIcon svg」时模型那颗静默不中（四轮真机复测墨迹 55 → 56 设备px）。
+       上限 18：再大就会压到 ⌄ 的节距（图标与 chevron 之间只有 ~2px）。 */
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_tools"] > [class*="_modes"] [class*="_triggerIcon"],
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_tools"] > [class*="_modes"] [class*="_triggerIcon"] svg,
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] [class*="_triggerIcon"],
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] button[class*="_trigger"]:not([aria-haspopup]) svg {
+      width: 18px !important;
+      height: 18px !important;
+    }
+    /* ===== 功能键颜色统一（2026-10-20 五轮）=====
+       店主：「功能键有部分是加黑加深的，有部分是灰色的，颜色不协调」。
+       真机取色（设备像素，按最暗的实心像素）：
+         · 加号 #07080c、📎 #08070c、语音 #08080a —— 近黑（label-primary）；
+         · 权限 ⚠ #5a5c60、模型图标 #595c62 —— 灰（label-secondary）；
+         · 两个 ⌄ #a6aaab —— 更浅一档（label-caption），宿主自己给 ⌄ 的层级。
+       三种来源：加号是宿主 .uV2eYG_add 的 color:label-primary；📎 是我们的按钮
+       color: inherit（吃到卡片正文色）；语音键没写 color 所以继承；
+       权限/模型是宿主写死的 label-secondary。手机上把整行图标统一到
+       **label-secondary**（与占多数的权限/模型/环一致，⌄ 仍留 caption 层级），
+       发送键保持蓝色主色不动。只作用于手机档：平板/桌面保留宿主原本的分层。
+       语音键不能靠「:not([aria-haspopup])」认：语音不可用时宿主会临时给它
+       aria-haspopup="dialog"（打开安装引导），那一刻颜色就会漏掉、又变回黑的。
+       改用它的锚点包装 _triggerAnchor > button。
+       想反过来走深色的话，把这五条里的 token 换成 --dsw-alias-label-primary 即可。 */
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) [class*="_add"],
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] [class*="_triggerAnchor"] > button,
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_tools"] > [class*="_modes"] [class*="_trigger"],
+    [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_root"] > [class*="_trigger"],
+    [data-mobile-nav="frame"] [data-phase] [data-composer-card] [data-mobile-nav="file-upload"] {
+      color: var(--dsw-alias-label-secondary) !important;
     }
   }
 }

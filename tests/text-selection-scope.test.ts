@@ -39,7 +39,10 @@ test('chrome surfaces are unselectable on the phone tier (both spellings)', () =
   assert.match(noneRule.body, /-webkit-user-select:\s*none !important/)
   for (const sel of [
     '[data-mobile-nav="frame"] > :first-child', // drawer
-    '[data-mobile-nav="frame"] [data-phase] header', // conversation header
+    // conversation header — anchored to the HOST header class: the ask-question
+    // card renders its own <header> in composerSeat, also under [data-phase],
+    // and a bare header here made its question text unselectable (2026-10-20).
+    '[data-mobile-nav="frame"] [data-phase] header.wSkVaW_header',
     '[data-mobile-nav="frame"] [data-composer-card]', // composer button rows
     '[data-mobile-nav="stats"]',
     '[data-mobile-nav="fab"]',
@@ -56,9 +59,11 @@ test('the conversation header anchor survives a host wrapper (no child combinato
   // drag-select up over it ended in the header title span again (live-host
   // probe 2026-10-07: 4391 selected chars, opening with the title / mode / tab
   // labels). The descendant form matches the same header on both generations.
+  // The arm is also pinned to the host header class: a bare header would extend
+  // the disable over the ask-question card's own <header> (2026-10-20).
   assert.doesNotMatch(MISC_CSS, /\[data-phase\]\s*>\s*header/)
-  assert.ok(noneRule!.selectors.includes('[data-mobile-nav="frame"] [data-phase] header'))
-  assert.ok(textRule!.selectors.includes('[data-mobile-nav="frame"] [data-phase] header input'))
+  assert.ok(noneRule!.selectors.includes('[data-mobile-nav="frame"] [data-phase] header.wSkVaW_header'))
+  assert.ok(textRule!.selectors.includes('[data-mobile-nav="frame"] [data-phase] header.wSkVaW_header input'))
 })
 
 test('content stays selectable: no message-flow or scrollport selector is disabled', () => {

@@ -30,7 +30,7 @@ test('wallpaper: the drawer refills from the static sidebar palette', () => {
 
 test('wallpaper: the dark session header keeps its page-base tone', () => {
   assert.match(layout,
-    /body\[data-ds-dark-theme\]\[data-dsh-bg\] \[data-mobile-nav="frame"\] \[data-phase\] header \{\s*background-color: var\(--dsw-static-neutral-bluish-950, #151517\) !important;/,
+    /body\[data-ds-dark-theme\]\[data-dsh-bg\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header \{\s*background-color: var\(--dsw-static-neutral-bluish-950, #151517\) !important;/,
     '深色顶栏在壁纸下必须回到 --dsw-static-neutral-bluish-950（#151517），而不是面板色 #232324')
 })
 
@@ -39,6 +39,6 @@ test('wallpaper: the compensation is additive, not a replacement for the base ru
   // header join the page background. Replacing it with the gated rule would
   // leave the header on the general bg-layer-1 paint (#232324).
   assert.match(layout,
-    /body\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header,\s*\n\s*html\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header \{\s*background-color: var\(--dsw-alias-bg-base, #151517\) !important;/,
+    /body\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header,\s*\n\s*html\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header \{\s*background-color: var\(--dsw-alias-bg-base, #151517\) !important;/,
     '无壁纸的深色顶栏规则（#176）不得被壁纸门控规则替换')
 })
