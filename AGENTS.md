@@ -5,7 +5,7 @@
 - Single-package, client-only plugin for the DSH Web UI. Adapts the UI on **touch-primary devices with a viewport below 1024px**（overlay drawer、full-width conversation、settings/explorer/preview sheets、status-bar safe areas、composer row、stats line）. Activation query `MOBILE_QUERY = '(max-width: 1023px) and (pointer: coarse)'`（`platform/breakpoints.ts`）：宽度单独不足以区分手机与窄桌面窗口（分屏与系统缩放会把 PC 的 CSS 视口压到 1024px 以下），所以键鼠窗口（`pointer: fine`）或无指针窗口在**任何**宽度都保持桌面形态；misc.css.ts 的桌面隐藏块是 MOBILE_QUERY 的精确补集（逗号列表）。**唯一例外（v2.4.1）**：会话删除三件套（菜单项 + 确认/错误弹层）按 `TOUCH_QUERY = '(pointer: coarse)'` 在**每个**宽度武装，故横屏大平板保留桌面布局但仍拿到「删除会话」项。
 - Names differ by boundary: README/GitHub project = `dsh-web-mobile`; npm package = `dsh-web-mobile`（由 dsh-mobile-nav 改名而来，旧名连同 2.2.0/2.3.0 已整包 unpublish，npm 上不再存在）; patch row id = `dsh-web-mobile`（DOM 标记 `data-mobile-nav` 与 `?mobile-nav-debug=1` 参数刻意保留旧词根，见 Pitfalls）。
 - 已被 [DSHA](https://github.com/qiannianhuanxiang/DSHA)（Android 启动器）内置为移动端适配（README 已致谢 @qiannianhuanxiang，commit ffb61b5）——**内置的是它打包时的源码快照**：本仓新版本要等上游重新拉取源码并发布 App 更新才生效，README / Release 文案不得写「装 APK 即得本版」。
-- **在本仓库改源码 + `pnpm build` 会直接影响用户正在用的页面**（v3.1.0 起本仓库就是线上版本，本机 web profile 只跑 `dsh-web-mobile`）。发版口径：v3.1.0 走 GitHub Release，**未发 npm**（npm 仍停在 3.0.6）。回滚件 `~/dsh-web-mobile-host-test` 是 v3.1.0 前身快照，已不装载。
+- **在本仓库改源码 + `pnpm build` 会直接影响用户正在用的页面**（v3.1.0 起本仓库就是线上版本，本机 web profile 只跑 `dsh-web-mobile`）。发版口径：**GitHub Release 与 npm 双通道**（npm 已发 3.0.6 / 3.1.0 / 3.2.0）。回滚件 `~/dsh-web-mobile-host-test` 是 v3.1.0 前身快照，已不装载。
 - No monorepo, no application server, no workspace layer.
 - Real entrypoints: `cordis.patch.yml`（唯一的宿主插件行）；`src/index.ts`（宿主半区入口，`apply()` 让该行对宿主 Loader 可见）；`package.json` 暴露 `./client` 并声明 `dsh.client.platform: "web"`，浏览器半区由 DSH 从 `src/client/index.tsx` 发现。宿主侧端点 `/api/mobile-nav.session.delete`。
 - Key layout（注释版仓库树；`(不入库)` = gitignore，外部 clone 不可见）:
@@ -127,7 +127,7 @@ dsh web
 - **Bug 定位先报告、确认后再修（用户要求）**：多步调查/根因不明/现象与成因相距远的 bug，定位到根因后**不要立刻动手修**，先给报告（症状、根因、证据链、影响范围、拟议修复），等用户确认再执行。一眼即明的简单修复不在此列。
 - **用户协作偏好自动入库（用户要求）**：用户在对话中提出的协作偏好/工作流要求，**当场写进本文件对应节**，不必等用户点名；入库后在回复里提一句写到了哪里。记忆只做跨会话备份，不能替代本文件。
 - **宿主升级必须用户单独确认（用户要求）**：默认只做源码/静态对账，**不动宿主**；alpha 通道一律不上机。真要升级先备份 `~/.dsh/sessions`，升级后按 runbook 电池验收。
-- **发版动作必须用户单独同意（用户要求）**：版本 bump + tag + npm publish + GitHub Release 属对外发布动作，走到发版步时**停下来等用户点头**。
+- **发版动作必须用户单独同意（用户要求）**：版本 bump + tag + npm publish + GitHub Release 属对外发布动作，走到发版步时**停下来等用户点头**；发完**三处分别核实**（Release 页 / tag / npm `latest`），别拿其中一处当全部。
 - **push + PR + merge 必须用户批准（用户要求，覆盖旧口径）**：本地 commit 可自主（工作区可逆），但 **push 远端、开 PR、merge 一律先报用户等点头**——用户原话「没我批准你不许直接发PR」；网络重试自动合并的后台循环同样禁止。
 - **公开 PR/issue 文本卫生（用户要求）**：私聊验收口语、内部对话引用、自封头衔**一律不进**公开文本——只写事实（改了什么、为何这样改、门验结果）；验收状态用中性的「已在真机验证」。**合并 ≠ 可更新**：修复合进 main 后 npm/Release 可能仍是旧版，对外回复必须区分「已合并」与「已发布」，未发版前明说「等下个 release」。
 - **CI/长任务不空等（用户要求）**：push/merge 后的 CI、探针、后台任务一律不 sleep 轮询等待——发起后用即时命令查一次状态（如 `gh run list -L 1`）就收口；禁止 `sleep N && …` 式长等待。
