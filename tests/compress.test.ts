@@ -266,3 +266,38 @@ test('buffered strings honor the write()/end() encoding, e.g. latin1 (issue #80)
     restore()
   }
 })
+
+test('large JSON compression runs off the event loop (end() returns before the body is on the wire)', async () => {
+  // 2026-10-20 店主报障「首次进入点『继续』卡住几秒」：本补丁原先在 end() 里
+  // 同步调 brotliCompressSync —— 手机宿主进程和 WebView 抢同一个 CPU，一个
+  // 几 MB 的 JSON 响应会把事件循环按住，排在后面的设置写请求（很小）只能等，
+  // 用户看到的就是弹层停在「正在保存…」。这条断言把「异步」钉死：end() 返回时
+  // 必须还没写头；一旦有人改回同步压缩，headersSent 会立刻是 true。
+  const { installResponseCompression } = await import('../src/compress.ts')
+  const http = await import('node:http')
+  const restore = installResponseCompression()
+  const payload = JSON.stringify({ data: 'q'.repeat(64 * 1024) })
+  let headersSentRightAfterEnd: boolean | null = null
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(payload)
+    headersSentRightAfterEnd = res.headersSent
+  })
+  try {
+    await new Promise<void>((resolveListen) => server.listen(0, resolveListen))
+    const port = (server.address() as { port: number }).port
+    const out = await new Promise<{ headers: Record<string, string | string[]>, body: Buffer }>((resolve, reject) => {
+      http.get({ host: '127.0.0.1', port, headers: { 'accept-encoding': 'br' } }, (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }))
+      }).on('error', reject)
+    })
+    assert.equal(headersSentRightAfterEnd, false, '压缩必须异步：end() 返回时还不许写头，否则会堵住宿主事件循环')
+    assert.equal(out.headers['content-encoding'], 'br')
+    assert.equal(out.body.byteLength, Number(out.headers['content-length']), '异步路径仍要保证内容长度一致')
+  } finally {
+    server.close()
+    restore()
+  }
+})
