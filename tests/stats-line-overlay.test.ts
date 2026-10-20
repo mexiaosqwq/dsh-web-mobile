@@ -179,7 +179,7 @@ test('ring reserve box participates in both skip keys (stale-offset regression)'
 // ② 只在深色标记下生效；③ 用同一个 bg-base token 取色，跟着主题走。
 test('dark conversation header blends into the page background (issue #176)', () => {
   assert.match(layout,
-    /body\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header,\s*\n\s*html\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header \{/,
+    /body\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header,\s*\n\s*html\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header \{/,
     '缺了深色头部同色的规则（body/html 两个深色标记都要覆盖）')
   assert.match(layout, /background-color: var\(--dsw-alias-bg-base, #151517\) !important/,
     '头部底色必须取页面底色的同一个 token，写死颜色会在换主题时失真')

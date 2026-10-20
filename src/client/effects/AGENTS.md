@@ -1,7 +1,7 @@
 # effects/ · 效果模块背景
 
 改动 `src/client/effects/` 下任意文件时本文件会自动进入上下文；改别的目录时它不出现。
-每个模块的背景与根因写在**该文件自己的文档块**里（31/33 有，位置在 imports 之后的导出上方），
+每个模块的背景与根因写在**该文件自己的文档块**里（32/34 有，位置在 imports 之后的导出上方），
 这里补的是跨模块共享的形状约束与源码里没写下的细节。
 
 ## 分层与依赖
@@ -22,6 +22,9 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 - **`panel-exit.ts` 退场是先动画后提交**：挂 `data-mobile-panel-leaving` → CSS
   `dsh-web-mobile-panel-out`（220ms）→ `animationend` 之后才 `selectPanel()`。先提交会让宿主
   在同一次 commit 卸载面板，动画落在 0×0 空槽上。
+- **`panel-exit.ts` 的 history 条目必须「提前备」**：这个 WebView 会丢掉与同文档遍历同一任务
+  里发出的 `pushState`（popstate 内 / 紧随 rAF / 再晚一拍的 setTimeout 都实测丢过）。所以面板
+  自己一条、每下一层子页再预推一条；`popstate` 只消费已有条目、绝不补。
 - **`composer-file-picker.ts` 定位必须重锚定**：点回形针会让软键盘收起、布局整体下移一个键盘
   高，只在打开时算一次坐标的 `position:fixed` 浮层会停在会话中部。视口一变（`resize` /
   `orientationchange` / `visualViewport` 的 `resize`+`scroll`）就要重算。
@@ -42,6 +45,10 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   `[class*="sidebarCol"] [class*="logoRow"]` 注入 `data-mobile-nav="session-log"` 按钮，
   `scopes:['*']` 处理宿主重建，`dispose` 退订 + 移除；无当前会话置灰。
 - `header-metrics.ts` — 顶栏高度 → CSS 变量 `--mobile-nav-header-h`（`scopes:['*']`）。
+- `image-lightbox-zoom.ts` — 宿主原图灯箱（body 直挂 `div[role=dialog][aria-modal=true]`，stage 直接孩子是 img）
+  自己的缩放层：只给 img 写 `translate3d + scale` 的 transform，pointer/gesturestart/touchmove 全部只挂灯箱
+  节点（挂 document 会打红 cdp-zoom-probe A5 与 #45 契约）；缩放数学在 `core/image-zoom-core.ts`。
+  灯箱的铺满覆盖与 `touch-action:none` 在 `styles/layout.css.ts` 的 `image-lightbox-fullbleed` 补丁块。
 - `selection-chrome.ts` — 非折叠选区期间给 `<html>` 挂 `data-mobile-nav-selecting`，CSS 借此
   把顶栏移出命中测试。
 - `sidebar-swipe.ts` — 抽屉手势，**本目录最大的模块（1,593 行）**。开=8px 锁轴提前提交
@@ -89,7 +96,10 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   （`core/prototype-focus-shadow.ts`，#84）给 `HTMLInputElement.prototype.focus` 注册「这个
   搜索框不聚焦」的谓词，宿主的 `focusWithoutRing` 落到影子上。影子在 MutationObserver
   （只盯 `document.body` 的 childList）里安装——微任务早于 React 被动 effect，第一帧抢焦也拦得住。
-- **`session-focus-guard.ts`** — 影子窗口时长 **800ms**（源码用常量，数值语义在此）。
+- **`session-focus-guard.ts`** — 影子窗口时长 **800ms**（源码用常量，数值语义在此）。开窗有两个触发：
+  ①当前会话 id 变化；②面板退场（`panel-exit` 同步广播 `dsh-mobile-panel-exit`，帧上的
+  `data-mobile-panel-exit` 只是兜底）——面板占住主区时会话被卸载，退场后 InputBar 重挂载
+  又聚焦一次，键盘跟着弹。窗口必须在 commit 前打开，所以走事件而不是属性观察。
 - **`composer-keyboard-lift.ts`** — 抬升量语义：`translateY(−overlap)`，`overlap` = seat 的
   `getBoundingClientRect().bottom` 减 `visualViewport.height`（`vv.height`），纯屏坐标。
 - **`composer-keyboard-guard.ts`** — 上游 PR **#48**（`keepFocus` 在 `mousedown` 聚焦编辑器）。

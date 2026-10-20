@@ -37,7 +37,7 @@
   正是这行要防的失效模式**。
 - 已注册任务：`frame-marker`、`header-metrics`、`preview-fullscreen-toggle`、`preview-close-sync`、
   `sheet-rise-replay`、`file-viewer-open-marker`、`stats-line`、`overlay-backdrop-fab`、`panel-back-exit`、
-  `drawer-session-log`。
+  `drawer-session-log`、`image-lightbox-zoom`。
 
 ## 分层与依赖
 

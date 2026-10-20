@@ -380,6 +380,20 @@ export const BASE_CSS = `
     :where(button:has(> svg:only-child), button[aria-label]:not(:has(> span, > div))):where(:active):where(:not(:disabled, [aria-disabled="true"])) {
       transform: scale(.96);
     }
+    /* 例外（2026-10-20，店主）：头部那两颗芯片不要按压反馈。
+       症状：点「智能体团队」图标开面板、再点它关闭时，图标周围闪一块浅灰
+       （:active 的 inset 填充 + 图标缩到 .96）；「子智能体 / N 个子代理」芯片同样。
+       为什么要去掉：这两颗**开启态本来就有宿主自己的反馈** —— 团队图标打开时变粗，
+       子智能体芯片右侧有 chevron；按压灰圈和它们说的是同一件事，等于两份反馈叠在
+       一起，功能重复。加上两颗平时没有底色，整块浮灰在浅色壁纸上像一块脏。所以
+       只给它们清掉，其它按钮（抽屉行、菜单项、标签页、回形针等）的按压反馈原样保留。
+       两个标记都是宿主稳定的 data-*（不是哈希类）；宿主换标记时本块惰性失效，
+       届时按新标记改选择器即可，不必连带改上面两条通用规则。 */
+    [data-team-action] > button:active,
+    [data-dsha-lineage-trigger]:active {
+      box-shadow: none;
+      transform: none;
+    }
     @media (prefers-reduced-motion: reduce) {
       :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]) {
         transition: none;

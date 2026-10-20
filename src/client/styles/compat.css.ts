@@ -1328,4 +1328,70 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   }
 }
 
+/* ---------- session inspector: the disclosure triangles are too small ----------
+   2026-10-20 店主报障：手机端「会话数据诊断」面板（宿主实验插件
+   dsh-experimental-session-inspector）里那些深色小三角太小、点不准。
+
+   三处 disclosure 不是一个东西，得分开打：
+   A 表格「类型」列里的行展开箭头 —— 16px 宽、11px 的 ▸/▾ 文本按钮，
+     组件自己只给了 width:16px，没有 height/line-height，实际可点面 ≈16×13px，
+     而它紧贴「选中该行」的类型文本按钮（同一 td 内相邻），手机上很容易点错。
+   B 「原始数据」JSON 树每层 —— 原生 details/summary 的 UA marker，
+     宿主只设了 cursor:pointer，没有任何尺寸声明，随 root 的 11px 字号一起小。
+   C 面板顶部「原始数据 ▾」—— 原生 select 的 UA 箭头，同样 11px。
+   行高 30px 是宿主虚拟化的常量（client.js 里 size/estimateSize 与 sticky 偏移
+   多处写死 30，且没有 measureElement），所以只放大控件本身，绝不改行高。 */
+@media (max-width: 1023px) and (pointer: coarse) {
+  /* @patch
+     id: session-inspector-disclosure-size
+     for: @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（CSS 模块哈希前缀 GTtnTq）
+     why: 树行展开箭头只有 16×≈13px、字号 11px，低于触控下限，且与相邻的「选中该行」按钮动作不同
+     until: 宿主把 GTtnTq_disclosure 提到 ≥24px，或换成可缩放图标并自带内边距
+     test: tests/css-rules.test.ts
+  */
+  /* A：行箭头。22px 正好等于行内容盒（30px 行高 − 上下 4px 内边距），
+     不会撑高行、也不会打乱虚拟化的行位置模型。 */
+  [class*="GTtnTq_root"] [class*="_disclosure"][aria-expanded] {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 15px !important;
+    line-height: 1 !important;
+  }
+  /* B：JSON 树的原生 marker。字段名的缩进槽是 16px（ul 的 padding-inline-start），
+     15px 字形正好卡进槽里，放大不会把字段名右移。 */
+  [class*="GTtnTq_objectTree"] details > summary::marker {
+    font-size: 15px !important;
+  }
+  /* C：顶部模式选择器（原生 select）。不在虚拟化区域里，可以直接长高。 */
+  [class*="GTtnTq_modeSelector"] {
+    font-size: 13px !important;
+    padding: 4px 6px !important;
+    min-height: 32px !important;
+  }
+  /* D：吸顶祖先行（顶部那一群灰色行）在快速滑动时错乱/拖影。
+     宿主给它们是 position:sticky + 灰底，而整张表是 border-collapse:collapse ——
+     Chromium 里「sticky 的 <tr> + 合并边框」会逐帧重算行盒，甩动时就撕开。
+     两刀都只动呈现、不动布局：①把合并边框换成 separate + 0 间距（每行只有一条
+     border-bottom，视觉与合并边框一致，但行盒不再是合并边框模型）；②给 sticky
+     行独立合成层，吸顶位移整块平移，不再每帧重绘整行。
+     计时器/虚拟区间仍归宿主，这里不碰 scrollTop 与 overflow-anchor。 */
+  /* @patch
+     id: session-inspector-sticky-flicker
+     for: @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（GTtnTq_table / GTtnTq_sticky）
+     why: sticky 的 <tr> 叠在 border-collapse:collapse 表格上，快速滑动时吸顶祖先行被逐帧重算行盒，出现撕裂/拖影
+     until: 宿主把表格改成 border-collapse:separate，或不再用 sticky <tr> 表达祖先上下文
+     test: tests/css-rules.test.ts
+  */
+  [class*="GTtnTq_table"] {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+  [class*="GTtnTq_table"] [class*="GTtnTq_sticky"] {
+    will-change: transform !important;
+  }
+}
+
 `

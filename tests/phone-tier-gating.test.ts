@@ -16,9 +16,6 @@ const GATE = '@media (max-width: 767px) and (pointer: coarse)'
 
 /** 手机档专属声明：只允许出现在 ≤767px 门内。 */
 const PHONE_ONLY = [
-  'margin-top: -4px !important',
-  'top: 42px !important',
-  'padding-bottom: 5px !important',
   'align-self: flex-end !important',
   'min-height: 26px !important',
   'minmax(36px, auto) minmax(26px, auto)',
