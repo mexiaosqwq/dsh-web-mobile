@@ -17,6 +17,7 @@ export declare const zh: {
     readonly back: "返回";
     readonly backToConversation: "返回会话";
     readonly sessionLog: "导出会话日志";
+    readonly quickSettings: "设置";
     readonly files: "文件浏览";
     readonly fileUpload: "添加文件";
     readonly fileUploadImage: "上传图片";

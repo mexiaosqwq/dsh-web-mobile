@@ -69,6 +69,76 @@ export const BASE_CSS = `
   background: transparent;
 }
 
+/* Drawer quick-settings icon (2026-10-20): the host merged the settings entry
+   into the account launcher (the settings.launcher slot), so opening settings on
+   a phone costs two taps — the footer account row, then the menu's first item.
+   effects/drawer-quick-settings.ts injects this gear at the right end of that
+   same row and replays that path in one tap. The wrapper mirrors the brand-row
+   icon so no row heuristic adopts the node as the host's own control. */
+[data-mobile-nav="quick-settings-wrap"] {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  /* 2026-10-21 用户「UI应该再向左调整一下」：行宽是 calc(100% + 4px)、左右各外扩 2px，
+     账户 launcher 内边距 6px —— 让齿轮右缘对齐那颗按钮的内容右缘（column − 4px）。 */
+  margin-right: 6px;
+}
+[data-mobile-nav="quick-settings"] {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 2026-10-21 用户「UI太小了!」：28 → 36（图标 16 → 20），仍在 44px 行内居中。
+     2026-10-22 用户「还是太大了」：36 → 30（图标 20 → 17，同比例）。 */
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-md, 8px);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, inherit);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-mobile-nav="quick-settings"]:hover,
+[data-mobile-nav="quick-settings"]:active {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+}
+[data-mobile-nav="quick-settings"]:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
+  outline-offset: 1px;
+}
+
+/* @patch
+   id: drawer-quick-settings-chip-guard
+   for: dsh-client-ui-primitives 的 ConnectionIndicator（connecting/disconnected 渲染 button[data-phase]，recovered 渲染 div[role="status"]）与账户 launcher 同处 settingsArea 的 triggerRow
+   why: 该行只有 260px；连接条 flex:none（中文约 136px、英文约 190px），齿轮常驻会在英文下把账户按钮挤到约 26px、头像被裁
+   until: 宿主给该行提供独立的次要动作位，或连接条不再占用行宽——届时删本块
+   test: tests/drawer-quick-settings.test.ts
+*/
+[data-mobile-nav="frame"] [class*="sidebarCol"] [class*="triggerRow"]:has(> button[data-phase], > [role="status"]) [data-mobile-nav="quick-settings-wrap"] {
+  display: none !important;
+}
+
+/* @patch
+   id: drawer-quick-settings-menu-entry
+   for: dsh-client-ui-settings-account 的 AccountMenu items 数组（settings / contact / signout|signin）与 dsh-client-ui-primitives 的 Menu 列表结构（role=menu > div[role=presentation] > div > button[role=menuitem]）
+   why: 2026-10-21 用户要求「把原来的打开方式进行删除，只保留这个」——齿轮已是设置入口，账户菜单里同一项成了重复路径；宿主源码不可改，只能由 effects/drawer-quick-settings.ts 在菜单节点上打标记、这里收起第一项
+   until: 宿主给 settings.launcher 提供独立动作位，或账户菜单自己把设置项拆出去——届时删本块
+   test: tests/drawer-quick-settings.test.ts
+*/
+[data-mobile-nav-quick-menu] > [role="presentation"] > :first-child > [role="menuitem"] {
+  display: none !important;
+}
+
+/* Same click chain, flash guard: the gear opens the host account menu and picks
+   its first item in the following frame. While the marker sits on <html> that
+   intermediate menu stays unpainted (a JS click does not need visibility); the
+   task removes the marker once the chain settles. */
+[data-mobile-nav-quick] [role="menu"] {
+  visibility: hidden !important;
+}
+
 [data-mobile-nav="delete-confirm-title"] {
   font-size: 16px;
   font-weight: 500;
