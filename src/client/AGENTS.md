@@ -23,7 +23,11 @@
   （`[class*="sidebarCol"] [class*="logoRow"]`）注入一颗 `data-mobile-nav="session-log"` 的图标按钮
   （2026-10-18 issue #225 起，见 `docs/specs/2026-10-18-drawer-session-log-icon.md`）。原来的
   `sidebar.footer.action` 胶囊已删除——不要再把整行控件挂回抽屉页脚。
-- 已经没有 settings slot；触感反馈特性已移除。
+- 一键设置齿轮**也不在 slot 里**：`effects/drawer-quick-settings.ts` 往抽屉页脚账户行注入
+  `data-mobile-nav="quick-settings"`，点击复刻「账户 launcher → 菜单第一项」把设置一步打开，
+  同时给账户菜单节点打标记、由 CSS 收起菜单里那份设置项（2026-10-20 建、2026-10-21 改，见
+  `docs/specs/2026-10-20-drawer-quick-settings.md`）。宿主没有 settings slot；
+  触感反馈特性已移除。
 
 ## 全树协调器（reconciler）
 

@@ -4,11 +4,13 @@
 
 <!-- BEGIN:generated -->
 
-共 14 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
+共 16 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
 手改无效 —— 检查器会把不一致判为 fatal。
 
 | id | 位置 | 适配对象（for） | 到期条件（until） | 测试（test） |
 | --- | --- | --- | --- | --- |
+| `drawer-quick-settings-chip-guard` | src/client/styles/base.css.ts:112 | dsh-client-ui-primitives 的 ConnectionIndicator（connecting/disconnected 渲染 button[data-phase]，recovered 渲染 div[role="status"]）与账户 launcher 同处 settingsArea 的 triggerRow | 宿主给该行提供独立的次要动作位，或连接条不再占用行宽——届时删本块 | `tests/drawer-quick-settings.test.ts` |
+| `drawer-quick-settings-menu-entry` | src/client/styles/base.css.ts:123 | dsh-client-ui-settings-account 的 AccountMenu items 数组（settings / contact / signout|signin）与 dsh-client-ui-primitives 的 Menu 列表结构（role=menu > div[role=presentation] > div > button[role=menuitem]） | 宿主给 settings.launcher 提供独立动作位，或账户菜单自己把设置项拆出去——届时删本块 | `tests/drawer-quick-settings.test.ts` |
 | `header-chip-seat` | src/client/styles/layout.css.ts:2301 | 宿主 3.0.6 的 headerActions / titleCluster 槽位（子智能体谱系 chip 的座位） | 上游在标题行提供稳定的 actions/title 槽标记，或把该 chip 分到独立容器 | `tests/a2-header-gating.test.ts` |
 | `header-job-chip-collapse` | src/client/styles/layout.css.ts:2234 | dsh-client-ui-jobs 的后台任务 chip（0.2.1 起包裹 div 无类名） | 宿主给该 chip 稳定的数据标记，或在手机档自带折叠形态 | `tests/a2-header-gating.test.ts` |
 | `image-lightbox-fullbleed` | src/client/styles/layout.css.ts:2751 | dsh-client-ui-primitives ImageLightbox（role=dialog + aria-modal=true，stage 末孩子是关闭按钮） | 宿主给灯箱提供独立的 data-* 标记或自带移动端铺满形态，届时删本块 | `tests/css-rules.test.ts` |
@@ -42,7 +44,7 @@
 | `src/client/styles/layout.css.ts` | 526 | 582 | 291 |
 | `src/client/styles/compat.css.ts` | 388 | 112 | 20 |
 | `src/client/styles/misc.css.ts` | 51 | 18 | 12 |
-| `src/client/styles/base.css.ts` | 15 | 2 | 11 |
+| `src/client/styles/base.css.ts` | 18 | 4 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
 | `src/client/effects/sidebar-swipe.ts` | 2 | 1 | 0 |
@@ -53,6 +55,7 @@
 | `src/client/effects/composer-keyboard-lift.ts` | 0 | 2 | 0 |
 | `src/client/effects/composer-plus-toggle.ts` | 0 | 1 | 0 |
 | `src/client/effects/drawer-close.ts` | 0 | 9 | 0 |
+| `src/client/effects/drawer-quick-settings.ts` | 0 | 2 | 0 |
 | `src/client/effects/drawer-session-log.ts` | 0 | 4 | 0 |
 | `src/client/effects/model-menu-anchor.ts` | 0 | 3 | 0 |
 | `src/client/effects/model-menu-keyboard-guard.ts` | 0 | 1 | 0 |
@@ -61,6 +64,6 @@
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
-| **合计** | **989** | **788** | **337** |
+| **合计** | **992** | **792** | **338** |
 
 <!-- END:inventory -->

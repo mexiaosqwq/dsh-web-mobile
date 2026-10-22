@@ -330,6 +330,8 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   ],
   'file-viewer-open-marker': ['*'],
   'drawer-session-log': ['*'],
+  // 2026-10-20：抽屉一键设置齿轮（宿主 React 重建账户行后幂等重挂）。
+  'drawer-quick-settings': ['*'],
   'stats-line': ['*', TEXT_MUTATION_SCOPE],
   'overlay-backdrop-fab': ['*', 'data-sidebar-collapsed', 'data-phase'],
   'panel-back-exit': ['*'],
