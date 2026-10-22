@@ -309,3 +309,45 @@ test('the job chip collapses by shape, not by the host root class', () => {
     assert.equal(/padding-right:\s*(?!0)[0-9]+px/.test(r.body), false, `reservation must not ride on padding: ${r.sel}`)
   }
 })
+
+// 2026-10-22 dsh-zen-remote 2.2.5 判例：它在手机档把 titleRow 改成
+// 92px/1fr/92px 三栏，并靠 _titleCluster{display:contents} 把 crumbs /
+// headerActions 变成直系 grid 项。本插件 0.2.x 块的 display:flex !important
+// 会打败它，集群缩成 92px 列再减 34px 预留 = 58px，注入的 44px 返回键被裁。
+// 修法是「在 header-back 在场时让位」，不是改 titleRow 的列模板（那会把
+// zen-remote 的三栏整体压平，返回键落到右上）。
+test('the zen-remote header reflow gets the cluster yielded, not overridden', () => {
+  const scoped = scopedRules(layoutSource())
+  const yieldRule = scoped.find(
+    (r) => inPhone(r) && r.sel.includes('_titleCluster') && r.sel.includes('[data-mobile-nav="header-back"]') && r.body.includes('display: contents'),
+  )
+  assert.ok(yieldRule !== undefined, 'the zen-remote yield rule is missing (phone scope)')
+  assert.ok(yieldRule.body.includes('display: contents !important'), 'the cluster must yield to display:contents')
+  assert.equal(yieldRule.sel.includes('[class$='), false, 'class matching must be substring, not suffix')
+  assert.equal(inSharedMobile(yieldRule), false, 'the yield rule must not leak into the shared 768-1023 tablet band')
+
+  // 基座必须原样：无 zen-remote 的页面仍走共用档的 flex 集群。
+  const base = scoped.find(
+    (r) => inSharedMobile(r) && r.sel.includes('_titleCluster') && r.body.includes('display: flex !important'),
+  )
+  assert.ok(base !== undefined, 'the shared-mobile flex cluster rule is missing')
+
+  const titleRow = scoped.find(
+    (r) => inPhone(r) && r.sel.includes('_titleRow') && r.sel.includes('[data-mobile-nav="header-back"]'),
+  )
+  assert.ok(titleRow !== undefined, 'the titleRow seat rule is missing')
+  assert.ok(titleRow.body.includes('padding-left: 0 !important'), 'zen-remote hides the toggle: drop the 32px seat so the back action reaches the left edge')
+
+  const actions = scoped.find(
+    (r) => inPhone(r) && r.sel.includes('_headerActions') && r.sel.includes('[data-mobile-nav="header-back"]'),
+  )
+  assert.ok(actions !== undefined, 'the headerActions yield rule is missing')
+  assert.ok(actions.body.includes('margin-left: 0 !important'), 'margin-left:auto must be cancelled so the back action starts at the column edge')
+  assert.ok(actions.body.includes('justify-content: flex-start !important'), 'the back action must be left-aligned')
+
+  const crumbs = scoped.find(
+    (r) => inPhone(r) && r.sel.includes('_crumbs') && r.sel.includes('[data-mobile-nav="header-back"]'),
+  )
+  assert.ok(crumbs !== undefined, 'the crumbs clip rule is missing')
+  assert.ok(crumbs.body.includes('overflow: hidden !important'), 'the centered title must clip inside its column')
+})
