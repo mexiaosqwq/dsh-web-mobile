@@ -3469,6 +3469,35 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       gap: 6px !important;
     }
   }
+  /* @patch
+     id: zen-remote-header-yield
+     for: dsh-zen-remote 2.2.5 的手机档 header reflow（headerActions 里注入 [data-mobile-nav="header-back"]，titleRow 改成 92px/1fr/92px 三栏，titleCluster 靠 display:contents 变成直系 grid 项）
+     why: 本插件 0.2.x 块对 _titleCluster 的 display:flex !important 会打败 zen-remote 的 display:contents，集群退化成一个 92px 的 grid 项，再减 34px 预留只剩 58px，注入的 44px 返回键被 overflow-x:auto 裁掉；改 titleRow 列模板会把 zen-remote 的三栏整体压平、返回键落到右上，不能治根
+     until: dsh-zen-remote 不再重排 header，或它改为不依赖 display:contents 的稳定槽位，届时删本块
+     test: tests/a2-header-gating.test.ts
+  */
+  @media (max-width: 767px) and (pointer: coarse) {
+    /* zen-remote 2.2.5 的手机档 home CSS 把本插件的 toggle 藏了，32px 的开关座位
+       在这条路径上是死空间；归零后返回键落在 x≈8 的原生位，而不是 x≈40。 */
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([data-mobile-nav="header-back"]) [class*="_titleRow"] {
+      padding-left: 0 !important;
+    }
+    /* 让回 zen-remote 的三栏：集群不生成盒子，crumbs / headerActions 直接落进它的 grid。
+       只在 header-back 在场时生效——没装 zen-remote 的页面仍走共用档的 flex 集群。 */
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([data-mobile-nav="header-back"]) [class*="_titleCluster"] {
+      display: contents !important;
+    }
+    /* 共用档用 margin-left:auto + flex-end 把动作行贴右；在 zen-remote 的第 1 列里
+       那会把返回键推离列首（实测 x≈118，落在 58px 滚动盒外），归零后它贴列左缘（x≈8）。 */
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([data-mobile-nav="header-back"]) [class*="_titleCluster"] > [class*="_headerActions"] {
+      margin-left: 0 !important;
+      justify-content: flex-start !important;
+    }
+    /* 共用档为了横滑窗保留 overflow:visible；zen-remote 的居中标题靠 hidden 裁边。 */
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([data-mobile-nav="header-back"]) [class*="_titleCluster"] > [class*="_crumbs"] {
+      overflow: hidden !important;
+    }
+  }
   /* ===== 对话区留白 + 输入框高度（2026-10-20，店主截图定档）=====
      店主三处「留白太多」＋「输入框太小」，只对真·手机档生效（平板保持上游排布）。
      真机读数（1380×3036，dpr≈3.83，下同）：
