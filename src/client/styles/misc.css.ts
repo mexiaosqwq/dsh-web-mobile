@@ -374,6 +374,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
 @media (min-width: 1024px), (pointer: fine), (pointer: none) {
   [data-mobile-nav="toggle"],
   [data-mobile-nav="files"],
+  [data-mobile-nav="downloads"],
   [data-mobile-nav="file-upload"],
   [data-mobile-nav="fab"],
   [data-mobile-nav="backdrop"],
@@ -381,7 +382,8 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="session-log-wrap"],
   [data-mobile-nav="quick-settings"],
   [data-mobile-nav="quick-settings-wrap"],
-  [data-mobile-nav="preview-full-toggle"] {
+  [data-mobile-nav="preview-full-toggle"],
+  [data-mobile-nav="question-expand"] {
     display: none !important;
   }
 }
@@ -397,4 +399,94 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     display: none !important;
   }
 }
+
+/* 手机档：「更多视图」⋯ 与侧边栏「更多」重复，而且它把页签行挤成两行
+   （tablist 宽 100% → flex 换行），连带把谱系 chip 顶到 header 底边那条空行。
+   只藏按钮本身：菜单以它为锚点，藏了按钮就不会再弹出。 */
+@media (max-width: 1023px) and (pointer: coarse) {
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header button[class*="viewsMore"],
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [class*="viewsMoreAnchor"] {
+    display: none !important;
+  }
+}
+
+/* 抽屉打开时，「更多」菜单（宿主 PanelMoreMenu，align=start、宽 288）从锚点
+   左缘起算会越过 min(88vw,280px) 的抽屉右缘。把菜单钉在抽屉内：左缘 8px、
+   宽度跟着抽屉算，右侧留 8px。 */
+@media (max-width: 1023px) and (pointer: coarse) {
+  body:has([data-mobile-nav="frame"]:not([data-sidebar-collapsed])) [class*="moreMenu"] {
+    left: 8px !important;
+    right: auto !important;
+    max-width: calc(min(88vw, 280px) - 16px) !important;
+  }
+}
+
+/* 头部「下载记录」按钮：它是 headerActions 里唯一留在文档流里的插件按钮
+   （toggle/files 都绝对定位到两角），所以会孤零零卡在标题和「标准模式」之间。
+   右侧图标簇已经没有 28px 的空位（团队 chip 的箭头与文件按钮只隔 ~39px），
+   先把它从头部撤下；要保留入口就放进抽屉品牌行或文件面板。 */
+@media (max-width: 1023px) and (pointer: coarse) {
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [data-mobile-nav="downloads"] {
+    display: none !important;
+  }
+}
+
+/* 抽屉品牌行「下载」菜单：视觉与宿主 Menu 对齐（Menu.module.css / MenuSurface）：
+   4px 内边距、radius-lg 表面、elevation-prominent 阴影、34px 行高、13px 字、
+   6px 图标间距；行高与「更多」菜单完全一致。 */
+[data-mobile-nav="session-log-menu"] {
+  position: fixed;
+  z-index: 1400;
+  box-sizing: border-box;
+  min-width: 200px;
+  max-width: calc(100vw - 24px);
+  padding: 4px;
+  border: 0;
+  border-radius: var(--dsw-radius-lg, 12px);
+  background: var(--dsw-menu-surface-fill, var(--dsw-alias-bg-elevated, #fff));
+  backdrop-filter: var(--dsw-menu-backdrop-filter, blur(20px));
+  /* 与宿主 Menu.module.css 同款：prominent 阴影的第一段是 0.5px 描边环，
+     颜色取自 --dsw-elevation-stroke-color；不声明它会落成黑色，就是用户看到的黑边。 */
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent, 0 3px 8px rgba(0, 0, 0, .04), 0 0 20px rgba(0, 0, 0, .05));
+}
+[data-mobile-nav="session-log-menu"] [role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-md, 8px);
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #141414);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-mobile-nav="session-log-menu"] [role="menuitem"] svg {
+  flex: none;
+  color: var(--dsw-alias-label-secondary, inherit);
+}
+[data-mobile-nav="session-log-menu"] [role="menuitem"]:hover:not(:disabled),
+[data-mobile-nav="session-log-menu"] [role="menuitem"]:active:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+}
+[data-mobile-nav="session-log-menu"] [role="menuitem"]:disabled {
+  opacity: .45;
+}
+
+
+/* 头部顶部留白：屏幕状态栏高 38px（152px @4x），标题原始落在 54px。
+   2026-10-25 试过 -16（标题约 38），会进入 App 的顶部遮盖层，已回退到 -8
+   （标题约 46，仍在状态栏之下）；再往上需要 App 层配合，见 04-plan 交接文档。 */
+@media (max-width: 1023px) and (pointer: coarse) {
+  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {
+    margin-top: -8px !important;
+  }
+}
+
 `

@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { findRuleBlocks } from '../src/client/core/css-rules.ts'
 import { LAYOUT_CSS } from '../src/client/styles/layout.css.ts'
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -71,7 +72,17 @@ test('the phone scroll body extends up under the header (compensated geometry)',
   assert.match(block, /margin-top:\s*calc\(-1 \* var\(--mobile-nav-header-h, 0px\)\) !important/)
   assert.match(block, /padding-top:\s*var\(--mobile-nav-header-h, 0px\) !important/)
   // 变量缺席时必须是 no-op（hero / 空顶栏 / 宿主换形态都靠这条 fail-open）。
-  assert.ok(!/var\(--mobile-nav-header-h\)/.test(LAYOUT_CSS), '两份声明都要 0px 兜底')
+  // 例外只有一条：提问卡的满屏带（layout.css.ts 的 ask-question-card-phone 节）刻意写成
+  // **裸** var —— 它靠「自定义属性 guaranteed-invalid ⇒ 消费端 var() 回落宿主
+  // min(60vh,520px)」实现 fail-open；在这里补 0px 反而会让卡片撑到顶栏底下。
+  // 断言仍是全表扫描（不许在别处新增裸用法），只是点名放行那一条。
+  const bare = findRuleBlocks(LAYOUT_CSS).filter((block) =>
+    /var\(--mobile-nav-header-h\)/.test(block.body),
+  )
+  for (const block of bare) {
+    assert.match(block.selector, /\[data-mobile-nav-question-full\]/, `裸 var 用法：${block.selector}`)
+    assert.match(block.body, /--dsha-mobile-question-band:/, '裸 var 只允许出现在满屏带那条声明里')
+  }
 })
 
 test('the header occludes the lifted flow (opaque + raised, under the overlay tier)', () => {

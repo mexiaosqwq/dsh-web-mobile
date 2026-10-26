@@ -337,6 +337,9 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   'panel-back-exit': ['*'],
   // 2026-10-20：灯箱缩放层随 portal 挂载/卸载（body 直挂 dialog），故吃树键。
   'image-lightbox-zoom': ['*'],
+  // 2026-10-25：提问卡展开按钮（宿主重建卡头后幂等重挂）。几何只在视口事件上量，
+  // 所以树键只负责注入这一件事，不需要 style/class 键。
+  'question-fullscreen': ['*'],
 }
 
 const sorted = (list: string[]): string[] => [...list].sort()
