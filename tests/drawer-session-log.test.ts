@@ -30,9 +30,15 @@ test('the footer slot registration is gone and the icon is a scoped reconciler t
   assert.match(SOURCE, /\[class\*="sidebarCol"\] \[class\*="logoRow"\]/)
 })
 
-test('the button carries the marker, the locale label and the host download call', () => {
+test('the trigger carries the marker, the menu wiring and the host download call', () => {
+  // 2026-10-25：品牌行图标从「直接导出」改成两项菜单（导出会话日志 / 下载记录），
+  // 触发器仍是 session-log 标记，但 aria-label 走 downloadMenu，导出挪进菜单行。
   assert.match(SOURCE, /dataset\.mobileNav = 'session-log'/)
-  assert.match(SOURCE, /setAttribute\('aria-label', t\('sessionLog'\)\)/)
+  assert.match(SOURCE, /button\.setAttribute\('aria-label', t\('downloadMenu'\)\)/)
+  assert.match(SOURCE, /button\.setAttribute\('aria-haspopup', 'menu'\)/)
+  assert.match(SOURCE, /panel\.dataset\.mobileNav = 'session-log-menu'/)
+  assert.match(SOURCE, /makeItem\(t\('sessionLog'\), 'session-log-export'/)
+  assert.match(SOURCE, /makeItem\(t\('downloads'\), 'session-log-downloads'/)
   assert.match(SOURCE, /currentSessionIdOf\(ctx\.sessions\.list\.getSnapshot\(\)\)/)
   assert.match(SOURCE, /ctx\.sessionLogDownload\.download\(/)
   // The wrapper is the dsh-web-all stamping guard (see the behavioral test).
@@ -51,6 +57,22 @@ class FakeElement {
   title = ''
   innerHTML = ''
   isConnected = false
+  style: Record<string, string> = {}
+
+  focus(): void {}
+
+  getBoundingClientRect(): { bottom: number; right: number } {
+    return { bottom: 0, right: 0 }
+  }
+
+  contains(node: unknown): boolean {
+    let current = node as FakeElement | null
+    while (current !== null) {
+      if (current === this) return true
+      current = current.parentElement
+    }
+    return false
+  }
   private listeners: Record<string, Array<() => void>> = {}
 
   constructor(tagName: string) {
@@ -119,16 +141,43 @@ class FakeFrame extends FakeElement {
 }
 
 /** Install a fake document with one frame whose sidebar column contains `row`. */
-function installDocument(row: FakeElement): { restore: () => void } {
+function installDocument(row: FakeElement): { restore: () => void; body: FakeElement } {
   const frame = new FakeFrame(row)
+  const body = new FakeElement('body')
+  const documentListeners = new Map<string, Array<(event: unknown) => void>>()
   const previous = (globalThis as { document?: unknown }).document
+  const previousWindow = (globalThis as { window?: unknown }).window
+  const previousObserver = (globalThis as { MutationObserver?: unknown }).MutationObserver
   ;(globalThis as { document?: unknown }).document = {
+    body,
     querySelector: (selector: string) => (selector === '[data-mobile-nav="frame"]' ? frame : null),
     createElement: (tagName: string) => new FakeElement(tagName),
+    addEventListener: (type: string, fn: (event: unknown) => void) => {
+      const list = documentListeners.get(type) ?? []
+      list.push(fn)
+      documentListeners.set(type, list)
+    },
+    removeEventListener: (type: string, fn: (event: unknown) => void) => {
+      const list = documentListeners.get(type) ?? []
+      documentListeners.set(type, list.filter((entry) => entry !== fn))
+    },
+  }
+  ;(globalThis as { window?: unknown }).window = {
+    innerWidth: 360,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    setTimeout: (fn: () => void) => { fn(); return 1 },
+  }
+  ;(globalThis as { MutationObserver?: unknown }).MutationObserver = class {
+    observe(): void {}
+    disconnect(): void {}
   }
   return {
+    body,
     restore: () => {
       ;(globalThis as { document?: unknown }).document = previous
+      ;(globalThis as { window?: unknown }).window = previousWindow
+      ;(globalThis as { MutationObserver?: unknown }).MutationObserver = previousObserver
     },
   }
 }
@@ -174,9 +223,9 @@ function makeLogoRow(): { row: FakeElement; brand: FakeElement; hostToggle: Fake
   return { row, brand, hostToggle }
 }
 
-test('ensure mounts the icon in the brand row, tracks the current session and re-mounts after a row swap', () => {
+test('ensure mounts the trigger in the brand row, opens the menu and re-mounts after a row swap', () => {
   const { row, brand, hostToggle } = makeLogoRow()
-  const { restore } = installDocument(row)
+  const { restore, body } = installDocument(row)
   const { ctx, state, listeners, downloads, notify } = makeContext()
   try {
     const task = createDrawerSessionLogTask(ctx)
@@ -185,7 +234,7 @@ test('ensure mounts the icon in the brand row, tracks the current session and re
     const wrapper = row.children.find((child) => child.dataset.mobileNav === 'session-log-wrap')
     assert.ok(wrapper !== undefined, 'ensure must mount the wrapper into the logo row')
     const button = wrapper.children[0]
-    assert.ok(button !== undefined, 'the wrapper must carry the icon button')
+    assert.ok(button !== undefined, 'the wrapper must carry the trigger button')
     assert.equal(button.dataset.mobileNav, 'session-log')
     assert.equal(button.parentElement, wrapper)
     assert.equal(wrapper.parentElement, row)
@@ -195,18 +244,34 @@ test('ensure mounts the icon in the brand row, tracks the current session and re
     const directButtons = row.children.filter((child) => child.tagName === 'button')
     assert.deepEqual(directButtons, [brand, hostToggle])
     assert.equal(directButtons[directButtons.length - 1], hostToggle)
-    assert.equal(button.getAttribute('aria-label'), 'sessionLog')
-    assert.equal(button.title, 'sessionLog')
-    // No current session -> disabled; a tap is a no-op.
-    assert.equal(button.disabled, true)
-    button.fire('click')
-    assert.deepEqual(downloads, [])
+    assert.equal(button.getAttribute('aria-label'), 'downloadMenu')
+    assert.equal(button.title, 'downloadMenu')
+    assert.equal(button.getAttribute('aria-haspopup'), 'menu')
+    assert.equal(button.getAttribute('aria-expanded'), 'false')
 
-    // Becoming the current session re-enables through the subscription.
+    // No current session: the menu still opens (it is the entry point), but the
+    // export row is disabled and cannot reach the host service.
+    button.fire('click')
+    assert.equal(button.getAttribute('aria-expanded'), 'true')
+    const panel = body.children.find((child) => child.dataset.mobileNav === 'session-log-menu')
+    assert.ok(panel !== undefined, 'the trigger must portal the menu into the body')
+    const exportItem = panel.children.find((child) => child.dataset.mobileNav === 'session-log-export')
+    assert.ok(exportItem !== undefined, 'the menu must carry the export row')
+    assert.equal(exportItem.disabled, true)
+    exportItem.fire('click')
+    assert.deepEqual(downloads, [])
+    assert.equal(body.children.includes(panel), false, 'the menu closes after the export row runs')
+
+    // Becoming the current session re-enables the export row.
     state.id = 'session-1'
     notify()
-    assert.equal(button.disabled, false)
     button.fire('click')
+    const enabledPanel = body.children.find((child) => child.dataset.mobileNav === 'session-log-menu')
+    assert.ok(enabledPanel !== undefined)
+    const enabledExport = enabledPanel.children.find((child) => child.dataset.mobileNav === 'session-log-export')
+    assert.ok(enabledExport !== undefined)
+    assert.equal(enabledExport.disabled, false)
+    enabledExport.fire('click')
     assert.deepEqual(downloads, ['session-1'])
 
     // Host React rebuilds the logo row: ensure re-mounts into the new node.
@@ -218,12 +283,17 @@ test('ensure mounts the icon in the brand row, tracks the current session and re
       assert.ok(swapped.row.children.includes(wrapper), 'ensure must re-mount after a React row swap')
       const swappedButtons = swapped.row.children.filter((child) => child.tagName === 'button')
       assert.equal(swappedButtons[swappedButtons.length - 1], swapped.hostToggle)
-      assert.equal(button.disabled, false)
+      // The trigger keeps its enabled menu after the swap.
+      button.fire('click')
+      const swappedPanel = installed.body.children.find(
+        (child) => child.dataset.mobileNav === 'session-log-menu',
+      )
+      assert.ok(swappedPanel !== undefined)
     } finally {
       installed.restore()
     }
 
-    // Disposal removes the node and the subscription.
+    // Disposal removes the node, drops the menu and the subscription.
     task.dispose()
     assert.equal(swapped.row.children.includes(wrapper), false)
     assert.equal(listeners.size, 0)

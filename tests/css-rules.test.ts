@@ -323,3 +323,86 @@ test('the session-inspector disclosure triangles are enlarged on phones (2026-10
   assert.ok(sticky !== undefined, '吸顶行的合成层规则在位')
   assert.match(sticky.body, /will-change:\s*transform !important/)
 })
+
+/** Drop every `@media (hover: hover) { … }` block (brace-matched). */
+const withoutHoverMedia = (css: string): string => {
+  let out = ''
+  let i = 0
+  for (;;) {
+    const at = css.indexOf('@media (hover: hover)', i)
+    if (at === -1) {
+      out += css.slice(i)
+      return out
+    }
+    out += css.slice(i, at)
+    let depth = 0
+    let k = css.indexOf('{', at)
+    for (; k < css.length; k++) {
+      if (css[k] === '{') depth++
+      else if (css[k] === '}') {
+        depth--
+        if (depth === 0) break
+      }
+    }
+    i = k + 1
+  }
+}
+
+test('plugin-owned controls reach a 44px touch target without changing their painted box (2026-10-25)', () => {
+  // owner 指定：图标盒子保持原尺寸（顶栏行高与观感不能变），命中区靠透明 ::after 外扩。
+  const hitBox = (css: string, marker: string) =>
+    findRuleBlocks(css).find((block) => block.selector.includes(marker) && block.selector.includes('::after'))
+
+  for (const marker of ['[data-mobile-nav="toggle"]', '[data-mobile-nav="files"]']) {
+    const block = hitBox(BASE_CSS, marker)
+    assert.ok(block !== undefined, `${marker} has no hit area`)
+    assert.match(block.body, /inset:\s*-8px/, `${marker}: 28 + 8*2 must be 44`)
+  }
+  const sessionLog = hitBox(BASE_CSS, '[data-mobile-nav="session-log"]')
+  assert.ok(sessionLog !== undefined)
+  assert.match(sessionLog.body, /inset:\s*-8px -6px/)
+  const quickSettings = hitBox(BASE_CSS, '[data-mobile-nav="quick-settings"]')
+  assert.ok(quickSettings !== undefined)
+  assert.match(quickSettings.body, /inset:\s*-7px/)
+  const fab = hitBox(BASE_CSS, '[data-mobile-nav="fab"]')
+  assert.ok(fab !== undefined)
+  assert.match(fab.body, /inset:\s*-3px/)
+  const preview = hitBox(COMPAT_CSS, '[data-mobile-nav="preview-full-toggle"]')
+  assert.ok(preview !== undefined)
+  assert.match(preview.body, /inset:\s*-12px -4px/)
+
+  // The pseudo element is absolutely positioned, so its owner must establish the
+  // containing block — a missing position:relative would fling the hit area to
+  // the nearest positioned ancestor (usually the whole frame).
+  for (const marker of ['[data-mobile-nav="toggle"]', '[data-mobile-nav="session-log"]', '[data-mobile-nav="quick-settings"]']) {
+    const owner = findRuleBlocks(BASE_CSS).find(
+      (block) => block.selector.split(',')[0].trim() === marker && /position:\s*relative/.test(block.body),
+    )
+    assert.ok(owner !== undefined, `${marker} does not anchor its ::after`)
+  }
+})
+
+test('hover feedback only exists for hover-capable pointers (no sticky hover on touch)', () => {
+  // 手机没有 hover，Chromium 会把点击后的 :hover 粘住 —— 图标一直挂灰底。
+  // 按下反馈由 :active 承担，所以把 :hover 臂全部收进 @media (hover: hover)。
+  for (const marker of ['toggle', 'files', 'downloads', 'session-log', 'quick-settings', 'fab']) {
+    assert.ok(
+      !withoutHoverMedia(BASE_CSS).includes(`[data-mobile-nav="${marker}"]:hover`),
+      `${marker} keeps an ungated :hover arm`,
+    )
+  }
+  assert.ok(
+    !withoutHoverMedia(COMPAT_CSS).includes('[data-mobile-nav="preview-full-toggle"]:hover'),
+    'preview-full-toggle keeps an ungated :hover arm',
+  )
+  // The press feedback must still be there for touch.
+  assert.ok(BASE_CSS.includes('[data-mobile-nav="toggle"]:active'))
+  // Menu trigger: the open state is the persistent pressed look (the portal menu
+  // steals pointerdown, so :active alone is invisible on open).
+  assert.ok(
+    BASE_CSS.includes('[data-mobile-nav="session-log"][aria-expanded="true"]:not(:disabled)'),
+    'the open trigger keeps no pressed state',
+  )
+  assert.ok(BASE_CSS.includes('[data-mobile-nav="session-log"]:active:not(:disabled)'))
+  assert.ok(COMPAT_CSS.includes('[data-mobile-nav="preview-full-toggle"]:active'))
+})

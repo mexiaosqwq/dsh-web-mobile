@@ -149,8 +149,18 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
        animation and geometry transition — no curve matching needed. */
     transition: background-color .15s, top .24s var(--ds-ease-out, ease-in-out);
   }
-  [data-mobile-nav="preview-full-toggle"]:hover {
-    background: var(--aion-bg-3, rgba(0, 0, 0, .22));
+  /* 44px 热区：20×20 的按钮外扩——纵向 ±12px（标题栏行内上下都有空），横向只能
+     ±4px（右侧 8px 外就是宿主自己的 20px 收起键：两颗命中盒再宽就会互相压住，
+     变成「点收起却展开」。该约束与上面「头部按钮热区」那组同一来源）。 */
+  [data-mobile-nav="preview-full-toggle"]::after {
+    content: '';
+    position: absolute;
+    inset: -12px -4px;
+  }
+  @media (hover: hover) {
+    [data-mobile-nav="preview-full-toggle"]:hover {
+      background: var(--aion-bg-3, rgba(0, 0, 0, .22));
+    }
   }
   [data-mobile-nav="preview-full-toggle"]:active {
     background: var(--aion-bg-active, rgba(0, 0, 0, .28));

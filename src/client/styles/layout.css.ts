@@ -1335,6 +1335,41 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     background: var(--dsw-alias-bg-layer-1, #fff) !important;
     z-index: 30 !important;
   }
+  /* ---------- 键盘压矮的横屏：composer 座位必须压在顶栏之上（issue #245）----------
+     报障（owner，2026-10-25）：「当输入时屏幕变为横屏时，输入框可能会错位甚至
+     消失,目前只能进行刷新」。机理不是某个视口变量写错，是**两块盒子的几何打架**：
+       · 宿主座位「_composerSeat」是纯 CSS 的 position:sticky; bottom:0 —— 0.2.1-rc.3
+         的对话包里它只出现在样式表、类名表与 JSX，没有任何 JS 读它的 rect，也没有
+         100dvh，所以座位的顶边永远 = 可见带底 − 座位高；
+       · 上面那条顶栏规则把顶栏抬到消息流之上（z-index:30 + 不透明底），而
+         scrollBody 的负 margin 抬升又让座位的盒区一直延伸到 y=0，于是座位与顶栏
+         在没有足够高度时必然重叠。
+     竖屏键盘弹起仍有 400+px，座位够不到顶栏；横屏（本机 792×360）键盘不收，布局
+     视口只剩 ~110-160px，而顶栏 67-77px + 座位 70-102px 已经超过可见带 —— 座位的
+     上半截（就是 Lexical 编辑行）落进顶栏的盒子里，被不透明顶栏整块盖住：用户看到
+     「输入框消失、只剩发送行」；只重叠一部分时就是「错位」。sticky 滚不开，刷新会
+     收起键盘，所以看起来「只能刷新」。
+     标记由 effects/composer-clearance.ts 按实测几何开关（不用媒体查询：顶栏高、
+     座位高、可见带三个量都随设备、输入法与草稿长度变），这里只做两件事：
+     ① 让座位压过顶栏（31 > 30）——用户正在打字的表面绝不许被盖住；
+     ② 横屏矮带里座位本来就放不下，先让掉次要行（dock 行：上下文圈/统计胶囊），
+        把高度还给编辑行，顺带把顶栏的标题行与抽屉入口露出来。
+     dock 锚稳定的 data-composer-dock（0.2.1 InputBar 行标记）与 data-composer-stats（0.1.5/0.1.7/0.2.0
+     的统计行，见 pitfalls「统计条被宿主拆条」）；两代标记互不重叠，缺席的一侧自然空转。 */
+  /* @patch
+     id: composer-seat-above-header
+     for: dsh-client-ui-conversation 0.2.1 的 composer 座位（[class*="_composerSeat"]，position:sticky; bottom:0）+ 本插件顶栏规则（header.wSkVaW_header 的 z-index:30 与不透明底）
+     why: 宿主没把「座位 vs 顶栏」的层叠关系暴露成槽位或变量，而插件又必须让顶栏盖住消息流（否则消息从标题行底下透出），键盘压矮的横屏里只能由插件给座位让位；触发条件是实测几何，CSS 媒体查询写不出设备无关的阈值，故层叠覆盖只在本效果置标记时生效
+     until: 宿主把 composer 做成独立浮层（座位自带高于顶栏的层叠层）或提供座位/顶栏之间的层叠契约 —— 届时整块删除
+     test: tests/composer-clearance.test.ts
+  */
+  [data-mobile-nav="frame"][data-mobile-nav-composer-tight] [class*="_composerSeat"] {
+    z-index: 31 !important;
+  }
+  [data-mobile-nav="frame"][data-mobile-nav-composer-tight] [class*="_composerSeat"] [data-composer-dock],
+  [data-mobile-nav="frame"][data-mobile-nav-composer-tight] [class*="_composerSeat"] [data-composer-stats] {
+    display: none !important;
+  }
   /* The hero phase's empty header must stay hidden on phones. The host hides
      it via the headerHidden class at (0,1,0), but its own session-controller
      sheet re-shows the conversation header as a grid at <=768px —
@@ -3414,6 +3449,239 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     content: '';
     position: absolute;
     inset: -4px;
+  }
+  /* ===== 提问卡（ask_user_question）：横滑收敛 / 正文列宽 / 全屏回答 =====
+     2026-10-25 owner 真机三报障（360×792 竖屏、792×360 横屏，DSHA WebView
+     0.2.1-rc.3）：① 卡片正文能左右滑（截图里文字被横向滚过、左侧被截断）；
+     ② 长问题 + 键盘弹起后答案框看不见字（「收起键盘才看到」），内容上下猛跳；
+     ③ 滚卡片掉帧。本节只做 ① 与 ② 的几何；③ 的逐条归因见
+     docs/maintenance/pitfalls.md §提问卡全屏。
+
+     A. 横滑收敛。宿主 Mbwy4a_body 只写了 overflow-y:auto，另一轴被 CSS 计算成
+        auto —— 任何比卡宽的子节点都能把它撑成横向滚动容器；而宿主只给
+        Mbwy4a_field > * 加了 overflow-wrap:anywhere，_title / _description /
+        _detail / _optionLabel / _reviewNote 五族都没有换行兜底（长 token 与长英文
+        单词直接溢出）。手机档把横轴钉成 hidden，并给这五族补换行兜底；optionLabel
+        与 description 是 _optionLine（flex 行）的子项，min-width:0 让它们真的能
+        收缩到内容宽。刻意不用 overflow-x:clip：本代 WebView 上它与 overflow-y:auto
+        组合按规范会退化成 hidden，同一结果却多一条要引擎理解的规则。
+
+     B. 正文列宽。实测卡宽 ≈293 / 屏 360：_frame 左右各 clearance(16) + 16 = 32，
+        正文列 = 卡宽 − _header 左右内边距：宿主 ≤720 档是 18/12 ⇒ ≈263，桌面档
+        24/16 ⇒ ≈253（owner 报的 253 是后一档口径；同一段文字两次读数差 10px，这里
+        按更窄的那个记）。≈70%，owner 看到的就是右边那片留白。手机档把 _frame 多吃的
+        那 16px 还回去——对齐 composer 卡自己的列：宿主 uV2eYG_root 的左右 padding
+        就是 --dsh-composer-side-clearance 本身，两张卡同一列；composer 卡同样带
+        elevation 阴影，说明阴影不需要额外侧留白。_header 左右各收到 12/8（宿主
+        ≤720 档是 18/12），与标题行的 12px 落点同一条线。
+        数值取舍：侧留白绝不再压过 clearance —— 那是宿主给顶栏两个角按钮（left:8
+        起、28px 宽）与抽屉/文件面板留的列，压过去正文列线就与顶栏 chip 错开；
+        12/8 与 owner 已经验收过的标题行缩进同源，不再自造第二套边距。合计正文列
+        253–263 → 308（+45~55px，≈17~22%）。只对 ≤767 真手机档生效，768–1023 平板保持宿主
+        排布（与本文件「头部留白收紧」块同一约定）。
+
+     C. 全屏回答（effects/question-fullscreen.ts 打 data-mobile-nav-question-full）。
+        几何全部来自插件已维护的两个变量：可见带 --dsha-mobile-visible-vh（键盘会
+        缩）与顶栏底 --mobile-nav-header-h；唯一的实测项是卡片下面那一截（frame 的
+        上下 padding + 座位里 composer 自己的行），由效果量出来写成
+        --dsha-mobile-question-reserve。卡片用 height + max-height 吃掉整条可见带，
+        body（宿主 flex:auto;min-height:0;overflow-y:auto）滚动、footer（跳过/提交）
+        恒在卡底。缺任一变量 ⇒ --dsha-mobile-question-band 变成 guaranteed-invalid
+        ⇒ 两条声明各自回落 auto / 宿主自己的 min(60vh,520px)（fail-open，画面回到
+        宿主默认）。刻意不用 --dsh-web-mobile-vh：那是「键盘不缩」的稳定高度，给
+        弹层定高用的；全屏回答必须跟着键盘让位，否则下半截还是被盖住。
+        与 issue #245 的紧凑态共存：那条只把座位抬到 z-index 31（压顶栏 30）并收起
+        dock 行，两节都挂在同一个 frame 上、都只读自己的标记，可以同时为真。
+        _cardMinimized 让路：宿主的收起键仍然能把卡折回一行。 */
+  /* @patch
+     id: ask-question-card-phone
+     for: dsh-client-ui-user-questions 的 QuestionComposer.module.css（哈希前缀 Mbwy4a_：_frame / _card / _body / _header / _headerActions / _title 等）与其宿主 composerSeat
+     why: 宿主卡片把 overflow-x 计算成 auto 且只给自定义回答框补了换行；60vh 定高在 adjustResize 的 WebView 上随软键盘缩，回答框因此被滚出 body 可视区。插件不能在宿主包里改这两件事，只能在自己的手机档样式表里收横轴、补换行、按实测可见带重算高度
+     until: 宿主把 Mbwy4a_body 的 overflow-x 钉成 hidden/clip 并给五族文本补换行、或卡片自带「展开」形态与键盘感知定高 —— 届时整节删除
+     test: tests/question-fullscreen.test.ts
+  */
+  [data-mobile-nav="frame"] [class*="Mbwy4a_body"] {
+    min-width: 0;
+    overflow-x: hidden !important;
+  }
+  [data-mobile-nav="frame"] [class*="Mbwy4a_title"],
+  [data-mobile-nav="frame"] [class*="Mbwy4a_detail"],
+  [data-mobile-nav="frame"] [class*="Mbwy4a_reviewNote"] {
+    overflow-wrap: anywhere;
+  }
+  [data-mobile-nav="frame"] [class*="Mbwy4a_optionLabel"],
+  [data-mobile-nav="frame"] [class*="Mbwy4a_description"] {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /* B 的 header 锚必须排掉 _headerActions：class 属性里 "Mbwy4a_header" 是
+     "Mbwy4a_headerActions" 的前缀子串（pitfalls §哈希子串：前缀重叠片段用 :not
+     防误伤），少了这个 :not 就会把动作行的 padding 一起改成 10px 8px 0 12px。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [data-mobile-nav="frame"] [class*="Mbwy4a_frame"] {
+      padding-left: var(--dsh-composer-side-clearance, 16px) !important;
+      padding-right: var(--dsh-composer-side-clearance, 16px) !important;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_header"]:not([class*="Mbwy4a_headerActions"]) {
+      position: relative;
+      padding: 10px 8px 0 12px !important;
+    }
+    /* 2026-10-25 owner 真机反馈「你提的问题右边有一大片留白，真的舒服吗」：
+       宿主把动作行（收起/关闭 + 我们注入的展开）当普通 flex 项摆在同一行，
+       「_headingBlock」 只有 min-width:0、没有 flex-grow —— 三颗 24px 图标 + 12px
+       gap（我们扩过 gap）合计 ≈96px 的**整块**列被从正文里永久扣掉：问题正文
+       只有卡宽 − 96 − 16gap ≈ 230px（≈ 屏宽的 64%），而且每一行都短、右侧永远
+       空一截。图标只在卡头那一行有用，正文没理由陪着让位。
+       改法：动作行脱离 flex 流（绝对定位到卡头右上），headingBlock 吃满整行；
+       首行之下不再被图标占用。代价是 eyebrow 必须自己让开图标列（短标题，
+       margin-right 给足 116px 即可，长了它会换行而不是压到正文）。
+       40px 顶部：8 行高 + 图标 24px + 两次 4px 呼吸，标题第一行不会钻到图标
+       底下（实测图标底边 30，标题顶边 34）。
+       间距 2026-10-25 二批由 6 改 20：44px 热区要求三颗图标两两中心距 ≥44px，
+       否则外扩的命中盒会彼此叠住、抢同一笔（见下一条）。可见图标仍是 24px，
+       整排从 84px 变 112px；动作行 top 6 → 10 让 44px 热区整块落在卡片内。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_headerActions"] {
+      position: absolute;
+      /* 10 而不是 6：宿主 _card 是 overflow:hidden，热区顶边要落在卡片内
+         （6 − 10 = −4 会被裁掉 4px，44 只剩 40）。10 − 10 = 0，整 44 都在卡内；
+         图标可见位置随之下移 4px（底边 34），仍不超过正文顶边。 */
+      top: 10px;
+      right: 6px;
+      gap: 20px !important;
+      z-index: 1;
+    }
+    /* 三颗图标的 44px 热区（2026-10-25 二批，owner 拍板「拉到 44」）：
+       宿主只给 _iconButton 24×24 的盒子，本插件注入的展开键同样 24×24；
+       24 + 20 间距 = 44，据此把每颗的透明 ::after 外扩 10px：44×44，相邻热区
+       刚好相接、不重叠（再大就互相抢笔，见上一条 gap）。::after 只管命中，
+       可见尺寸 / 圆底 / 行高一律不动（与 035dd21 的 44px 热区同一手法）。
+       纵向会伸进正文首行右侧约 13px（热区 y 6~50、正文顶边 33）：正文不可点，
+       可接受；换来的是 44px 的最小命中。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_headerActions"] [class*="Mbwy4a_iconButton"] {
+      position: relative;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_headerActions"] [class*="Mbwy4a_iconButton"]::after {
+      content: '';
+      position: absolute;
+      inset: -10px;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_headingBlock"] {
+      flex: 1 1 100%;
+      min-width: 0;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_eyebrow"] {
+      /* 112（三颗 24 + 两个 20 间距）+ 6 右距 − 8 卡头右内边距 + 4 呼吸 ≈ 116：
+         图标列整体右移后，eyebrow（短标题）不能钻到里面。 */
+      margin-right: 116px;
+    }
+    /* 正文可读性（owner 两轮口径）：第一轮「太挤」→ 16/24；第二轮「字体缩小一点，
+       但不要太缩小」→ 15/23。取宿主手机档正文族的字号（15px），只把行距从 21 抬到
+       23 —— 字号不动、行距放宽，是同一密度带里最保守的一档，不再自创刻度。
+       首行 padding-top 2：图标底边 30，标题顶边 = 10 + 16 + 5 + 2 = 33，仍不重叠。
+       Markdown 段落（_detail 走 MarkdownText）补 8px 段距，末段不留尾隙。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_title"] {
+      padding-top: 2px;
+      font-size: 15px;
+      line-height: 23px;
+      /* owner 第三轮（2026-10-25）：问题正文本身也要封顶 —— 超长问题现在会把卡头
+         撑到占满整张卡（body 被压成一条缝、底部按钮被顶出可视区）。宿主把 question
+         正文渲染成 header 里的 h2、header 是 flex-shrink:0，所以正文多长卡头就多高。
+         这里让正文自己变成和下面选项区同族的滚动容器：超过 min(34vh,232px) 就在
+         标题内部滚动（键盘态 vh 会缩，232 是竖屏 360×792 下 34vh≈269 的封顶值，
+         保证 body 至少还剩半屏可用）。2026-10-25 第三轮再次收窄：owner 实测
+         「问题区还是太长，再缩 1/3」→ 34vh/232px 的三分之二 ≈ 23vh/155px
+         （约 6~7 行正文），问题区与选项区高度观感终于同级。
+         overscroll-behavior:contain 防止滑到底后
+         把会话一起带走；touch-action 按全库约定写 pan-y pinch-zoom。 */
+      max-height: min(23vh, 155px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y pinch-zoom;
+      scrollbar-width: none;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_title"]::-webkit-scrollbar {
+      display: none;
+    }
+    /* 排版微调（owner 2026-10-25）：问题区与选项区之间加一条分隔线——两段内容
+       同色同字重，靠留白分不开，读起来像一段连续文字。用 0.5px 光学细线
+       （本库弹层/卡片的既有刻度，见 b-end 的那套 0.5px 微边框约定）。颜色取宿主
+       描边色阶的第二档 --dsw-alias-border-l2：l1 在真机上「几乎看不见」，l2 是宿主
+       自己给浮层描边用的那一档（elevation-stroke-color 也是它），「看得见但不显眼」；
+       深浅仍随主题走，不自造色值。
+       线画在 header 的 border box 上 = 卡片整宽，与卡片的圆角裁剪路径一致；
+       padding-bottom 2 → 8 给线上下各留呼吸。 */
+    /* 线画在伪元素上而不是 border：owner 三轮口径（l1「几乎看不见」→ l2「太深了」）
+       说明要的是两档之间。同一个 token 加 opacity 比再找一档色值可控，也仍然跟随
+       主题（深浅两侧都比 l2 淡同样的比例）；0.5px 高度 = 本库的微边框刻度。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_header"]:not([class*="Mbwy4a_headerActions"]) {
+      position: relative;
+      padding-bottom: 8px;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_header"]:not([class*="Mbwy4a_headerActions"])::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 0.5px;
+      background: var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.14));
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_options"] {
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_detail"] p {
+      margin: 0 0 8px;
+    }
+    [data-mobile-nav="frame"] [class*="Mbwy4a_detail"] p:last-child {
+      margin-bottom: 0;
+    }
+  }
+  /* C：展开/收起按钮，与宿主那两颗 24px 图标键同盒。三颗统一 44×44 命中盒
+     （::after ±10；间距 20 见上面手机档「三颗图标的 44px 热区」一条），
+     可见图标仍是 24px。 */
+  [data-mobile-nav="frame"] [class*="Mbwy4a_headerActions"] [data-mobile-nav="question-expand"] {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: 0 0;
+    color: var(--dsw-alias-label-tertiary);
+    cursor: pointer;
+  }
+  [data-mobile-nav="frame"] [class*="Mbwy4a_headerActions"] [data-mobile-nav="question-expand"]::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
+  [data-mobile-nav="frame"] [class*="Mbwy4a_headerActions"] [data-mobile-nav="question-expand"] svg {
+    width: 14px;
+    height: 14px;
+  }
+  [data-mobile-nav="frame"] [data-mobile-nav="question-expand"] .dsh-web-mobile-question-collapse {
+    display: none;
+  }
+  [data-mobile-nav="frame"][data-mobile-nav-question-full] [data-mobile-nav="question-expand"] .dsh-web-mobile-question-expand {
+    display: none;
+  }
+  [data-mobile-nav="frame"][data-mobile-nav-question-full] [data-mobile-nav="question-expand"] .dsh-web-mobile-question-collapse {
+    display: block;
+  }
+  [data-mobile-nav="frame"][data-mobile-nav-question-full] [class*="Mbwy4a_frame"] {
+    --dsha-mobile-question-band: calc(
+      var(--dsha-mobile-visible-vh) - var(--mobile-nav-header-h) - var(--dsha-mobile-question-reserve, 0px)
+    );
+  }
+  [data-mobile-nav="frame"][data-mobile-nav-question-full] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"]) {
+    height: var(--dsha-mobile-question-band, auto);
+    max-height: var(--dsha-mobile-question-band, min(60vh, 520px));
   }
   /* ===== 手机档作用域补充（2026-10-13）=====
      下面四组是本批（2026-10-12/13）顶栏改动里「共用档已还原成本批之前的值、

@@ -5,7 +5,8 @@ export const BASE_CSS = `
 /* ---------- base control styles (rendered at any width, hidden where unused) ---------- */
 
 [data-mobile-nav="toggle"],
-[data-mobile-nav="files"] {
+[data-mobile-nav="files"],
+[data-mobile-nav="downloads"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -18,16 +19,37 @@ export const BASE_CSS = `
   background: transparent;
   color: var(--dsw-alias-label-secondary, inherit);
   cursor: pointer;
+  /* 44px 触控热区（2026-10-25 owner 指定）：盒子保持 28×28（观感与顶栏行高不变），
+     命中区由下面的透明 ::after 外扩 8px 拿到 44×44。锚点必须是按钮自己，所以这里
+     补 position:relative。 */
+  position: relative;
   -webkit-tap-highlight-color: transparent;
 }
-[data-mobile-nav="toggle"]:hover,
-[data-mobile-nav="files"]:hover,
+/* 悬停反馈只给真有指针的设备：手机上没有 hover，Chromium 会把点击后的 :hover
+   粘住，图标一直是一块灰底 —— 这就是「粘滞 hover」。按下反馈由 :active 单独承担，
+   触屏观感不变。 */
+@media (hover: hover) {
+  [data-mobile-nav="toggle"]:hover,
+  [data-mobile-nav="files"]:hover,
+  [data-mobile-nav="downloads"]:hover {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+  }
+}
 [data-mobile-nav="toggle"]:active,
-[data-mobile-nav="files"]:active {
+[data-mobile-nav="files"]:active,
+[data-mobile-nav="downloads"]:active {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
 }
+/* 顶栏两端各一颗，中间隔着标题，不与任何控件相邻，可以对称外扩。 */
+[data-mobile-nav="toggle"]::after,
+[data-mobile-nav="files"]::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
 [data-mobile-nav="toggle"]:focus-visible,
-[data-mobile-nav="files"]:focus-visible {
+[data-mobile-nav="files"]:focus-visible,
+[data-mobile-nav="downloads"]:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
   outline-offset: 1px;
 }
@@ -57,10 +79,31 @@ export const BASE_CSS = `
   background: transparent;
   color: var(--dsw-alias-label-secondary, inherit);
   cursor: pointer;
+  /* ::after 的锚点；28 + 8*2 纵向、+6*2 横向 = 44 高 / 40 宽命中盒（品牌按钮在左）。 */
+  position: relative;
   -webkit-tap-highlight-color: transparent;
 }
-[data-mobile-nav="session-log"]:hover:not(:disabled),
+/* 44px 热区：品牌行右端，左侧是宿主品牌按钮（flex:1，占满整行），所以横向只外扩
+   6px（40 宽），纵向外扩 8px（44 高）；再宽就会从品牌按钮的右端抢走可点区域。 */
+[data-mobile-nav="session-log"]::after {
+  content: '';
+  position: absolute;
+  inset: -8px -6px;
+}
+@media (hover: hover) {
+  [data-mobile-nav="session-log"]:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+  }
+}
 [data-mobile-nav="session-log"]:active:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+}
+/* 菜单开着时触发器保持按下底（owner 2026-10-25：「点它弹面板时没有灰，反而是关闭
+   那一下闪一层灰，顺序像反了」）。根因是 portal 菜单一挂载就把指针从按钮上接走，
+   :active 立刻结束 ⇒ 开面板那一下的按下底几乎看不见；关闭那次点击时菜单已经不在了，
+   :active 反而完整走完。用 aria-expanded 把「开着」表达成持久的按下态：开面板即
+   有反馈、关掉即撤掉，与宿主菜单触发器的既有形态一致（选中态而不是悬停态）。 */
+[data-mobile-nav="session-log"][aria-expanded="true"]:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
 }
 [data-mobile-nav="session-log"]:disabled {
@@ -98,9 +141,21 @@ export const BASE_CSS = `
   background: transparent;
   color: var(--dsw-alias-label-secondary, inherit);
   cursor: pointer;
+  /* 30 + 7*2 = 44 命中盒；账户 launcher 在左，只吃 7px。 */
+  position: relative;
   -webkit-tap-highlight-color: transparent;
 }
-[data-mobile-nav="quick-settings"]:hover,
+/* 44px 热区：30×30 的盒子外扩 7px；左侧是账户 launcher（整行大按钮），只吃 7px。 */
+[data-mobile-nav="quick-settings"]::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+@media (hover: hover) {
+  [data-mobile-nav="quick-settings"]:hover {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+  }
+}
 [data-mobile-nav="quick-settings"]:active {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
 }
@@ -498,8 +553,16 @@ export const BASE_CSS = `
   box-shadow: 0 2px 12px rgba(0, 0, 0, .18);
   -webkit-tap-highlight-color: transparent;
 }
-[data-mobile-nav="fab"]:hover {
-  background: var(--dsw-alias-button-floating-hover, rgba(0, 0, 0, .08));
+/* 44px 热区：38×38 的悬浮球外扩 3px。 */
+[data-mobile-nav="fab"]::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+}
+@media (hover: hover) {
+  [data-mobile-nav="fab"]:hover {
+    background: var(--dsw-alias-button-floating-hover, rgba(0, 0, 0, .08));
+  }
 }
 [data-mobile-nav="fab"]:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);

@@ -96,6 +96,10 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       const drawer = drawerRoot()
       if (drawer === null || !drawer.contains(target)) return false
       if (target.closest('[class*="sessionRow"] button') !== null) return false
+      // 「更多」这类面板行按钮是菜单锚点（aria-haspopup=menu，菜单走 portal）。
+      // 它们命中 panelRow 选择器，但点它只该开菜单：收抽屉会把 portal 菜单留在
+      // 会话上（2026-10-25 真机：侧边栏「更多」的菜单浮在聊天区）。
+      if (target.closest('button[class*="panelRow"][aria-haspopup="menu"]') !== null) return false
       return target.closest(TAP_CLOSE_NAV_SELECTOR) !== null
     }
     // DSHA_SESSION_INTERACTION_V1：宿主把「单击=选中、双击=打开」拆成了两步

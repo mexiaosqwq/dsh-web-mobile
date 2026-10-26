@@ -26,6 +26,10 @@ const TOP_LEVEL_ALLOWED = [
   '@media (pointer: fine), (pointer: none)',
   '@media (min-width: 768px) and (max-width: 1023px) and (pointer: coarse)',
   '@media (prefers-reduced-motion: reduce)',
+  // Capability query, not a width query: hover feedback must exist on desktop and
+  // must NOT exist on touch (Chromium sticks :hover after a tap). It applies at
+  // every width by design, so it is legitimate at the top level.
+  '@media (hover: hover)',
 ]
 
 const problems = []

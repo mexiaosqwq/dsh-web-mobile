@@ -17,6 +17,8 @@ export declare const zh: {
     readonly back: "返回";
     readonly backToConversation: "返回会话";
     readonly sessionLog: "导出会话日志";
+    readonly downloadMenu: "下载";
+    readonly downloads: "下载记录";
     readonly quickSettings: "设置";
     readonly files: "文件浏览";
     readonly fileUpload: "添加文件";
@@ -24,6 +26,8 @@ export declare const zh: {
     readonly fileUploadAttachment: "上传附件";
     readonly previewFullscreen: "全屏预览";
     readonly previewExitFullscreen: "退出全屏";
+    readonly questionExpand: "展开回答";
+    readonly questionCollapse: "收起回答";
     readonly deleteSession: "删除会话";
     readonly deleteConfirmTitle: "删除会话？";
     readonly deleteConfirmDesc: "将删除「{title}」的完整会话记录，此操作不可恢复。";
