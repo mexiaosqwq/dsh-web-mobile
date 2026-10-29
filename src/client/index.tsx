@@ -23,6 +23,7 @@ import { installShortcutModalKeyboardGuard } from './effects/shortcut-modal-keyb
 import { installModelMenuKeyboardGuard } from './effects/model-menu-keyboard-guard.ts'
 import { installPluginCardTap } from './effects/plugin-card-tap.ts'
 import { installInstalledListRows } from './effects/installed-list.ts'
+import { installTabletQuickSettings } from './effects/tablet-quick-settings.ts'
 import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
@@ -129,6 +130,9 @@ export function apply(ctx: ClientContext): void {
 
   // Market「installed」列表行的内联样式：实现与全部注释见 effects/installed-list.ts。
   installInstalledListRows(ctx)
+
+  // 宽屏触屏（平板 ≥1024）：只补一颗一键设置齿轮，布局仍交给宿主原生。
+  installTabletQuickSettings(ctx)
 
 
   // Leaving a sidebar panel. The host's panels replace the main area and ship

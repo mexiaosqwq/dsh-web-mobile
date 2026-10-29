@@ -23,7 +23,7 @@
   │     ├─ components/       ← MobileNavToggle / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（宿主图标跨代命名兼容）· attachment-mention-core.ts · prototype-focus-shadow.ts（两个键盘守卫共享的一个 focus 影子，#84）· plugin-card-tap-core.ts（插件卡片整卡可点判定纯核）· image-zoom-core.ts（灯箱图片缩放数学纯核）
   │     ├─ platform/         ← 跨效果共享的浏览器基础设施（无特性语义；effects/components 只许依赖它，不许互相要）：frame.ts（getFrame/findFrame + 记忆化）· breakpoints.ts（MOBILE_QUERY/DESKTOP_QUERY/TOUCH_QUERY + installMobileEffect）· device.ts（detectIosWebKit）
-  │     ├─ effects/          ← 37 个效果模块（背景在各自文件内文档块；跨模块契约见同目录 AGENTS.md）
+  │     ├─ effects/          ← 38 个效果模块（背景在各自文件内文档块；跨模块契约见同目录 AGENTS.md）
   │     │     契约关键：reconciler-adapter（全树观察器）· viewport-meta · panel-exit · sidebar-swipe · gesture-guard · stats-line
   │     ├─ styles/           ← index.ts（base→layout→compat→misc 承载顺序）+ 4 个 .css.ts
   │     └─ i18n/locales.ts
@@ -113,7 +113,7 @@ dsh web
 
 - Host/client split is load-bearing. 浏览器行为全在 `src/client/`——客户端半区的实现契约（slot 注册、reconciler、分层、样式、选择器与 DOM 标记、资源纪律、代码风格）见 **`src/client/AGENTS.md`**（披露层：改该目录下文件时自动进入上下文）。宿主半区只做两件事：响应压缩、会话删除端点（纯核 `src/delete-session.ts`，按宿主代际适配）。
 - **依赖方向 `index.tsx → effects → platform → core`**，`tests/architecture.test.ts` 逐条强制（运行时环、层方向、`core/` DOM 纯净、行预算、模块级状态、entry inline 查询），台账只许缩不许涨，`test:core` 会跑它——新增环或超行文件是红 CI。
-- **Effects（37 个模块）** — 逐个模块的背景写在各文件自己的文档块里（35/37 有）；跨模块形状约束与源码装不下的细节见 **`src/client/effects/AGENTS.md`**（披露层：改动该目录下任意文件时自动进入上下文）。本文件只留三条跨模块契约：①分层不可破；②全树 `MutationObserver` 在 `reconciler-adapter.ts`（不是 `phone-chrome.ts`），任务注册面 `addReconcilerTask`；③形状禁令三则——`viewport-meta.ts` 的三个函数保持「返回 disposer 的普通函数」（改成各自 `installMobileEffect` 会让外层每次重武装都多注册三个收不到的子 effect）、武装顺序 viewport meta → iOS 标记 → 稳定视口高度是行为、`panel-exit.ts` 退场先动画后提交。
+- **Effects（38 个模块）** — 模块背景见源码与 **`src/client/effects/AGENTS.md`**。全树协调器在 `reconciler-adapter.ts`，注册面为 `addReconcilerTask`；`viewport-meta.ts` 保持三个普通 disposer 函数，按 viewport meta → iOS 标记 → 稳定高度武装。面板退出以当前 `panel-exit.ts` 的冻结快照与同 tick 提交实现为准。
 - Third-party compatibility is implemented through scoped DOM markers, stable `data-*` attributes, `MutationObserver`, and carefully scoped class/text anchors. Never modify third-party source packages.
 - Authoritative design docs: `docs/specs/2026-08-27-sidebar-swipe-gestures.md` (gesture parameters/state machine; the gesture defect baseline lives in the local-only audits directory).
 

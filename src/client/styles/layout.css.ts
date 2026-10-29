@@ -1784,6 +1784,22 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       min-height: 26px !important;
     }
   }
+  /* 横屏短高度（旋转后的手机 / 横置的小平板）：宽度 ≥768 的档位在横屏里会掉进平板档
+     的 87px 头部，但可用高度只剩 375–480px —— 顶栏 + 输入区 + 统计行吃掉近一半。
+     2026-10-29 无头宽度矩阵实测 812×375：header 87 + 座位 92 = 179px，正文只剩约
+     196px（#245 的横屏场景）。
+     本轮只收行高地板（页签 32 → 24），实测 87 → 80；页签自身还挂着 9px 下内边距
+     （下一轮按真机读数再定，别在这里猜）。只按「形状」（横屏 + 高度 ≤480）收紧，
+     不按宽度分平板档：竖屏、桌面档与真正的高平板都不命中；页签 24px 也不与 ≤767
+     手机档的 26px 定稿值重复（那条手机档值由 phone-tier-gating 测试锁着）。 */
+  @media (max-height: 480px) and (orientation: landscape) {
+    [data-mobile-nav="frame"] [data-phase] header:has(> *) {
+      grid-template-rows: minmax(36px, auto) minmax(24px, auto) !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] header [role="tab"] {
+      min-height: 24px !important;
+    }
+  }
   /* The title cluster reserves its last 44px for that empty utilities seat.
      The lane's right edge must stay clear of the Files opener's HIT BOX,
      otherwise the opener eats the trailing chips' taps. The pre-2026-09-22
