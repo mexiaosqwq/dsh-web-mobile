@@ -4,7 +4,7 @@
 
 <!-- BEGIN:generated -->
 
-共 21 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
+共 22 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
 手改无效 —— 检查器会把不一致判为 fatal。
 
 | id | 位置 | 适配对象（for） | 到期条件（until） | 测试（test） |
@@ -19,13 +19,14 @@
 | `image-lightbox-fullbleed` | src/client/styles/layout.css.ts:2831 | dsh-client-ui-primitives ImageLightbox（role=dialog + aria-modal=true，stage 末孩子是关闭按钮） | 宿主给灯箱提供独立的 data-* 标记或自带移动端铺满形态，届时删本块 | `tests/css-rules.test.ts` |
 | `installed-list-chatflow-filter` | src/client/effects/installed-list.ts:158 | 共享协调器的「正文整批丢弃」语义（phone-chrome 侧既有过滤） | 宿主把市场根挂到稳定容器、且协调器把 childList 一并按容器路由（届时可改为按容器早期退出） | `tests/installed-list.test.ts` |
 | `lineage-chip-pinned` | src/client/styles/layout.css.ts:2524 | 宿主 ZKlsPq 子智能体 chip 的绝对定位落点（含包含块） | 宿主为该 chip 提供非绝对定位的稳定槽（届时四边偏移与祖先 static 都可删） | `tests/a2-header-gating.test.ts` |
-| `ofm-mobile-cost-ceiling` | src/client/styles/compat.css.ts:1242 | dsh-our-free-model 2.0.0 的 ofm_ 私有类名（毛玻璃表面 + 极光层 + 装饰动画） | 上游自己给手机档出成本降级（或拿掉极光层与 blur 表面）——届时本块整节删除 | `tests/our-free-model-cost.test.ts` |
-| `ofm-toast-above-drawer` | src/client/styles/compat.css.ts:1311 | dsh-our-free-model 2.0.0 的 .ofm_toasts（公告 toast，portal 到 document.body） | 上游把 toast 抬到宿主弹层之上（1400+）或宿主提供官方通知层 —— 届时本块删除 | `tests/our-free-model-toast-layer.test.ts` |
+| `ofm-mobile-cost-ceiling` | src/client/styles/compat.css.ts:1249 | dsh-our-free-model 2.0.0 的 ofm_ 私有类名（毛玻璃表面 + 极光层 + 装饰动画） | 上游自己给手机档出成本降级（或拿掉极光层与 blur 表面）——届时本块整节删除 | `tests/our-free-model-cost.test.ts` |
+| `ofm-toast-above-drawer` | src/client/styles/compat.css.ts:1318 | dsh-our-free-model 2.0.0 的 .ofm_toasts（公告 toast，portal 到 document.body） | 上游把 toast 抬到宿主弹层之上（1400+）或宿主提供官方通知层 —— 届时本块删除 | `tests/our-free-model-toast-layer.test.ts` |
+| `pet-hidden-under-sheets` | src/client/styles/compat.css.ts:562 | dsh-pet 0.3.x 的 .dsh-pet-root（slot shell.overlay）+ 老代际 _float/_sprite 根节点 | 宠物插件提供「背景 inert 时自行收起」的接缝，或稳定暴露一个语义标记——届时合并本块 | `tests/pet-overlay.test.ts` |
 | `plugin-panel-head-left-align` | src/client/styles/layout.css.ts:3134 | dsh-client-ui-plugin-manager 0.2.1-rc.2 的 section[data-plugin-panel] 页首（_pageHead / _pageHeading / h1 三层） | 宿主给页首容器独立标记，或页首不再需要给 FAB 让位，届时删本块 | `tests/css-rules.test.ts` |
 | `plugin-panel-subpage-back` | src/client/effects/panel-exit.ts:106 | 0.1.6-alpha.2 宿主的插件管理页子页：列表「更多」头的 button class 含 _moreBack，三种详情根（data-plugin-detail / data-plugin-item-detail / data-plugin-row-detail）里的 crumb button class 含 _crumb | 宿主把面板子页的返回暴露成 ctx.layout / panel 服务上的公开动作，或子页自己进 history | `tests/panel-exit-animation.test.ts` |
 | `preset-invisible-capsule` | src/client/styles/layout.css.ts:2594 | 宿主 SVAs4q_label 智能体预设 chip 的外包裹层 | 宿主给预设 chip 自身加上左右内边距（本外壳与 margin 一并删） | `tests/a2-header-gating.test.ts` |
-| `session-inspector-disclosure-size` | src/client/styles/compat.css.ts:1355 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（CSS 模块哈希前缀 GTtnTq） | 宿主把 GTtnTq_disclosure 提到 ≥24px，或换成可缩放图标并自带内边距 | `tests/css-rules.test.ts` |
-| `session-inspector-sticky-flicker` | src/client/styles/compat.css.ts:1391 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（GTtnTq_table / GTtnTq_sticky） | 宿主把表格改成 border-collapse:separate，或不再用 sticky <tr> 表达祖先上下文 | `tests/css-rules.test.ts` |
+| `session-inspector-disclosure-size` | src/client/styles/compat.css.ts:1362 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（CSS 模块哈希前缀 GTtnTq） | 宿主把 GTtnTq_disclosure 提到 ≥24px，或换成可缩放图标并自带内边距 | `tests/css-rules.test.ts` |
+| `session-inspector-sticky-flicker` | src/client/styles/compat.css.ts:1398 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（GTtnTq_table / GTtnTq_sticky） | 宿主把表格改成 border-collapse:separate，或不再用 sticky <tr> 表达祖先上下文 | `tests/css-rules.test.ts` |
 | `wallpaper-drawer-fill` | src/client/styles/layout.css.ts:205 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-specific-sidebar-fill 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-header-fill` | src/client/styles/layout.css.ts:1242 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-panel-fill` | src/client/styles/layout.css.ts:337 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent）+ 0.2.x 全屏右侧栏面板 | 上游给全屏面板提供不透明的填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
@@ -47,7 +48,7 @@
 | 模块 | `!important` | 哈希子串选择器 | `:has(` |
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 542 | 627 | 300 |
-| `src/client/styles/compat.css.ts` | 388 | 112 | 20 |
+| `src/client/styles/compat.css.ts` | 388 | 112 | 23 |
 | `src/client/styles/misc.css.ts` | 93 | 56 | 34 |
 | `src/client/styles/base.css.ts` | 18 | 4 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
@@ -71,6 +72,6 @@
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
-| **合计** | **1050** | **883** | **369** |
+| **合计** | **1050** | **883** | **372** |
 
 <!-- END:inventory -->
