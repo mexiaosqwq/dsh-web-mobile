@@ -297,17 +297,17 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
 
   /* The host's own right sidebar IS the Files panel on phones, and the host
-     pins it as a fixed full-bleed sheet: [data-sidebar-right-panel=fullscreen]
-     carries position:fixed; inset:0 and no inset of its own (the host CSS
+     pins it as a full-bleed sheet: [data-sidebar-right-panel=fullscreen]
+     carries inset:0 (0.1.5: position:fixed; 0.2.x dockkit: position:absolute,
+     both spanning the whole viewport) and no inset of its own (the host CSS
      never mentions safe-area at all). Its top row - the tab strip holding the
      tab label, the + button and the Split / Exit-fullscreen pair at the right
      edge - therefore sat UNDER the status bar: measured at 390x844 with the
      panel open, the strip is [0,0,390,38] and the phone's status bar owns the
-     top of the screen. The frame's own safe-area padding cannot reach it: a
-     fixed element's containing block is the viewport, not the frame's padding
-     box. Taking the inset as padding keeps the panel's own --dsw-alias-bg-base
-     covering the whole viewport (no seam behind the status bar) and drops the
-     entire row below it, with the right-hand buttons still on the right edge.
+     top of the screen. The frame's own safe-area padding cannot reach it: the
+     panel starts at the viewport top regardless of the frame's padding box.
+     Taking the inset as padding pushes the whole row below the status bar,
+     with the right-hand buttons still on the right edge.
      ONLY the fullscreen form: the host's docked form (measured at 820x1180 -
      form=push, position:absolute, 365px right-anchored) has the frame's
      padding box as its containing block, so it already starts below the
@@ -317,6 +317,35 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      so desktop keeps the host layout. */
   [data-sidebar-right-panel="fullscreen"] {
     padding-top: env(safe-area-inset-top, 0px) !important;
+  }
+
+  /* 0.2.0 dockkit 重构删掉了面板本体自带的 z-index 与底色（0.1.5 是
+     .P3OORG_panel{z-index:10; background:var(--dsw-alias-bg-base)}）。下面两条
+     规则各补回一条，共用 [data-sidebar-right-open] 门控：fullscreen 形态值由
+     视口宽度推导、关态也在场，且关态面板的 rect 同样铺满视口（实测 390x844 →
+     [0,0,390,844]），漏门会给关闭态那块空面板涂色/抬层。 */
+  /* @patch
+     id: fullscreen-panel-sheet
+     for: dsh-client-ui-sidebar-right 0.2.x 的 [data-sidebar-right-panel="fullscreen"]（0.2.0 起面板本体不再自带 z-index）
+     why: 面板 z auto 而活跃会话的输入卡座是 sticky z-index:7，面板自身表面被输入卡压住；恢复 0.1.5 的 z-index:10，面板重新是一整张 sheet
+     until: 上游把 z-index 还给面板本体，或给全屏面板一个不依赖 z 的层叠接缝——届时本块删除
+     test: tests/fullscreen-panel-sheet.test.ts
+  */
+  [data-sidebar-right-open][data-sidebar-right-panel="fullscreen"] {
+    z-index: 10 !important;
+  }
+  /* @patch
+     id: wallpaper-panel-fill
+     for: deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent）+ 0.2.x 全屏右侧栏面板
+     why: 面板唯一的底色就是继承来的 --dsw-alias-bg-base（浅色 = neutral-bluish-00、深色 = neutral-bluish-950）；令牌被清空后全屏面板整片透出会话正文，无壁纸时内容层自绘该令牌故不需要常驻补色
+     until: 上游给全屏面板提供不透明的填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除
+     test: tests/wallpaper-surface-fill.test.ts
+  */
+  body[data-dsh-bg] [data-sidebar-right-open][data-sidebar-right-panel="fullscreen"] {
+    background-color: var(--dsw-static-neutral-bluish-00, #fff);
+  }
+  body[data-ds-dark-theme][data-dsh-bg] [data-sidebar-right-open][data-sidebar-right-panel="fullscreen"] {
+    background-color: var(--dsw-static-neutral-bluish-950, #151517);
   }
 
   /* Phone chrome keeps only the collapse control. Split visibility must not

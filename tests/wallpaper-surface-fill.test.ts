@@ -42,3 +42,30 @@ test('wallpaper: the compensation is additive, not a replacement for the base ru
     /body\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header,\s*\n\s*html\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header \{\s*background-color: var\(--dsw-alias-bg-base, #151517\) !important;/,
     '无壁纸的深色顶栏规则（#176）不得被壁纸门控规则替换')
 })
+
+// #247 third tier: the same wallpaper plugin also clears --dsw-alias-bg-base,
+// which is the ONLY ground the fullscreen right panel inherits. The drawer and
+// header fills cover their own surfaces; the panel had none.
+test('wallpaper: the fullscreen right panel refills from the page-base palette', () => {
+  assert.match(layout,
+    /body\[data-dsh-bg\] \[data-sidebar-right-open\]\[data-sidebar-right-panel="fullscreen"\] \{\s*background-color: var\(--dsw-static-neutral-bluish-00, #fff\);/,
+    '浅色面板继承的是 bg-base（-00），不是抽屉的 -50')
+  assert.match(layout,
+    /body\[data-ds-dark-theme\]\[data-dsh-bg\] \[data-sidebar-right-open\]\[data-sidebar-right-panel="fullscreen"\] \{\s*background-color: var\(--dsw-static-neutral-bluish-950, #151517\);/,
+    '深色面板必须用 -950（bg-base 的深色档）')
+})
+
+test('wallpaper: every panel background rule is gated on the open marker', () => {
+  // Multi-line aware: the selector sits on its own line and the declaration on
+  // the next, so a per-line filter would match nothing and pass vacuously.
+  const rules = [
+    ...layout.matchAll(/([^{}\n]*data-sidebar-right-panel="fullscreen"[^{}\n]*)\{\s*background(?:-color)?:/g),
+  ]
+  assert.equal(rules.length, 2, 'expected exactly two panel background rules')
+  for (const rule of rules) {
+    assert.ok(
+      rule[1].includes('[data-sidebar-right-open]'),
+      'an ungated panel fill paints a full-screen mask over the closed panel: ' + rule[1].trim(),
+    )
+  }
+})
