@@ -365,6 +365,57 @@ async function run(port) {
     }
   }
 
+  // 组2b ────────────────────────────────────────────────────────────
+  console.log('\n== 组2b：按名认领（.dsh-pet-root，173x206 超出形状上限）==')
+
+  // dsh-pet 0.3.x 的真实形态：根节点 .dsh-pet-root 注册在 shell.overlay（在本
+  // frame 子树内），命中区实测 173x206（默认 462px stage）——超过 200px 形状
+  // 上限，位置启发式抓不到，只有按名分支能让位（#249-1）。用完即删：组 3 的
+  // 起点 (134,380) 落在这只宠物覆盖区内，留着会让组 3 走到按名分支、标记接口
+  // 反而没被测到（假绿）。
+  const NAMED_PET_ID = 'probe-pet-named'
+  await evalv(`(() => {
+    const old = document.getElementById(${JSON.stringify(NAMED_PET_ID)})
+    if (old) old.remove()
+    const pet = document.createElement('div')
+    pet.id = ${JSON.stringify(NAMED_PET_ID)}
+    pet.className = 'dsh-pet-root'
+    pet.style.cssText = 'position:fixed;left:60px;top:300px;width:173px;height:206px;border-radius:16px;background:rgba(0,150,255,0.85);z-index:2147483000;touch-action:none;user-select:none;'
+    pet.__drag = null
+    pet.addEventListener('pointerdown', (e) => {
+      pet.__drag = { sx: e.clientX, sy: e.clientY, ox: pet.offsetLeft, oy: pet.offsetTop }
+      try { pet.setPointerCapture(e.pointerId) } catch {}
+    })
+    pet.addEventListener('pointermove', (e) => {
+      if (!pet.__drag) return
+      pet.style.left = (pet.__drag.ox + (e.clientX - pet.__drag.sx)) + 'px'
+      pet.style.top = (pet.__drag.oy + (e.clientY - pet.__drag.sy)) + 'px'
+    })
+    const end = () => { pet.__drag = null }
+    pet.addEventListener('pointerup', end)
+    pet.addEventListener('pointercancel', end)
+    document.body.appendChild(pet)
+  })()`)
+  {
+    const ok = await ensureClosed('w2b')
+    if (ok) {
+      await slowDrag(146, 403, 4, 10) // 起点=宠物中心(60+173/2, 300+206/2)，向右 40px
+      const after = await evalv(`(() => {
+        const pet = document.getElementById(${JSON.stringify(NAMED_PET_ID)})
+        const frame = document.querySelector(${JSON.stringify(FRAME_SELECTOR)})
+        return {
+          open: frame ? !frame.hasAttribute('data-sidebar-collapsed') : null,
+          left: pet ? parseFloat(pet.style.left || '60') : null,
+        }
+      })()`)
+      check('named-pet.drawer-stays-closed', after.open === false,
+        `during drag open=${after.open}（预期 false：按名让位，173x206 超形状上限）`)
+      check('named-pet.follows-finger', after.left !== null && after.left > 60,
+        `left=${after.left}（预期 >60：让位≠拦截，宠物照常跟手）`)
+    }
+    await evalv(`document.getElementById(${JSON.stringify(NAMED_PET_ID)})?.remove()`)
+  }
+
   // 组3 ─────────────────────────────────────────────────────────────
   console.log('\n== 组3：让位标记接口（data-mobile-nav-dragging）==')
 

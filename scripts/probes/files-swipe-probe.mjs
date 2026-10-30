@@ -43,16 +43,16 @@ const FRAME = '[data-mobile-nav="frame"]'
 const PANEL = '[data-sidebar-right-panel]'
 const OPENER = '[data-sidebar-right-expand]'
 const TOGGLE = '[data-mobile-nav="toggle"]'
-// Measured on 0.1.5: the panel element is persistent; the closed fullscreen
-// form sits at visibility:hidden with its rect pushed off-viewport. Presence
-// alone is not the panel-state read — test the same open-state logic the
-// gesture layer uses (filesPanelOpen in sidebar-swipe.ts).
+// The panel open state is the host's own marker: data-sidebar-right-open is
+// present only while the panel is expanded (shipped since 0.1.5). The 0.1.5-era
+// geometry read (rect.left < innerWidth) is permanently true on 0.2.x — the
+// closed panel is a viewport-wide box that hides its children (measured
+// 2026-10-29 at 390x844: closed rect [0,0,390,844], no marker) — so it read
+// every closed panel as open and this probe reproduced the same wrong answer
+// as the gesture layer (#249). Keep this string in sync with filesPanelOpen().
 const PANEL_OPEN_JS = `(() => {
   const el = document.querySelector('${PANEL}')
-  if (el === null) return false
-  const cs = getComputedStyle(el)
-  if (cs.visibility === 'hidden' || cs.display === 'none') return false
-  return el.getBoundingClientRect().left < window.innerWidth
+  return el !== null && el.hasAttribute('data-sidebar-right-open')
 })()`
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
