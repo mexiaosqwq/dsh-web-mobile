@@ -13,6 +13,8 @@ import {
   openStateStartMode,
   selectionOwnsStroke,
   startZonePxFor,
+  filesPanelOpen,
+  findFloatingWidget,
   type SwipeThresholds,
   type SwipeChainNode,
 } from '../src/client/effects/sidebar-swipe.ts'
@@ -692,4 +694,56 @@ test('a repeat close inside the commit window is claimed, not force-settled', ()
   assert.ok(settle > -1 && claim < settle, 'the claim has to run before any force-settle')
   assert.match(src, /pendingCommit: \{ el: HTMLElement; ctx: ClientContext; timer: number; target: string \} \| null/)
   assert.equal((src.match(/target: targetTx/g) ?? []).length, 2, 'both commit branches must record their target')
+})
+
+// #249: the panel-state read must be the host's own marker. The 0.1.5-era
+// geometry probe (rect.left < innerWidth) is permanently true on 0.2.x — the
+// closed panel is a viewport-wide box that hides its CHILDREN (measured
+// 2026-10-29 at 390x844: closed rect [0,0,390,844], no marker; open the same
+// rect WITH the marker). Live consequence: the documented right-edge LEFTWARD
+// open never fired, while an undocumented rightward stroke opened the panel.
+const withPanel = (panel: unknown, run: () => void) => {
+  const previous = (globalThis as { document?: unknown }).document
+  ;(globalThis as { document?: unknown }).document = { querySelector: () => panel }
+  try {
+    run()
+  } finally {
+    ;(globalThis as { document?: unknown }).document = previous
+  }
+}
+
+test('filesPanelOpen: no panel in the DOM reads closed', () => {
+  withPanel(null, () => assert.equal(filesPanelOpen(), false))
+})
+
+test('filesPanelOpen: a mounted but closed panel reads closed (the #249 regression)', () => {
+  withPanel({ hasAttribute: (name: string) => name !== 'data-sidebar-right-open' }, () => {
+    assert.equal(filesPanelOpen(), false)
+  })
+})
+
+test('filesPanelOpen: the open marker is the only true signal', () => {
+  withPanel({ hasAttribute: (name: string) => name === 'data-sidebar-right-open' }, () => {
+    assert.equal(filesPanelOpen(), true)
+  })
+})
+
+// #249-1: the pet lives INSIDE our frame subtree (slot shell.overlay) and its
+// hit box is 173x206 at the default 462px stage — over the 200px shape cap — so
+// both the frame exclusion and the size filter missed it, and a stroke started
+// on the pet dragged it AND pulled the drawer.
+test('findFloatingWidget: a named pet root wins before the frame exclusion', () => {
+  const pet = { id: 'pet' }
+  const target = {
+    closest: (selector: string) =>
+      selector === '.dsh-pet-root' ? pet : selector === '[data-mobile-nav="frame"]' ? { id: 'frame' } : null,
+  } as unknown as Element
+  assert.equal(findFloatingWidget(target), pet)
+})
+
+test('findFloatingWidget: a plain frame descendant still yields nothing', () => {
+  const target = {
+    closest: (selector: string) => (selector === '[data-mobile-nav="frame"]' ? { id: 'frame' } : null),
+  } as unknown as Element
+  assert.equal(findFloatingWidget(target), null)
 })

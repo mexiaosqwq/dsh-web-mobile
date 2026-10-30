@@ -164,6 +164,23 @@ export interface SwipeChainNode {
  */
 export declare function findHorizontalScroller(node: SwipeChainNode | null): SwipeChainNode | null;
 /**
+ * True when the host's right sidebar files panel is currently OPEN (any form:
+ * fullscreen on phones, docked on tablets).
+ *
+ * The host owns the authoritative marker: `data-sidebar-right-open` is present
+ * exactly while the panel is expanded (live-verified on 0.2.1-rc.2).
+ * The 0.1.5-era geometry probe (`rect.left < innerWidth` on a mounted, not
+ * visibility:hidden panel) died with the 0.2.0 dockkit refactor: the panel is
+ * now a persistent viewport-wide box whose CLOSED form hides its children
+ * instead of itself, so its own rect always spans the viewport and every
+ * closed panel read as open (measured 2026-10-29 at 390x844: closed rect
+ * [0,0,390,844] without the marker, open the same rect with it). That read
+ * killed the documented right-edge LEFTWARD entry and left an undocumented
+ * rightward one (#249). A host without this panel keeps returning false and
+ * the explorer fallback applies.
+ */
+export declare function filesPanelOpen(): boolean;
+/**
  * Whether a live, non-collapsed text selection owns the pointer stroke.
  * A selection-handle drag (and a long-press selection that appears between
  * pointerdown and the axis lock) is horizontally dominant and geometrically
@@ -185,6 +202,32 @@ export declare function findHorizontalScroller(node: SwipeChainNode | null): Swi
  * points land outside the control's own box.
  */
 export declare function selectionOwnsStroke(): boolean;
+/**
+ * Floating-widget positional yield (2026-09-11, 悬浮窗拖动冲突 B 侧): plugins
+ * ship draggable floating widgets (desktop-pet / floating-ball / draggable
+ * panel shapes) that carry NO standard "draggable" DOM mark, yet the user
+ * presses the widget itself — so the stroke's start target sits inside that
+ * widget's layer. Draggable widgets almost always live in a SMALL
+ * freely-positioned layer (position: fixed | absolute, own box under
+ * FLOATING_WIDGET_MAX_PX) hovering above the page, so walk the ancestor chain
+ * from the event target: the first small positioned ancestor counts as a
+ * floating widget and the stroke yields (no arm, no touchmove preventDefault).
+ * Pairs with dragMarkYields (cooperation mark) which needs no shape guessing.
+ * Named exception (2026-10-29, #249-1): dsh-pet 0.3.x registers its root
+ * (.dsh-pet-root) into the shell overlay slot, i.e. INSIDE our frame subtree,
+ * and its hit box is 173x206 — the frame exclusion and the size cap both miss
+ * it, so a stroke started on the pet dragged it AND armed the drawer. Known
+ * roots are claimed by name before either filter runs.
+ * Excluded: anything else inside our own frame subtree — the FAB / backdrop /
+ * drawer content carry their own gesture semantics and must never be
+ * misread as floating widgets (the closed-state FAB sits in the start zone).
+ * ponytail: no DOM-standard draggable signal exists; shape ≈ draggable is an
+ * approximation with a known ceiling — a STATIC small positioned element
+ * (e.g. a message badge) also yields, costing a stroke start under a
+ * FLOATING_WIDGET_MAX_PX dot; a REAL widget that misses upgrades via the
+ * data-mobile-nav-dragging mark, a named branch like the pet one, or the cap.
+ */
+export declare function findFloatingWidget(target: Element): Element | null;
 /** Animate an OPEN drawer into its closed slot and flip the host state once it
  * has landed. Every non-gesture closer (backdrop tap, Escape, navigation taps)
  * routes through this, so a click close animates exactly like a swipe close:

@@ -529,21 +529,24 @@ function drawerOpen(): boolean {
 }
 
 /**
- * True when the host's right sidebar files panel is currently VISIBLE (any
- * form: fullscreen on phones, docked on tablets). Measured on 0.1.5: the
- * panel element is persistent — the closed fullscreen form stays in the DOM
- * at `visibility: hidden` with its rect pushed to x=viewport-width — so
- * presence alone is not the panel-state read. Detect the open state by the
- * three ways the host can hide it (visibility / display / pushed-off rect);
- * a host without this panel keeps returning false and the explorer fallback
- * applies.
+ * True when the host's right sidebar files panel is currently OPEN (any form:
+ * fullscreen on phones, docked on tablets).
+ *
+ * The host owns the authoritative marker: `data-sidebar-right-open` is present
+ * exactly while the panel is expanded (live-verified on 0.2.1-rc.2).
+ * The 0.1.5-era geometry probe (`rect.left < innerWidth` on a mounted, not
+ * visibility:hidden panel) died with the 0.2.0 dockkit refactor: the panel is
+ * now a persistent viewport-wide box whose CLOSED form hides its children
+ * instead of itself, so its own rect always spans the viewport and every
+ * closed panel read as open (measured 2026-10-29 at 390x844: closed rect
+ * [0,0,390,844] without the marker, open the same rect with it). That read
+ * killed the documented right-edge LEFTWARD entry and left an undocumented
+ * rightward one (#249). A host without this panel keeps returning false and
+ * the explorer fallback applies.
  */
-function filesPanelOpen(): boolean {
+export function filesPanelOpen(): boolean {
   const panel = document.querySelector('[data-sidebar-right-panel]')
-  if (panel === null) return false
-  const cs = getComputedStyle(panel)
-  if (cs.visibility === 'hidden' || cs.display === 'none') return false
-  return panel.getBoundingClientRect().left < window.innerWidth
+  return panel !== null && panel.hasAttribute('data-sidebar-right-open')
 }
 
 /**
@@ -666,11 +669,10 @@ function dragMarkYields(event: PointerEvent): boolean {
 }
 
 /** Upper bound (px) of the "small floating widget" positional heuristic.
- * The real-world reference is dsh-pet's floating ball (kz2Bea_float,
- * position:fixed, measured 148x160 on the live profile page) — 160 would
- * sit exactly on that widget's edge; 200 leaves headroom for sibling
- * plugin widgets while a full-screen overlay (backdrop, sheets, dialogs)
- * still cannot pass. */
+ * Sized for third-party widgets that ship no nameable root: dsh-pet's 0.3.x
+ * hit box (measured 173x206 on the live profile page) already exceeds it and
+ * is claimed by name below instead, while a full-screen overlay (backdrop,
+ * sheets, dialogs) still cannot pass. */
 const FLOATING_WIDGET_MAX_PX = 200
 
 /**
@@ -679,21 +681,28 @@ const FLOATING_WIDGET_MAX_PX = 200
  * panel shapes) that carry NO standard "draggable" DOM mark, yet the user
  * presses the widget itself — so the stroke's start target sits inside that
  * widget's layer. Draggable widgets almost always live in a SMALL
- * freely-positioned layer (position: fixed | absolute, own box ≤ 160px)
- * hovering above the page, so walk the ancestor chain from the event target:
- * the first small positioned ancestor counts as a floating widget and the
- * stroke yields (no arm, no touchmove preventDefault). Pairs with
- * dragMarkYields (cooperation mark) which needs no shape guessing.
- * Excluded: anything inside our own frame subtree — the FAB / backdrop /
+ * freely-positioned layer (position: fixed | absolute, own box under
+ * FLOATING_WIDGET_MAX_PX) hovering above the page, so walk the ancestor chain
+ * from the event target: the first small positioned ancestor counts as a
+ * floating widget and the stroke yields (no arm, no touchmove preventDefault).
+ * Pairs with dragMarkYields (cooperation mark) which needs no shape guessing.
+ * Named exception (2026-10-29, #249-1): dsh-pet 0.3.x registers its root
+ * (.dsh-pet-root) into the shell overlay slot, i.e. INSIDE our frame subtree,
+ * and its hit box is 173x206 — the frame exclusion and the size cap both miss
+ * it, so a stroke started on the pet dragged it AND armed the drawer. Known
+ * roots are claimed by name before either filter runs.
+ * Excluded: anything else inside our own frame subtree — the FAB / backdrop /
  * drawer content carry their own gesture semantics and must never be
  * misread as floating widgets (the closed-state FAB sits in the start zone).
  * ponytail: no DOM-standard draggable signal exists; shape ≈ draggable is an
  * approximation with a known ceiling — a STATIC small positioned element
  * (e.g. a message badge) also yields, costing a stroke start under a
- * ≤160px dot; a REAL widget that misses (bigger layer, static positioning)
- * upgrades via the data-mobile-nav-dragging mark or by raising the cap.
+ * FLOATING_WIDGET_MAX_PX dot; a REAL widget that misses upgrades via the
+ * data-mobile-nav-dragging mark, a named branch like the pet one, or the cap.
  */
-function findFloatingWidget(target: Element): Element | null {
+export function findFloatingWidget(target: Element): Element | null {
+  const pet = target.closest('.dsh-pet-root')
+  if (pet !== null) return pet
   if (target.closest('[data-mobile-nav="frame"]') !== null) return null
   let el: Element | null = target
   while (el !== null) {
