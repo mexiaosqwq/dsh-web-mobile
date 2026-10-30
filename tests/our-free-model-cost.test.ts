@@ -91,8 +91,10 @@ test('the patch self-declares its four fields', () => {
   // @patch block; the gate only checks blocks that exist, so this is the
   // anchor that keeps this one from silently losing its declaration.
   // Read the WHOLE sheet, not block(): the @patch sits immediately before the
-  // section header, so a slice starting at the header misses it.
-  const at = COMPAT_CSS.indexOf('@patch')
+  // section header, so a slice starting at the header misses it. Anchor on this
+  // block's own id — other patches sit above it, and "the first @patch in the
+  // file" would silently read one of them.
+  const at = COMPAT_CSS.indexOf('id: ofm-mobile-cost-ceiling')
   assert.ok(at > -1, 'the our-free-model block lost its @patch declaration')
   const open = COMPAT_CSS.lastIndexOf('/*', at)
   const close = COMPAT_CSS.indexOf('*/', at)

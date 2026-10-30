@@ -534,14 +534,13 @@ function drawerOpen(): boolean {
  *
  * The host owns the authoritative marker: `data-sidebar-right-open` is set only
  * while the panel is expanded (shipped since 0.1.5 as `expanded || void 0`).
- * The 0.1.5-era geometry probe — mounted, not hidden, `rect.left < innerWidth`
- * — died with the 0.2.0 dockkit refactor: the panel is now a persistent
- * viewport-wide box (inline `width: 100vw` plus right/top/bottom 0) whose
- * CLOSED form hides its children instead of itself, so its own rect always
- * spans the viewport and the last test read every closed panel as open
- * (measured 2026-10-29 on 0.2.1-rc.2 at 390x844: closed rect [0,0,390,844]
- * without the marker, open the same rect with it). That read killed the
- * documented right-edge LEFTWARD entry and turned it into an undocumented
+ * The 0.1.5-era geometry probe (`rect.left < innerWidth` on a mounted, not
+ * visibility:hidden panel) died with the 0.2.0 dockkit refactor: the panel is
+ * now a persistent viewport-wide box whose CLOSED form hides its children
+ * instead of itself, so its own rect always spans the viewport and every
+ * closed panel read as open (measured 2026-10-29 at 390x844: closed rect
+ * [0,0,390,844] without the marker, open the same rect with it). That read
+ * killed the documented right-edge LEFTWARD entry and left an undocumented
  * rightward one (#249). A host without this panel keeps returning false and
  * the explorer fallback applies.
  */
@@ -698,9 +697,8 @@ const FLOATING_WIDGET_MAX_PX = 200
  * ponytail: no DOM-standard draggable signal exists; shape ≈ draggable is an
  * approximation with a known ceiling — a STATIC small positioned element
  * (e.g. a message badge) also yields, costing a stroke start under a
- * FLOATING_WIDGET_MAX_PX dot; a REAL widget that misses (bigger layer, static
- * positioning) upgrades via the data-mobile-nav-dragging mark, a named branch
- * like the pet one, or by raising the cap.
+ * FLOATING_WIDGET_MAX_PX dot; a REAL widget that misses upgrades via the
+ * data-mobile-nav-dragging mark, a named branch like the pet one, or the cap.
  */
 export function findFloatingWidget(target: Element): Element | null {
   const pet = target.closest('.dsh-pet-root')
