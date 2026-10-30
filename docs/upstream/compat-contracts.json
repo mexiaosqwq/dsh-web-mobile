@@ -8,7 +8,7 @@
       "owner": "dsh-client-ui-sidebar-right",
       "lazy": true,
       "state": "打开文件列表面板（Files）后复扫",
-      "note": "面板 safe-area padding 落点；须为 position:fixed; inset:0 全屏形态且自绘背景（files-panel-safe-area-probe 守）"
+      "note": "面板 safe-area padding 落点。0.2.x 形态：position:absolute + z-index:auto + 无自绘底色（0.1.5 是 fixed + z-index:10 + bg-base）；壁纸补色与层叠带由 wallpaper-panel-fill / fullscreen-panel-sheet 补丁块承接（tests/fullscreen-panel-sheet.test.ts、tests/wallpaper-surface-fill.test.ts 守），开态判定只认 data-sidebar-right-open"
     },
     {
       "id": "dshmarket-installed-row",
