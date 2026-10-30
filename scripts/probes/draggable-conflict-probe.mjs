@@ -14,6 +14,9 @@
 //   组2 悬浮窗启发式（B 侧）：注入仿 dsh-pet 真实形状（fixed 148x160 +
 //       touch-action:none + pointer 拖动实现，无任何标记）→ zone 内从球上
 //       右拖抽屉不开 + 球跟手（让位≠拦截）；zone 外左拖对照。
+//   组2b 按名认领：注入 dsh-pet 0.3.x 的真实形态（.dsh-pet-root，命中区
+//       173x206 超过 200px 形状上限，且注册在本 frame 子树内）→ 从宠物上右拖
+//       抽屉不开 + 宠物跟手；用完即删，避免组3 被按名分支提前接走。
 //   组3 让位标记接口（C 侧）：球挂标记后右拖不开 + 跟手；body 全局标记
 //       让位普通手势；清除后手势恢复。
 // 用法：DSH_PROBE_URL=http://127.0.0.1:3080/ node scripts/probes/draggable-conflict-probe.mjs
