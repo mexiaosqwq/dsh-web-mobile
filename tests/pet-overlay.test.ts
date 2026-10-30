@@ -14,6 +14,9 @@ const compat = await readFile(new URL('../src/client/styles/compat.css.ts', impo
 
 test('pet: the 0.3.x root is hidden under a modal dialog', () => {
   assert.match(compat, /body:has\(\[aria-modal="true"\]\) \.dsh-pet-root,/)
+  // The selector list is worthless without the declaration: prove the block that
+  // starts with the pet root actually ends in a hide, not some other property.
+  assert.match(compat, /\.dsh-pet-root,[\s\S]{0,500}?display: none !important;/)
 })
 
 test('pet: the 0.3.x root is hidden under the fullscreen right panel', () => {
