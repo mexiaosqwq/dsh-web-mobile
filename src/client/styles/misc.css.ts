@@ -415,8 +415,8 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
      行内操作按钮只有 16×16、彼此相隔 31px —— 手指点不中，也点不准）。
      做法：行抬到 44px（宿主没有行高约束，标题仍 flex:1 自己省略），
      按钮盒 40×40、间距 4px（盒间净空 0、不重叠），图标本身仍是 16px 不放大。
-     40 而不是 44：三个按钮 + 净空在 256px 侧栏里已经占掉 128px，
-     再宽就把标题挤到 100px 以下；44 需要侧栏加宽，是产品取舍，不在本轮。 */
+     40 而不是 44：44 需要侧栏加宽，是产品取舍；三个按钮合计 128px 的占位
+     由下方 ①″ 收起归档/置顶解决（2026-10-31，issue #255）。 */
   [class*="sessionRow"] {
     min-height: 44px !important;
   }
@@ -434,6 +434,17 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     justify-content: center !important;
     padding: 0 !important;
     border-radius: 10px;
+  }
+
+  /* ①″ 归档 / 置顶快捷按钮在宽屏触屏档也收进 ⋯ 菜单（2026-10-31，issue #255）。
+     ①′ 把三颗按钮放大成 40×40 后，280px 侧栏（宿主默认宽度）里留给标题的
+     只有约 55px：实测 1024×640 / dpr 2.5 时行尾同时常显「时间 + ⋯ + 归档 +
+     置顶」四个元素，标题截成 3–4 字 + 省略号；宿主只在 hover / menuOpen 时
+     隐藏 .time，触屏没有这个状态。手机壳自 #154 起已按宿主 aria-label 收起
+     这两颗按钮，这里用同一份 zh/en 名单补齐：⋯ 仍保留 40×40 热区，归档 /
+     置顶 / 分叉 / 删除仍在 ⋯ 菜单内，标题恢复到约 143px。 */
+  [class*="sessionRow"] [class*="_rowActions"] :is([aria-label="归档会话"], [aria-label="取消归档"], [aria-label="置顶会话"], [aria-label="取消置顶"], [aria-label="Archive session"], [aria-label="Unarchive session"], [aria-label="Pin session"], [aria-label="Unpin session"]) {
+    display: none !important;
   }
 
   /* ① 隐藏「更多视图」⋯（owner 2026-10-29）：手机档早就藏了（≤1023 那条在下面），
