@@ -85,3 +85,16 @@ test('归档 / 置顶快捷按钮在手机档收进 ⋯ 菜单（#154）', () =>
   ])
   assert.match(LAYOUT_CSS, /\] :is\([^)]*\) \{\s*display: none !important;/)
 })
+
+test('宽屏触屏同样把归档 / 置顶快捷按钮收进 ⋯ 菜单（#255）', () => {
+  const misc = readFileSync(join(ROOT, 'src/client/styles/misc.css.ts'), 'utf8')
+  const wideTouch = misc.match(/@media \(min-width: 1024px\) and \(pointer: coarse\) \{([\s\S]*?)\n\}/)?.[1]
+  assert.ok(wideTouch !== undefined, '宽屏粗指针规则块在位')
+  const group = wideTouch.match(/\[class\*="sessionRow"\] \[class\*="_rowActions"\] :is\(([^)]*)\) \{\s*display: none !important;/)
+  assert.ok(group !== null, '快捷按钮只在会话行操作区按精确标签隐藏')
+  const labels = [...group[1].matchAll(/aria-label="([^"]+)"/g)].map((match) => match[1])
+  assert.deepEqual(labels, [
+    '归档会话', '取消归档', '置顶会话', '取消置顶',
+    'Archive session', 'Unarchive session', 'Pin session', 'Unpin session',
+  ])
+})

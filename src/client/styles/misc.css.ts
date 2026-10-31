@@ -436,6 +436,17 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     border-radius: 10px;
   }
 
+  /* @patch
+     id: wide-touch-session-shortcuts
+     for: dsh-client-ui-workspace 的会话行 _rowActions 与归档 / 置顶快捷按钮
+     why: 宽屏触屏常显三颗 40px 按钮挤压标题；沿用手机档 #154 的精确标签收进 ⋯ 菜单（#255）
+     until: 宿主自带触屏快捷按钮收起规则，或会话行提供独立的操作区布局契约，届时删本块
+     test: tests/dsha-session-interaction.test.ts
+  */
+  [class*="sessionRow"] [class*="_rowActions"] :is([aria-label="归档会话"], [aria-label="取消归档"], [aria-label="置顶会话"], [aria-label="取消置顶"], [aria-label="Archive session"], [aria-label="Unarchive session"], [aria-label="Pin session"], [aria-label="Unpin session"]) {
+    display: none !important;
+  }
+
   /* ① 隐藏「更多视图」⋯（owner 2026-10-29）：手机档早就藏了（≤1023 那条在下面），
      它的入口是宿主 header 里的 viewsMoreAnchor；平板这一档没有壳的帧内规则，
      于是这颗对触屏平板毫无用处的按钮就漏了出来。只藏按钮与锚点，菜单不会再弹。 */

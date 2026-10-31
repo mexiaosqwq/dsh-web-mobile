@@ -4,7 +4,7 @@
 
 <!-- BEGIN:generated -->
 
-共 22 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
+共 23 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
 手改无效 —— 检查器会把不一致判为 fatal。
 
 | id | 位置 | 适配对象（for） | 到期条件（until） | 测试（test） |
@@ -30,6 +30,7 @@
 | `wallpaper-drawer-fill` | src/client/styles/layout.css.ts:205 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-specific-sidebar-fill 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-header-fill` | src/client/styles/layout.css.ts:1242 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-panel-fill` | src/client/styles/layout.css.ts:337 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent）+ 0.2.x 全屏右侧栏面板 | 上游给全屏面板提供不透明的填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
+| `wide-touch-session-shortcuts` | src/client/styles/misc.css.ts:439 | dsh-client-ui-workspace 的会话行 _rowActions 与归档 / 置顶快捷按钮 | 宿主自带触屏快捷按钮收起规则，或会话行提供独立的操作区布局契约，届时删本块 | `tests/dsha-session-interaction.test.ts` |
 | `zen-remote-header-yield` | src/client/styles/layout.css.ts:3785 | dsh-zen-remote 2.2.5 的手机档 header reflow（headerActions 里注入 [data-mobile-nav="header-back"]，titleRow 改成 92px/1fr/92px 三栏，titleCluster 靠 display:contents 变成直系 grid 项） | dsh-zen-remote 不再重排 header，或它改为不依赖 display:contents 的稳定槽位，届时删本块 | `tests/a2-header-gating.test.ts` |
 
 `why`（为何不能用正规写法）逐条写在源码的 @patch 块里 —— 它必须贴着代码，
@@ -49,7 +50,7 @@
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 542 | 627 | 300 |
 | `src/client/styles/compat.css.ts` | 388 | 112 | 23 |
-| `src/client/styles/misc.css.ts` | 93 | 56 | 34 |
+| `src/client/styles/misc.css.ts` | 94 | 58 | 34 |
 | `src/client/styles/base.css.ts` | 18 | 4 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
@@ -72,6 +73,6 @@
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
-| **合计** | **1050** | **883** | **372** |
+| **合计** | **1051** | **885** | **372** |
 
 <!-- END:inventory -->
