@@ -117,7 +117,7 @@ test('the effect measures the host seat/header under the plugin frame and publis
   // The header must be anchored on the host header class: a bare header would
   // also match the ask-question card's own header inside the seat
   // (pitfalls §提问卡顶栏误伤).
-  assert.match(EFFECT, /'header\.wSkVaW_header'/)
+  assert.match(EFFECT, /header:has\(\[class\*="_headerLeading"\]\)/)
   assert.ok(!/'header'/.test(EFFECT), 'no bare header selector string')
   // The marker contract the stylesheet keys on.
   assert.match(EFFECT, /const TIGHT_MARKER = 'data-mobile-nav-composer-tight'/)
@@ -158,7 +158,7 @@ test('the installer is registered next to the composer guards', () => {
 test('the CSS lets the seat outrank the header only while the marker is set', () => {
   const blocks = findRuleBlocks(LAYOUT_CSS)
   const headerRule = blocks.find(
-    (rule) => rule.selector === '[data-mobile-nav="frame"] [data-phase] header.wSkVaW_header',
+    (rule) => rule.selector === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])',
   )
   const seatRule = blocks.find((rule) =>
     rule.selector.includes('[data-mobile-nav-composer-tight] [class*="_composerSeat"]'),
@@ -183,6 +183,14 @@ test('the CSS lets the seat outrank the header only while the marker is set', ()
   )
   assert.ok(dockRule !== undefined, 'the tight state must drop the dock row')
   assert.match(dockRule.body, /display:\s*none/)
+  // Portrait keeps the full composer: the dock/stats rows are only given up in
+  // landscape, where the band cannot fit header + seat. Portrait evidence
+  // 2026-10-30 (402x684): tight=T coincided with seatH 76 against 106 without
+  // the marker — a 30px shrink, i.e. the owner's 「输入框缩下去」.
+  const landscapeAt = LAYOUT_CSS.indexOf('@media (orientation: landscape)')
+  const dockAt = LAYOUT_CSS.indexOf('[data-composer-dock]')
+  assert.ok(landscapeAt >= 0, 'the dock/stats yield must be gated on landscape')
+  assert.ok(landscapeAt < dockAt, 'the landscape gate must wrap the dock rule')
 })
 
 test('the patch is registered (four fields + registry row)', () => {

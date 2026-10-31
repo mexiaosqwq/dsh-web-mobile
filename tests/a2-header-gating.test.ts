@@ -265,9 +265,9 @@ test('tablet tier keeps the pre-batch geometry through the shared mobile block (
   assert.doesNotMatch(layout, /padding-right: 118px !important/, '惰性预留规则不得回来')
 
   // 共用移动档 = 本批之前的值：这几条是「平板档不变」的源码级锚
-  assert.equal(sharedDecl(scoped, 'wSkVaW_titleCluster', 'margin-right: 46px !important'), true,
+  assert.equal(sharedDecl(scoped, '_titleCluster', 'margin-right: 46px !important'), true,
     '共用档标题簇预留必须是本批之前的 46px')
-  assert.equal(sharedDecl(scoped, 'wSkVaW_titleCluster', 'padding-right: 0 !important'), true,
+  assert.equal(sharedDecl(scoped, '_titleCluster', 'padding-right: 0 !important'), true,
     '预留必须记在 margin 上：padding 预留挡不住溢出（滚动容器的裁剪线在 padding box）')
   assert.equal(sharedDecl(scoped, '[data-mobile-nav="files"]', 'right: 8px !important'), true,
     '共用档文件夹按钮必须是本批之前的 right:8px')
@@ -280,7 +280,7 @@ test('tablet tier keeps the pre-batch geometry through the shared mobile block (
   assert.equal(sharedDecl(scoped, '_headerActions', 'gap: 4px !important'), true,
     '共用档动作行间距必须是本批之前的 4px')
   // 手机档的四个新值必须与共用档成对存在（否则就是漏搬，平板会被迫吃新值）
-  assert.equal(phoneDecl(scoped, 'wSkVaW_titleCluster', 'margin-right: 34px !important'), true)
+  assert.equal(phoneDecl(scoped, '_titleCluster', 'margin-right: 34px !important'), true)
   assert.equal(phoneDecl(scoped, '_titleCluster', 'gap: 0 6px !important'), true)
   assert.equal(phoneDecl(scoped, '_headerActions', 'gap: 6px !important'), true)
   assert.equal(phoneDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'flex: 0 0 30px !important'), true)
@@ -305,7 +305,7 @@ test('the job chip collapses by shape, not by the host root class', () => {
   assert.equal(hideRule.sel.includes('_root'), false, 'the 0.2.1 wrapper has no class: do not key on _root')
 
   // 预留必须记在 margin 上：标题簇是滚动容器，padding 预留挡不住溢出。
-  for (const r of scoped.filter((x) => x.sel.includes('wSkVaW_titleCluster'))) {
+  for (const r of scoped.filter((x) => x.sel.includes('_titleCluster'))) {
     assert.equal(/padding-right:\s*(?!0)[0-9]+px/.test(r.body), false, `reservation must not ride on padding: ${r.sel}`)
   }
 })

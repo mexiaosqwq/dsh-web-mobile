@@ -115,7 +115,7 @@ test('0.1.5-era rules stay scoped to the mobile branch', async () => {
   const sheets = [LAYOUT_CSS, MISC_CSS, COMPAT_CSS]
 
   // 1. The two selectors that only 0.1.5 has must be present…
-  const wSkVaW = sheets.filter((css) => css.includes('wSkVaW_headerUtilities'))
+  const wSkVaW = sheets.filter((css) => css.includes('_headerUtilities'))
   assert.ok(wSkVaW.length > 0, 'the header-utilities rules disappeared')
   // …and every mention must be scoped under the mobile frame marker, so an old
   // host (and any desktop window) can never match them.

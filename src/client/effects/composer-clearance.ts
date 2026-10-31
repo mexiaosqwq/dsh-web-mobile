@@ -62,8 +62,11 @@ const TIGHT_MARKER = 'data-mobile-nav-composer-tight'
 /** Host composer seat, scoped under the plugin frame marker. */
 const SEAT_SELECTOR = '[class*="_composerSeat"]'
 
-/** The conversation header — the host header class, never a bare `header`. */
-const HEADER_SELECTOR = 'header.wSkVaW_header'
+/** The conversation header — the host header class, never a bare `header`.
+ *  The anchor is the underscore suffix, not a hash prefix: the host renamed
+ *  its CSS-module prefix (wSkVaW_ → tlcmdG_ in 0.2.1-rc.2) and every
+ *  prefix-anchored rule silently stopped matching. */
+const HEADER_SELECTOR = 'header:has([class*="_headerLeading"])'
 
 export function installComposerClearance(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: composer clearance', () => {

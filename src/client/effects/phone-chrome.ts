@@ -100,8 +100,10 @@ let frameControllerInstalled = false
  * blend into the page. On narrow screens:
  * - The viewport meta is OWNED by the plugin while armed (viewport-meta.ts):
  *   width=device-width, initial-scale=1, viewport-fit=cover,
- *   interactive-widget=resizes-content (keyboard shrinks the layout viewport
- *   on Chromium instead of panning the page), re-asserted on every host
+ *   without interactive-widget=resizes-content (dropped 2026-10-30: WebKit's
+ *   implementation is new and where it is half-done the page is compensated
+ *   twice — the plugin models the keyboard with visualViewport instead),
+ *   re-asserted on every host
  *   rewrite, node replacement, or late injection, so
  *   env(safe-area-inset-top) stays the real status-bar / notch height
  *   instead of silently going stale when the host touches the meta. No zoom

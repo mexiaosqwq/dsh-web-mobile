@@ -292,7 +292,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
      composer side only the input card ([data-composer-card], host marker
      since 0.1.2) and the plugin stats row. */
   [data-mobile-nav="frame"] > :first-child,
-  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header,
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]),
   [data-mobile-nav="frame"] [data-composer-card],
   [data-mobile-nav="stats"],
   [data-mobile-nav="fab"],
@@ -305,7 +305,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="frame"] > :first-child [role="dialog"],
   [data-mobile-nav="frame"] > :first-child input,
   [data-mobile-nav="frame"] > :first-child textarea,
-  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header input {
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) input {
     -webkit-user-select: text !important;
     user-select: text !important;
   }
@@ -557,8 +557,8 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
    （tablist 宽 100% → flex 换行），连带把谱系 chip 顶到 header 底边那条空行。
    只藏按钮本身：菜单以它为锚点，藏了按钮就不会再弹出。 */
 @media (max-width: 1023px) and (pointer: coarse) {
-  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header button[class*="viewsMore"],
-  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [class*="viewsMoreAnchor"] {
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) button[class*="viewsMore"],
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="viewsMoreAnchor"] {
     display: none !important;
   }
 }
@@ -579,7 +579,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
    右侧图标簇已经没有 28px 的空位（团队 chip 的箭头与文件按钮只隔 ~39px），
    先把它从头部撤下；要保留入口就放进抽屉品牌行或文件面板。 */
 @media (max-width: 1023px) and (pointer: coarse) {
-  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header [data-mobile-nav="downloads"] {
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="downloads"] {
     display: none !important;
   }
 }
@@ -637,7 +637,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
    2026-10-25 试过 -16（标题约 38），会进入 App 的顶部遮盖层，已回退到 -8
    （标题约 46，仍在状态栏之下）；再往上需要 App 层配合，见 04-plan 交接文档。 */
 @media (max-width: 1023px) and (pointer: coarse) {
-  [data-mobile-nav="frame"] [data-phase] header.wSkVaW_header {
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) {
     margin-top: -8px !important;
   }
 }

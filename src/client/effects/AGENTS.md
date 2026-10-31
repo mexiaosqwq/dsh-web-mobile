@@ -116,7 +116,9 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   `data-mobile-panel-exit` 只是兜底）——面板占住主区时会话被卸载，退场后 InputBar 重挂载
   又聚焦一次，键盘跟着弹。窗口必须在 commit 前打开，所以走事件而不是属性观察。
 - **`composer-keyboard-lift.ts`** — 抬升量语义：`translateY(−overlap)`，`overlap` = seat 的
-  `getBoundingClientRect().bottom` 减 `visualViewport.height`（`vv.height`），纯屏坐标。
+  `getBoundingClientRect().bottom` 减**可见带底** `visualViewport.offsetTop + height`（同一套
+  布局坐标；只减 height 等于假定 offsetTop=0，页面一被 iOS 平移就会把座位留在键盘后面，
+  2026-10-30 店主报障）。缩放（`scale ≠ 1`）仍 fail-open。
 - **`composer-keyboard-guard.ts`** — 上游 PR **#48**（`keepFocus` 在 `mousedown` 聚焦编辑器）。
 
 ## 新增模块时

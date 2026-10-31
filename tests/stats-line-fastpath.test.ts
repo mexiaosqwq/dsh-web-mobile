@@ -126,7 +126,12 @@ test('快路径形状：locateTps 只在短路之后被调用，且跳过判定�
   // 环到 dock 的层数不再固定，两处写死的两级上溯由同一个助手取代。本条要钉的语义是
   // 「身份校验与 measureRing 共用同一条选取判据」——所以校验必须走那个助手。
   assert.match(witness, /locateRing\(stats\)/, '与 measureRing 共用同一条选取判据')
-  assert.equal((src.match(/isRingCandidate\(child, stats\)/g) ?? []).length, 1, '判据本体只许有一处（locateRing 内）')
+  // 2026-10-31：判据与 locateRing 一起搬进 platform/composer-anchor.ts（文件行数预算 +
+  // 「环候选不许是 composer 本身」这条判定要有自己的位置）。语义不变：判据本体仍然只有
+  // 一处，stats-line 里只能通过接口使用它，不许再写第二份。
+  const anchor = readFileSync(new URL('../src/client/platform/composer-anchor.ts', import.meta.url), 'utf8')
+  assert.equal((anchor.match(/isRingCandidate\(child, stats\)/g) ?? []).length, 1, '判据本体只许有一处（locateRing 内）')
+  assert.equal((src.match(/isRingCandidate\(/g) ?? []).length, 0, 'effects 侧不许再写第二份判据（注释里的引用不算）')
   // 定态判据走纯函数（上面那条 transition table 钉的就是它）。
   assert.match(fast, /const tpsSettled = tpsSlotsSettled\(/)
   // 注释里记下来的两个硬指标口径必须与代码一致（免得下一位只改一半）。

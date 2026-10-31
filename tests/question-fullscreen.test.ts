@@ -511,7 +511,7 @@ test('fullscreen and the #245 tight state can be on at the same time', () => {
   for (const block of tight) assert.ok(!block.selector.includes('question-full'))
   // The tight state's stacking contract is untouched by this feature: the seat
   // still outranks the opaque header (its z-index 30 lives in the shared block).
-  const header = blocks.find((block) => block.selector === '[data-mobile-nav="frame"] [data-phase] header.wSkVaW_header')
+  const header = blocks.find((block) => block.selector === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])')
   const seat = blocks.find((block) => block.selector.includes('[data-mobile-nav-composer-tight] [class*="_composerSeat"]'))
   assert.ok(header !== undefined && seat !== undefined)
   const headerZ = Number(header.body.match(/z-index:\s*(\d+)/)?.[1])
