@@ -49,7 +49,7 @@
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 542 | 627 | 300 |
 | `src/client/styles/compat.css.ts` | 388 | 112 | 23 |
-| `src/client/styles/misc.css.ts` | 93 | 56 | 34 |
+| `src/client/styles/misc.css.ts` | 94 | 58 | 34 |
 | `src/client/styles/base.css.ts` | 18 | 4 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
@@ -72,6 +72,6 @@
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
-| **合计** | **1050** | **883** | **372** |
+| **合计** | **1051** | **885** | **372** |
 
 <!-- END:inventory -->
