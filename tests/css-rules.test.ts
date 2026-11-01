@@ -246,31 +246,37 @@ test('the ask-question card title is not swallowed by the mobile header block (2
   // display 是 none；逐条禁用插件样式表定位到顶栏「隐藏日志胶囊」那条裸 header 规则：
   // 提问卡渲染在 composerSeat 里、同样在 [data-phase] 之下，它的
   // Mbwy4a_header > headingBlock > :last-child 正是问题正文 <h2>。
-  // 契约：作用在会话顶栏结构/后代上的规则必须锚宿主顶栏类 header.wSkVaW_header；
+  // 契约：作用在会话顶栏结构/后代上的规则必须锚宿主顶栏类 header:has([class*="_headerLeading"])；
   // 裸 header 只允许按钮级 polish（tap-highlight / :active 压暗）。
   const blocks = findRuleBlocks(LAYOUT_CSS)
-  const structural = blocks.filter((block) =>
-    /\[data-phase\] header(?:\.wSkVaW_header)?\s*>/.test(block.selector),
-  )
+  // Direct-child rules of the conversation header only: the anchor is collapsed
+  // to a bare token first so the child combinator test reads the same for every
+  // host generation (a descendant rule like `header [class*="_label"] > svg`
+  // is not what this guard is about).
+  const structural = blocks.filter((block) => {
+    const normalized = block.selector
+      .split('header:has([class*="_headerLeading"])').join('header')
+    return /\bheader\s*>/.test(normalized)
+  })
   assert.ok(structural.length >= 3, '顶栏直系子元素规则还在（没有误删整块）')
   for (const block of structural) {
     assert.match(
       block.selector,
-      /header\.wSkVaW_header/,
+      /header:has\(\[class\*="_headerLeading"\]\)/,
       `裸 header 的直系子元素规则会把提问卡一起命中：${block.selector}`,
     )
   }
   const hide = blocks.find(
     (block) =>
       block.selector
-      === '[data-mobile-nav="frame"] [data-phase] header.wSkVaW_header > :first-child > :last-child',
+      === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) > :first-child > :last-child',
   )
   assert.ok(hide !== undefined, '隐藏顶栏日志胶囊的规则仍在位（只是收到顶栏类上）')
   assert.match(hide.body, /display:\s*none !important/)
 })
 
 test('the ask-question card body stays selectable on phones (2026-10-20)', () => {
-  // 第五轮把「隐藏日志胶囊」收窄到 header.wSkVaW_header 后，问题正文能看见了，
+  // 第五轮把「隐藏日志胶囊」收窄到 header:has([class*="_headerLeading"]) 后，问题正文能看见了，
   // 但同族的 user-select:none（misc.css.ts 的 B1 选择收敛）仍是裸 header，
   // 而提问卡的 header 也是 [data-phase] 下的 <header> ⇒ 正文吃到 none，
   // 长按选不中、也复制不了问题。真机读数（inspector client realm 注入线上
@@ -282,14 +288,14 @@ test('the ask-question card body stays selectable on phones (2026-10-20)', () =>
   for (const block of headerRules) {
     assert.match(
       block.selector,
-      /header\.wSkVaW_header/,
+      /header:has\(\[class\*="_headerLeading"\]\)/,
       `裸 header 会把提问卡正文一起禁选：${block.selector}`,
     )
   }
   const none = headerRules.find((block) => block.body.includes('user-select: none'))
   assert.ok(none !== undefined, '会话顶栏禁选规则仍在位（只是收到顶栏类上）')
   assert.match(none.body, /-webkit-user-select: none !important/)
-  const text = headerRules.find((block) => block.selector.includes('header.wSkVaW_header input'))
+  const text = headerRules.find((block) => block.selector.includes('header:has([class*="_headerLeading"]) input'))
   assert.ok(text !== undefined, '顶栏输入框仍放行（否则 WebKit 上没法输入/粘贴）')
   assert.match(text.body, /user-select: text !important/)
 })

@@ -96,5 +96,7 @@ test('the effect is iOS-gated, focus-scoped, seat-anchored and restores on relea
 
 test('the installer is registered next to the composer guards', () => {
   assert.match(INDEX, /import \{ installComposerKeyboardLift \} from '\.\/effects\/composer-keyboard-lift\.ts'/)
-  assert.match(INDEX, /installComposerKeyboardLift\(ctx\)/)
+  // 2026-10-31：武装被撤（实现原样保留，见 index.tsx 的注释），所以这里钉的是
+  // 「不再调用」，而不是「必须调用」。
+  assert.doesNotMatch(INDEX, /^\s*installComposerKeyboardLift\(ctx\)$/m)
 })

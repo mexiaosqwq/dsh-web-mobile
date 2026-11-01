@@ -19,18 +19,33 @@ const IOS_MARKER = 'data-mobile-nav-ios'
  * zoom away from Android/DSHA; the iOS focus-zoom fix is the >=16px field
  * floor (data-mobile-nav-ios), not a zoom ban (#45).
  *
- * `interactive-widget=resizes-content`（2026-10-18 补）：手机上「键盘弹起时整页被
- * 顶上去、顶栏出屏」不是本插件的布局 bug，而是 Chrome for Android 的键盘视口模型——
- * 该 flag 缺省即 `resizes-visual`，只缩**视觉**视口，布局视口（`100%` / `100dvh`
- * 跟着的那个）仍是整屏高，浏览器为了露出被聚焦的输入框把整页往上平移。本仓所有
- * 键盘测量都是在 Android WebView（`adjustResize`，键盘缩**布局**视口）上取的，那台
- * 引擎没有这个问题；显式要 `resizes-content` 就是让 Chromium 浏览器回到同一模型：
- * `100dvh` / `innerHeight` / frame 全都等于可见区，页面不再平移。不认这个值的引擎
- * （iOS Safari）会忽略它，行为与改动前一致——iOS 的键盘模型仍由
- * composer-keyboard-lift.ts 兜。
+ * Also deliberately free of `interactive-widget=resizes-content`.
+ *
+ * That hint asks the engine to shrink the LAYOUT viewport when the keyboard
+ * opens, which is the model Android WebView (`adjustResize`) already uses and
+ * the one every keyboard measurement in this repo was taken in. It was added
+ * on 2026-10-18 to stop Chromium browsers from panning instead. Two things
+ * went wrong with keeping it:
+ *
+ *   - It is a Chromium convenience, not a contract. WebKit only started
+ *     implementing it in 2026 (w3c/editing#549: "Webkit team is actively
+ *     working on supporting resizes-content and overlays-content"), so the
+ *     support that exists is brand new.
+ *   - Where it is half-implemented the page is compensated twice. Field data
+ *     2026-10-30, 402x684 iPhone (CriOS 156): `innerHeight` 684 -> 345 while
+ *     `visualViewport.offsetTop` went to 339, carrying the composer from
+ *     578..684 to 239..345 — off the visible band `[339, 684]` — before the
+ *     pan settled at 246 and it came back to 362..438.
+ *
+ * The viewport this plugin actually relies on is `visualViewport`, which every
+ * mobile engine implements and whose band `[offsetTop, offsetTop + height]` is
+ * the single model the composer lift is written against (team-standard recipe,
+ * see keyboard-visibility / the composer lift's own derivation). Asking the
+ * engine to also resize the layout buys nothing that band does not already
+ * describe, and it is what created the double compensation. So: declare no
+ * hint, handle both engine models with the band.
  */
-const VIEWPORT_CONTENT =
-  'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content'
+const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cover'
 
 /**
  * CSS custom property carrying the viewport height WITHOUT the soft keyboard
@@ -117,6 +132,9 @@ export function syncStableViewportHeight(): () => void {
   // never passes the growth test), so no per-frame dedup is needed here —
   // this guard only removes the redundant identical writes.
   let stableValue = ''
+  let pendingVisible = ''
+  let pendingVisibleFrames = 0
+  let pendingVisibleFrame = 0
   const syncStableViewport = (): void => {
     const height = window.innerHeight
     const width = window.innerWidth
@@ -124,8 +142,26 @@ export function syncStableViewportHeight(): () => void {
     const available = Math.max(1, Math.min(height, visible?.height ?? height))
     const visibleValue = `${available}px`
     const topValue = `${visible?.offsetTop ?? 0}px`
-    if (root.style.getPropertyValue('--dsha-mobile-visible-vh') !== visibleValue)
+    // Only publish the band height once it STOPS MOVING (two consecutive frames
+    // agree). The shell is sized from this variable, and a custom property on
+    // :root invalidates style for the whole document — following the keyboard's
+    // 300ms rise frame by frame re-laid-out the entire app ~20 times and the
+    // conversation list painted blank (white) for 1-2s on the owner's phone
+    // (2026-10-31). Publishing on settle costs one resize, right after the
+    // keyboard stops, and the animation itself is left to the compositor.
+    pendingVisibleFrames = visibleValue === pendingVisible ? pendingVisibleFrames + 1 : 0
+    pendingVisible = visibleValue
+    if (pendingVisibleFrames >= 2 &&
+      root.style.getPropertyValue('--dsha-mobile-visible-vh') !== visibleValue)
       root.style.setProperty('--dsha-mobile-visible-vh', visibleValue)
+    // The keyboard stops without announcing it: the last resize event still sees
+    // a fresh value, so confirmation has to come from a frame of its own. One
+    // rAF at a time; during the animation each tick re-arms exactly once.
+    else if (pendingVisibleFrames < 2 && pendingVisibleFrame === 0)
+      pendingVisibleFrame = requestAnimationFrame(() => {
+        pendingVisibleFrame = 0
+        syncStableViewport()
+      })
     if (root.style.getPropertyValue('--dsha-mobile-viewport-top') !== topValue)
       root.style.setProperty('--dsha-mobile-viewport-top', topValue)
     if (stableVh === 0 || height > stableVh || width !== stableWidth) {
@@ -148,6 +184,8 @@ export function syncStableViewportHeight(): () => void {
     window.removeEventListener('resize', syncStableViewport)
     window.visualViewport?.removeEventListener('resize', syncStableViewport)
     window.visualViewport?.removeEventListener('scroll', syncStableViewport)
+    if (pendingVisibleFrame !== 0) cancelAnimationFrame(pendingVisibleFrame)
+    pendingVisibleFrame = 0
     root.style.removeProperty('--dsha-mobile-visible-vh')
     root.style.removeProperty('--dsha-mobile-viewport-top')
     stableValue = ''

@@ -14,6 +14,7 @@ import { installSessionMenuDelete } from './effects/session-menu.ts'
 import { installComposerKeyboardGuard } from './effects/composer-keyboard-guard.ts'
 import { installComposerKeyboardLift } from './effects/composer-keyboard-lift.ts'
 import { installComposerClearance } from './effects/composer-clearance.ts'
+import { installDocumentScrollLock } from './effects/document-scroll-lock.ts'
 import { installQuestionFullscreen } from './effects/question-fullscreen.ts'
 import { installComposerPlusToggle } from './effects/composer-plus-toggle.ts'
 import { installWorkspaceChipToggle } from './effects/workspace-chip-toggle.ts'
@@ -58,7 +59,11 @@ export const inject = ['slots', 'layout', 'locale', 'sessionLogDownload', 'sessi
 const SWAP_RESTORE_MS = 10_000
 
 type SavedScroll = { top: number; savedAt: number; url: string }
-const scrollWindow = window as Window & { __dshaMobileScrollState?: WeakMap<HTMLElement, SavedScroll> }
+const scrollWindow = window as Window & {
+  __dshaMobileScrollState?: WeakMap<HTMLElement, SavedScroll>
+  /** Last known conversation offset, independent of the scroller's identity. */
+  __dshaMobileLastScroll?: SavedScroll
+}
 const scrollState = scrollWindow.__dshaMobileScrollState instanceof WeakMap
   ? scrollWindow.__dshaMobileScrollState
   : (scrollWindow.__dshaMobileScrollState = new WeakMap<HTMLElement, SavedScroll>())
@@ -67,15 +72,30 @@ function conversationScrollers(): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>('[data-mobile-nav="frame"] [class*="scrollBody"]')]
 }
 
+/**
+ * Where the conversation was scrolled to, independent of the element.
+ *
+ * The per-element WeakMap below only survives a stylesheet swap, where the
+ * scroll body keeps its identity. A hot swap that re-renders the tree (the
+ * host re-imports the client module) replaces the node, and the frame marker
+ * the scroller query keys on is only applied by a reconciler task on the NEXT
+ * frame — so the old restore found nothing and the conversation stayed at 0.
+ * Field data 2026-10-30 (phone beacon): convTop 5546 -> 0 within one second of
+ * a plugin re-apply, with no pointer or key event in between; the owner's
+ * 「时不时跳到上文很久以前的内容」 is exactly that.
+ */
 function rememberConversationScroll(): void {
   for (const element of conversationScrollers()) {
-    if (element.scrollTop > 0)
-      scrollState.set(element, { top: element.scrollTop, savedAt: Date.now(), url: location.href })
-    else scrollState.delete(element)
+    if (element.scrollTop > 0) {
+      const saved = { top: element.scrollTop, savedAt: Date.now(), url: location.href }
+      scrollState.set(element, saved)
+      scrollWindow.__dshaMobileLastScroll = saved
+    } else scrollState.delete(element)
   }
 }
 
 function restoreConversationScroll(): void {
+  // Same node (stylesheet-only swap): the cheap path.
   for (const element of conversationScrollers()) {
     const saved = scrollState.get(element)
     scrollState.delete(element)
@@ -86,6 +106,23 @@ function restoreConversationScroll(): void {
         element.scrollTop = saved.top
     })
   }
+  // Remounted tree (plugin re-apply): retry until the new scroller exists, has
+  // content, and the frame marker is in place. Bounded, and it never fights a
+  // scroll the user started — it only writes while the scroller sits at 0.
+  const saved = scrollWindow.__dshaMobileLastScroll
+  if (saved === undefined) return
+  let tries = 0
+  const attempt = (): void => {
+    tries += 1
+    if (saved.url !== location.href || Date.now() - saved.savedAt > SWAP_RESTORE_MS) return
+    const element = document.querySelector<HTMLElement>('[class*="scrollBody"]')
+    if (element !== null && element.scrollTop === 0 && element.scrollHeight >= saved.top + element.clientHeight) {
+      element.scrollTop = saved.top
+      return
+    }
+    if (tries < 30) requestAnimationFrame(attempt)
+  }
+  requestAnimationFrame(attempt)
 }
 
 /**
@@ -192,12 +229,16 @@ export function apply(ctx: ClientContext): void {
   installComposerKeyboardGuard(ctx)
   // iOS: the host Lexical scroll helper mis-scrolls the window on every
   // keystroke (issue #149); pin the composer seat above the keyboard.
-  installComposerKeyboardLift(ctx)
+  // 2026-10-31: 键盘抬升不武装。帧数据显示它和引擎自己的滚动纠正互相拉扯
+  // （seat 578→283→560，conv 8572↔8587 每帧来回），而引擎单独工作时座位是落在
+  // 可见带内的。实现原样保留在 effects/composer-keyboard-lift.ts，改回一行即可重开。
+  void installComposerKeyboardLift
   // Keyboard-shrunken landscape (issue #245): the sticky composer seat's editing
   // row lands inside the opaque, z-index-30 conversation header, so the input
   // box is covered until the page reloads. Measure the band and let the CSS
   // outrank the header while it is covered.
   installComposerClearance(ctx)
+  installDocumentScrollLock(ctx)
   // Ask-question card (owner report 2026-10-25): a manual expand/collapse control
   // in the card header turns the answer area into the whole visible band
   // (the host's 60vh ceiling collapses with the keyboard), and the answer field

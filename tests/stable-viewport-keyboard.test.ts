@@ -71,17 +71,16 @@ test('only the PHONE branch drops the search row; tablet keeps it', () => {
   assert.ok(at - phoneQuery < 200, 'the narrow query must be the rule\'s nearest block')
 })
 
-test('the viewport meta asks Chromium for the WebView keyboard model', () => {
-  // Chrome for Android defaults to `interactive-widget=resizes-visual`: the
-  // keyboard only shrinks the VISUAL viewport, the layout viewport (what
-  // `100%` / `100dvh` sizing follows) keeps the full screen height, and the
-  // browser pans the document up to reveal the focused composer — the frame
-  // and its header slide off the top. Android WebView (`adjustResize`), the
-  // engine every keyboard measurement in this repo was taken on, resizes the
-  // LAYOUT viewport instead, which is why this never reproduced there.
-  // Asking for `resizes-content` puts Chromium browsers on that same model.
-  assert.match(
-    VIEWPORT,
-    /const VIEWPORT_CONTENT =\s*'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content'/,
-  )
+test('the viewport meta carries no interactive-widget hint', () => {
+  // 2026-10-30: the hint was dropped entirely. It is a Chromium-only way to make
+  // the keyboard shrink the LAYOUT viewport; WebKit only started implementing it
+  // in 2026 (w3c/editing#549) and where it is half-implemented the page is
+  // compensated twice — field data on a 402x684 iPhone: innerHeight 684 -> 345
+  // while visualViewport.offsetTop went to 339, carrying the composer off the
+  // visible band. The plugin's own model is the visualViewport band
+  // [offsetTop, offsetTop + height], which every mobile engine implements.
+  assert.match(VIEWPORT, /const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cover'/)
+  // The rationale above the constant mentions the flag on purpose; what must not
+  // carry it is the value itself.
+  assert.doesNotMatch(VIEWPORT, /const VIEWPORT_CONTENT =[^\n]*interactive-widget/)
 })

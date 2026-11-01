@@ -14,6 +14,10 @@ const src = await readFile(new URL('../src/client/effects/stats-line.ts', import
 const css = await readFile(new URL('../src/client/styles/compat.css.ts', import.meta.url), 'utf8')
 const layout = await readFile(new URL('../src/client/styles/layout.css.ts', import.meta.url), 'utf8')
 
+// Conversation-header anchor, regex-escaped once (host CSS-module prefix changed
+// 2026-10-30; the stable form keys on the leading marker).
+const HEADER_RE = 'header:has\\(\\[class\\*="_headerLeading"\\]\\)'
+
 test('stats-line never relocates a host node (issue #104 contract)', () => {
   // The two historic movers: ring into the trailing row, TPS into the strip.
   assert.doesNotMatch(src, /insertBefore\(ring\b/)
@@ -179,7 +183,7 @@ test('ring reserve box participates in both skip keys (stale-offset regression)'
 // ② 只在深色标记下生效；③ 用同一个 bg-base token 取色，跟着主题走。
 test('dark conversation header blends into the page background (issue #176)', () => {
   assert.match(layout,
-    /body\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header,\s*\n\s*html\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header \{/,
+    new RegExp('body\\[data-ds-dark-theme\\] \\[data-mobile-nav="frame"\\] \\[data-phase\\] ' + HEADER_RE + ',\\s*\\n\\s*html\\[data-ds-dark-theme\\] \\[data-mobile-nav="frame"\\] \\[data-phase\\] ' + HEADER_RE + ' \\{'),
     '缺了深色头部同色的规则（body/html 两个深色标记都要覆盖）')
   assert.match(layout, /background-color: var\(--dsw-alias-bg-base, #151517\) !important/,
     '头部底色必须取页面底色的同一个 token，写死颜色会在换主题时失真')

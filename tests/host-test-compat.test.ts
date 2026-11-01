@@ -209,7 +209,7 @@ function scrollFixture() {
   const frames = []
   const load = () => new Function('window', 'document', 'location', 'requestAnimationFrame',
     compiled + '; return { rememberConversationScroll, restoreConversationScroll }'
-  )(window, { querySelectorAll: () => [element] }, location, fn => frames.push(fn))
+  )(window, { querySelectorAll: () => [element], querySelector: () => element }, location, fn => frames.push(fn))
   return { element, location, load, flush: () => frames.splice(0).forEach(fn => fn()) }
 }
 

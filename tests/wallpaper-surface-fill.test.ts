@@ -19,6 +19,11 @@ import { readFile } from 'node:fs/promises'
 
 const layout = await readFile(new URL('../src/client/styles/layout.css.ts', import.meta.url), 'utf8')
 
+// The conversation header anchor, regex-escaped once (the host renamed its CSS
+// module prefix on 2026-10-30; the stable form keys on the host's own
+// the host's leading marker instead of a hashed class).
+const HEADER_RE = 'header:has\\(\\[class\\*="_headerLeading"\\]\\)'
+
 test('wallpaper: the drawer refills from the static sidebar palette', () => {
   assert.match(layout,
     /body\[data-dsh-bg\] \[data-mobile-nav="frame"\] > :first-child \{\s*background: var\(--dsw-static-neutral-bluish-50, #f9fafb\);/,
@@ -29,8 +34,11 @@ test('wallpaper: the drawer refills from the static sidebar palette', () => {
 })
 
 test('wallpaper: the dark session header keeps its page-base tone', () => {
+  // The conversation header is anchored on the host's stable leading marker, not
+  // on a hashed class: the host renamed its CSS-module prefix (2026-10-30) and
+  // the old `header.wSkVaW_header` spelling stopped matching anything.
   assert.match(layout,
-    /body\[data-ds-dark-theme\]\[data-dsh-bg\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header \{\s*background-color: var\(--dsw-static-neutral-bluish-950, #151517\) !important;/,
+    new RegExp('body\\[data-ds-dark-theme\\]\\[data-dsh-bg\\] \\[data-mobile-nav="frame"\\] \\[data-phase\\] ' + HEADER_RE + ' \\{\\s*background-color: var\\(--dsw-static-neutral-bluish-950, #151517\\) !important;'),
     '深色顶栏在壁纸下必须回到 --dsw-static-neutral-bluish-950（#151517），而不是面板色 #232324')
 })
 
@@ -39,7 +47,7 @@ test('wallpaper: the compensation is additive, not a replacement for the base ru
   // header join the page background. Replacing it with the gated rule would
   // leave the header on the general bg-layer-1 paint (#232324).
   assert.match(layout,
-    /body\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header,\s*\n\s*html\[data-ds-dark-theme\] \[data-mobile-nav="frame"\] \[data-phase\] header\.wSkVaW_header \{\s*background-color: var\(--dsw-alias-bg-base, #151517\) !important;/,
+    new RegExp('body\\[data-ds-dark-theme\\] \\[data-mobile-nav="frame"\\] \\[data-phase\\] ' + HEADER_RE + ',\\s*\\n\\s*html\\[data-ds-dark-theme\\] \\[data-mobile-nav="frame"\\] \\[data-phase\\] ' + HEADER_RE + ' \\{\\s*background-color: var\\(--dsw-alias-bg-base, #151517\\) !important;'),
     '无壁纸的深色顶栏规则（#176）不得被壁纸门控规则替换')
 })
 
