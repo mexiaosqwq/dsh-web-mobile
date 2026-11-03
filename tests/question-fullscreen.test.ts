@@ -435,18 +435,9 @@ test('the question column owns the whole card width, the action row floats above
 
   // The eyebrow is the only row that still has to dodge the icons; the question
   // body starts below them (padding-top) and is never narrowed.
-  const divider = findRuleBlocks(phone).find(
-    (block) =>
-      block.selector.includes('Mbwy4a_header') &&
-      block.selector.includes('::after') &&
-      block.selector.includes(':not([class*="Mbwy4a_headerActions"])'),
-  )
-  assert.ok(divider !== undefined, 'the question/options divider is missing')
-  assert.match(divider.body, /height:\s*0\.5px/)
-  assert.match(divider.body, /background:\s*var\(--dsw-alias-border-l2/)
-  assert.match(divider.body, /opacity:\s*0\.55/)
-  assert.ok(divider.selector.includes('::after'), 'the hairline must be a pseudo element, not a border')
-  assert.ok(divider.selector.includes(':not([class*="Mbwy4a_headerActions"])'), 'the divider must not hit the action row')
+  // 2026-11-03 owner 第四轮：问题与选项同一滚动区，分隔线去掉。
+  assert.ok(!findRuleBlocks(phone).some((block) => block.selector.includes(':not([class*="Mbwy4a_headerActions"])::after')),
+    'the question/options divider must stay removed')
 
   const eyebrow = findRuleBlocks(phone).find((block) => block.selector.includes('Mbwy4a_eyebrow'))
   assert.ok(eyebrow !== undefined, 'the eyebrow dodge rule is missing')
@@ -457,11 +448,23 @@ test('the question column owns the whole card width, the action row floats above
   assert.match(title.body, /font-size:\s*15px/)
   assert.match(title.body, /line-height:\s*23px/)
   assert.match(title.body, /padding-top:\s*2px/)
-  // 超长问题不得把卡头撑满整张卡：正文自己封顶并内部滚动（与选项区同族）。
-  assert.match(title.body, /max-height:\s*min\(23vh, 155px\)/)
-  assert.match(title.body, /overflow-y:\s*auto/)
-  assert.match(title.body, /overscroll-behavior:\s*contain/)
-  assert.match(title.body, /touch-action:\s*pan-y pinch-zoom/)
+  // 2026-11-03 owner 第四轮：问题正文不再单独封顶滚动——整张卡一个滚动区。
+  assert.doesNotMatch(title.body, /max-height/)
+  assert.doesNotMatch(title.body, /overflow-y/)
+  const card = findRuleBlocks(phone).find((block) => block.selector.trim() === '[data-mobile-nav="frame"] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"])')
+  assert.ok(card !== undefined, 'the single-scroll card rule is missing')
+  assert.match(card.body, /overflow-y:\s*auto !important/)
+  assert.match(card.body, /overscroll-behavior:\s*contain/)
+  const body = findRuleBlocks(phone).find((block) => block.selector.includes('> [class*="Mbwy4a_body"]'))
+  assert.ok(body !== undefined)
+  // body 两轴 visible 且放开 overscroll，否则手指在选项区时滑动传不到卡片。
+  assert.match(body.body, /overflow:\s*visible !important/)
+  assert.match(body.body, /overscroll-behavior:\s*auto !important/)
+  assert.match(card.body, /overflow-x:\s*hidden !important/)
+  const footer = findRuleBlocks(phone).find((block) => block.selector.includes('> [class*="Mbwy4a_footer"]'))
+  assert.ok(footer !== undefined, 'the footer must stay pinned')
+  assert.match(footer.body, /position:\s*sticky/)
+  assert.match(footer.body, /bottom:\s*-10px/)
 
   // Markdown paragraphs get a real paragraph gap, and the last one does not
   // leave a tail gap above the options.
@@ -575,4 +578,13 @@ test('the fullscreen effect adds no scroll listener and no per-frame work', () =
   // 唯一允许在滚动路径上的插件代码是 model-menu-anchor 的 document 捕获监听，
   // 且它在菜单关着时零查询（见该文件头「成本」两轮优化）。
   assert.ok(!/addEventListener\('touchmove'/.test(EFFECT))
+})
+
+test('the fullscreen band re-measures when the visible band is published (2026-11-03)', () => {
+  // 录屏实测：可见带变量在键盘停稳后才发布（两帧确认），晚于最后一次 resize；
+  // 只在 resize 时量会把 reserve 钉在发布前的旧几何上（键盘收起后卡片不回来）。
+  const viewport = readFileSync(join(ROOT, 'src/client/effects/viewport-meta.ts'), 'utf8')
+  assert.match(viewport, /root\.style\.setProperty\('--dsha-mobile-visible-vh', value\)\s*\n\s*document\.dispatchEvent\(new CustomEvent\(VISIBLE_BAND_EVENT\)\)/)
+  assert.match(EFFECT, /document\.addEventListener\(VISIBLE_BAND_EVENT, schedule\)/)
+  assert.match(EFFECT, /document\.removeEventListener\(VISIBLE_BAND_EVENT, schedule\)/)
 })

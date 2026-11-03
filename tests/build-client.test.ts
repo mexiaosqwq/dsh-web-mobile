@@ -25,6 +25,10 @@ async function buildFixture(files: Record<string, string>): Promise<{ status: nu
     await mkdir(join(root, '.client-build'), { recursive: true })
     await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'bundle-fixture', version: '0.0.0' }))
     await writeFile(join(root, 'scripts', 'build-client.mjs'), await readFile(SCRIPT, 'utf8'))
+    // build-client imports its CSS comment stripper (2026-11-03).
+    await mkdir(join(root, 'scripts', 'lib'), { recursive: true })
+    await writeFile(join(root, 'scripts', 'lib', 'strip-css-comments.mjs'),
+      await readFile(join(ROOT, 'scripts/lib/strip-css-comments.mjs'), 'utf8'))
     for (const [name, content] of Object.entries(files)) {
       const target = join(root, '.client-build', name)
       await mkdir(dirname(target), { recursive: true })

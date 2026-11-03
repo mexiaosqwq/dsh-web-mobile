@@ -635,10 +635,12 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
 
 /* 头部顶部留白：屏幕状态栏高 38px（152px @4x），标题原始落在 54px。
    2026-10-25 试过 -16（标题约 38），会进入 App 的顶部遮盖层，已回退到 -8
-   （标题约 46，仍在状态栏之下）；再往上需要 App 层配合，见 04-plan 交接文档。 */
+   （标题约 46，仍在状态栏之下）；再往上需要 App 层配合，见 04-plan 交接文档。
+   2026-11-03 店主截图：状态栏与标题行之间仍空一截 → -8 与已越界的 -16 取中间 -12
+   （标题约 42，离状态栏下缘仍留约 4px）。 */
 @media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) {
-    margin-top: -8px !important;
+    margin-top: -12px !important;
   }
 }
 

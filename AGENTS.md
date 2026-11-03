@@ -222,7 +222,7 @@ dsh web
 
 ## Testing & QA
 
-- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（67 个测试文件，另含 CSS 结构与补丁登记两道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
+- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（68 个测试文件，另含 CSS 结构与补丁登记两道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
 - **验收场景（窄手机 ~390 / 平板 768–1023 / 桌面 ≥1024 与窄桌面窗口）+ 探针环境（Playwright MCP 配方、全新 context、Termux TMPDIR、真机读数通道）见 `docs/maintenance/verification-playbook.md`**；探针环境的坑 → `docs/maintenance/pitfalls.md` §探针运行环境。
 - 手机端调试加 `?mobile-nav-debug=1`；`pnpm smoke:cdp` 是定点冒烟探针，**不能替代**真实 profile 验收。
 - **认证 token 向用户索要（用户要求）**：需认证访问本机 dsh web 时**先向用户要 token**（重启输出的 `?token=…` URL 即可用），**不要自行跑 `.local-tests/mint-cookie.mjs` 铸 cookie**。

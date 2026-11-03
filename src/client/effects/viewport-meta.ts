@@ -57,6 +57,8 @@ const VIEWPORT_CONTENT = 'width=device-width, initial-scale=1, viewport-fit=cove
  * 本模块不自起 effect：`syncStableViewportHeight()` 是返回 disposer 的普通函数，
  * 调用方是 phone-chrome 的 status-bar effect（P1 拆分第五片，2026-10-12）。
  */
+import { VISIBLE_BAND_EVENT } from '../platform/visible-band.ts'
+
 export const STABLE_VIEWPORT_VAR = '--dsh-web-mobile-vh'
 
 const findViewportMeta = (): HTMLMetaElement | null =>
@@ -135,6 +137,13 @@ export function syncStableViewportHeight(): () => void {
   let pendingVisible = ''
   let pendingVisibleFrames = 0
   let pendingVisibleFrame = 0
+  // 2026-11-03：发布时机晚于最后一次 resize 事件（要等两帧确认），而读这个变量排版的
+  // 效果（提问卡全屏带）只在 resize 时量。没有这个通知，它们最后一次测量量到的是
+  // 发布前的旧几何——录屏实测：键盘收起后全屏卡片停在键盘高度不回来。
+  const publishVisible = (value: string): void => {
+    root.style.setProperty('--dsha-mobile-visible-vh', value)
+    document.dispatchEvent(new CustomEvent(VISIBLE_BAND_EVENT))
+  }
   const syncStableViewport = (): void => {
     const height = window.innerHeight
     const width = window.innerWidth
@@ -153,7 +162,7 @@ export function syncStableViewportHeight(): () => void {
     pendingVisible = visibleValue
     if (pendingVisibleFrames >= 2 &&
       root.style.getPropertyValue('--dsha-mobile-visible-vh') !== visibleValue)
-      root.style.setProperty('--dsha-mobile-visible-vh', visibleValue)
+      publishVisible(visibleValue)
     // The keyboard stops without announcing it: the last resize event still sees
     // a fresh value, so confirmation has to come from a frame of its own. One
     // rAF at a time; during the animation each tick re-arms exactly once.

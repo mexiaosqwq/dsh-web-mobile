@@ -412,3 +412,31 @@ test('hover feedback only exists for hover-capable pointers (no sticky hover on 
   assert.ok(BASE_CSS.includes('[data-mobile-nav="session-log"]:active:not(:disabled)'))
   assert.ok(COMPAT_CSS.includes('[data-mobile-nav="preview-full-toggle"]:active'))
 })
+
+test('phone stats row keeps an unfolded context ring as a bare ring at the right edge (2026-11-03)', () => {
+  // 店主二轮：图标保留；未折叠的环隐掉百分比、贴右缘、与统计间距 4px。锚宿主稳定属性，
+  // 不依赖 [data-mobile-nav="stats"] 标记；已折叠的环（带 data-mobile-nav）不受影响。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const body = (selector: string) => blocks.find((b) => b.selector.trim() === selector)?.body ?? ''
+  const dock = '[data-mobile-nav="frame"] [data-phase] [data-composer-dock]'
+  const ringArm = ':not([data-mobile-nav]):not(:has([data-composer-stat])):has(circle[stroke-dasharray])'
+  const ring = `${dock} > ${ringArm}`
+  assert.match(body(`${ring} button > span`), /display:\s*none\s*!important/)
+  assert.match(body(`${ring} button`), /padding:\s*0\s*!important/)
+  assert.match(body(ring), /margin-left:\s*auto\s*!important/)
+  assert.match(body(`${dock}:has([data-composer-stat])`), /gap:\s*8px\s*!important/)
+  assert.match(body(`${dock} > [data-mobile-nav="stats"]`), /gap:\s*12px\s*!important/)
+  assert.match(body(`${ring} button`), /position:\s*relative\s*!important/)
+  // 命中区横向外扩必须小于 dock gap，否则盖住相邻药丸。
+  assert.match(body(`${ring} button::after`), /inset:\s*-8px -6px/)
+  // 图标不再被隐藏。
+  assert.ok(!LAYOUT_CSS.includes('[data-composer-stat] [class*="_pill"] > svg'))
+})
+
+test('the phone header sits 12px closer to the status bar, never past -16 (2026-11-03)', () => {
+  // -16 已实测越界（标题被 App 顶部层盖住，2026-10-25 回退）；-12 是店主 11-03 要的收窄。
+  const block = findRuleBlocks(MISC_CSS).find((b) =>
+    b.selector.trim() === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])' && /margin-top/.test(b.body))
+  assert.ok(block !== undefined)
+  assert.match(block.body, /margin-top:\s*-12px !important/)
+})

@@ -19,6 +19,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
+import { stripEmittedCssModule } from './lib/strip-css-comments.mjs'
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const buildDir = join(root, '.client-build')
@@ -47,6 +48,11 @@ async function collectSources(dir, { rel = '' } = {}) {
 }
 
 const sources = await collectSources(buildDir)
+
+// Ship the stylesheet without its design-record comments (sources keep them).
+for (const [file, source] of sources) {
+  if (/^styles\/[^/]+\.css\.js$/u.test(file)) sources.set(file, stripEmittedCssModule(source))
+}
 
 // Every relative require tsc can emit, whatever quote style it used. tsc
 // writes double quotes today, but a hand-written or differently configured

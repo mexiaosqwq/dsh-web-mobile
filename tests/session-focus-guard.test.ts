@@ -43,11 +43,17 @@ test('the shadow targets only the Lexical editing surface', () => {
 test('the observer re-shadows a freshly mounted editor inside the window', () => {
   // Session switches remount the InputBar; the window must shadow the NEW
   // element before the host's passive effect runs.
-  assert.match(SOURCE, /new MutationObserver\(/)
-  assert.match(SOURCE, /if \(!windowOpen\) return/)
-  assert.match(SOURCE, /observer\.observe\(document\.documentElement, \{/)
-  assert.match(SOURCE, /childList: true,/)
-  assert.match(SOURCE, /subtree: true,/)
+  assert.match(SOURCE, /const inputObserver = new MutationObserver\(\(\) => \{\s*\n\s*if \(!windowOpen\) return/)
+  // 2026-11-03：看子树的观察者只在窗口打开时连着（arm 里 observe、restore 里断开），
+  // 窗口外不再被流式输出的每批变动唤醒。
+  assert.match(SOURCE, /windowOpen = true\s*\n\s*inputObserver\.observe\(document\.documentElement, \{ childList: true, subtree: true \}\)/)
+  assert.match(SOURCE, /windowOpen = false\s*\n\s*inputObserver\.disconnect\(\)/)
+})
+
+test('the resident observer watches only the panel-exit attribute (2026-11-03)', () => {
+  const block = SOURCE.slice(SOURCE.indexOf('markerObserver.observe('), SOURCE.indexOf('})', SOURCE.indexOf('markerObserver.observe(')))
+  assert.doesNotMatch(block, /childList/)
+  assert.match(block, /attributeFilter: \[PANEL_EXIT_ATTR\]/)
 })
 
 test('leaving a main-slot panel opens the same window (2026-10-20)', () => {
@@ -87,7 +93,7 @@ test('the window keeps a focusin fallback that blurs synchronously', () => {
 })
 
 test('disposal unsubscribes, disconnects and restores', () => {
-  assert.match(SOURCE, /unsubscribe\(\)\s*\n\s*observer\.disconnect\(\)/)
+  assert.match(SOURCE, /unsubscribe\(\)\s*\n\s*markerObserver\.disconnect\(\)/)
   assert.match(SOURCE, /document\.removeEventListener\('pointerdown', onPointerDown, true\)\s*\n\s*document\.removeEventListener\('focusin', onFocusIn, true\)\s*\n\s*restore\(\)/)
 })
 

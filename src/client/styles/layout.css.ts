@@ -1992,7 +1992,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     flex-wrap: nowrap !important;
     align-items: center !important;
     gap: 0 !important;
-    padding-left: 32px !important;
+    padding-left: 22px !important;
     padding-right: 0 !important;
     padding-top: 0 !important;
   }
@@ -2018,7 +2018,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        toggle 8,6 28x28；真机 DOM 规则枚举确认胜出者就是本块）。
        NOTE: 本文件整体是 JS 模板字符串，注释里绝不能出现反引号。 */
     padding: 0 !important;
-    padding-left: 32px !important;
+    padding-left: 22px !important;
   }
   /* --- 0.2.0-rc.x：header 变 grid，座位从 titleRow 内部搬到了 header 自己的第一列 ---
      上面两条把「面板开关的 32px 座位」记在座位自己身上（padding-left）。在
@@ -2056,9 +2056,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      2026-10-30 宿主把前缀从 wSkVaW_ 换成 tlcmdG_ 时，只有这条活着，全表其余 9 条
      前缀形选择器当天全部归零（标题簇预留、corner 去重、tabs/tab/titleRow/
      headerUtilities 全灭），随后统一改成后缀形。 */
+  /* 2026-11-03 店主：开关与标题之间约 21px「拉近一半」→ 座位 32 → 22px（三代宿主同步，
+     上面两条老代际也改）。标题字左缘从 ≈x53 移到 ≈x43，仍在 28px 开关（8..36）右侧。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has(> [data-conversation-header-leading]) [class*="_titleRow"] {
     box-sizing: border-box !important;
-    padding-left: 32px !important;
+    padding-left: 22px !important;
   }
   /* 0.1.6 的新头部里，titleRow 的第一个孩子是新增的空座位
      headerLeading（macOS 桌面控件，安卓上渲染 null）。插件按 0.1.5 老结构
@@ -2239,6 +2241,53 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] [data-phase] [data-mobile-nav="stats"] [class*="_pill"] {
     padding-left: 6px !important;
     padding-right: 6px !important;
+  }
+  /* 2026-11-03 统计行收拾（店主截图二轮）：图标与组间距保持原样；环未被折进输入行时
+     （stats-line 没认出它，环仍是 [data-composer-dock] 里 ContextMeter 那个兄弟，进度圆带
+     stroke-dasharray）——只留环、隐掉「21%」，贴行尾右缘（去掉宿主 8px 内边距），与统计
+     之间只留 4px，腾出的宽度给统计条（缓存命中不再被截成「缓…」）。锚稳定属性，不依赖
+     stats 标记；已折叠的环带 data-mobile-nav，本条不碰。 */
+  /* 三轮（店主截图：两组之间 ~26px，组内「·」只有 ~4px，环 ~12px，疏密不一）：
+     组间距原是 stats gap 6 + 锚 margin 3 + 两侧药丸内边距 6+6 叠出来的，这里把药丸
+     朝向组间的那侧内边距与锚 margin 清零，组间只由 stats 的 gap 决定（12px）；环与
+     统计之间由 dock gap 决定（8px）。首组左内边距保留，行首对齐不变。 */
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock]:has([data-composer-stat]) {
+    gap: 8px !important;
+  }
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] > [data-mobile-nav="stats"] {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    gap: 12px !important;
+  }
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] [data-composer-stat] {
+    margin: 0 !important;
+  }
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] [data-composer-stat] [class*="_pill"] {
+    padding-right: 0 !important;
+  }
+  /* 四轮（店主截图：行首留白 ~11px、行尾环外 ~7px，左宽右窄）：首组药丸左内边距
+     6px 也清零，两侧都只剩容器自身的边距。 */
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] [data-composer-stat] [class*="_pill"] {
+    padding-left: 0 !important;
+  }
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] > :not([data-mobile-nav]):not(:has([data-composer-stat])):has(circle[stroke-dasharray]) {
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+  }
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] > :not([data-mobile-nav]):not(:has([data-composer-stat])):has(circle[stroke-dasharray]) button {
+    padding: 0 !important;
+    gap: 0 !important;
+    position: relative !important;
+  }
+  /* 命中区（店主：触控范围大一点点）：画出来的环不变，透明 ::after 外扩成 26×38；
+     横向 6px 小于 dock gap 8px，不会盖到「缓存命中」那颗药丸。 */
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] > :not([data-mobile-nav]):not(:has([data-composer-stat])):has(circle[stroke-dasharray]) button::after {
+    content: "";
+    position: absolute;
+    inset: -8px -6px;
+  }
+  [data-mobile-nav="frame"] [data-phase] [data-composer-dock] > :not([data-mobile-nav]):not(:has([data-composer-stat])):has(circle[stroke-dasharray]) button > span {
+    display: none !important;
   }
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="files"] {
     /* Keep the 36px seat the reference phone UI shows (opener box 316..352 at
@@ -3706,15 +3755,51 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
          「问题区还是太长，再缩 1/3」→ 34vh/232px 的三分之二 ≈ 23vh/155px
          （约 6~7 行正文），问题区与选项区高度观感终于同级。
          overscroll-behavior:contain 防止滑到底后
-         把会话一起带走；touch-action 按全库约定写 pan-y pinch-zoom。 */
-      max-height: min(23vh, 155px);
-      overflow-y: auto;
+         把会话一起带走；touch-action 按全库约定写 pan-y pinch-zoom。
+         2026-11-03 owner 第四轮：封顶撤掉——全屏了问题区仍被压在 155px 里滚，
+         两个滚动区观感割裂。改为「整张卡一个滚动区」（见下方 card-single-scroll）：
+         问题正文按自然高度排，问题与选项一起滚，卡高仍由宿主 min(60vh,520px)
+         或全屏带决定。 */
+    }
+    /* @patch
+       id: question-card-single-scroll
+       for: dsh-client-ui-user-questions 的 QuestionComposer（Mbwy4a_card > header + body + footer；
+            宿主 card overflow:hidden、header flex-shrink:0、body 是唯一滚动区）
+       why: 宿主让问题正文（header 里的 h2）不参与滚动，长问题会把 body 压成一条缝；
+            插件不能改它的 DOM，只能把滚动区从 body 换成整张卡
+       until: 宿主让 header 参与滚动或自己给长问题限高
+       test: tests/question-fullscreen.test.ts
+    */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"]) {
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
       overscroll-behavior: contain;
       touch-action: pan-y pinch-zoom;
       scrollbar-width: none;
     }
-    [data-mobile-nav="frame"] [class*="Mbwy4a_title"]::-webkit-scrollbar {
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]::-webkit-scrollbar {
       display: none;
+    }
+    /* body 不再自己滚：按内容自然高度排，滚动交给卡片。两轴都必须是 visible ——
+       上面 A 节给 body 钉的 overflow-x:hidden 会让它仍是一个滚动容器（另一轴被算成
+       auto），加上宿主的 overscroll-behavior:contain，手指落在选项区时滑动停在 body
+       里、传不到卡片（owner 实测「问题区能滑、回答区动不了」）。横向裁切挪到卡片上。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"]) > [class*="Mbwy4a_body"] {
+      flex: 0 0 auto !important;
+      overflow: visible !important;
+      overscroll-behavior: auto !important;
+    }
+    /* 提交 / 跳过按钮钉在卡片底：卡片 padding-bottom 10px，sticky 用 -10px 贴到底边，
+       底色取卡片同色并向下补 10px，滚动内容不会从按钮下面透出来。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"]) > [class*="Mbwy4a_footer"] {
+      position: sticky;
+      bottom: -10px;
+      z-index: 1;
+      background: var(--dsw-specific-input-major);
+      padding-top: 8px !important;
+      padding-bottom: 10px !important;
+      margin-top: 4px !important;
+      margin-bottom: -10px !important;
     }
     /* 排版微调（owner 2026-10-25）：问题区与选项区之间加一条分隔线——两段内容
        同色同字重，靠留白分不开，读起来像一段连续文字。用 0.5px 光学细线
@@ -3731,17 +3816,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       position: relative;
       padding-bottom: 8px;
     }
-    [data-mobile-nav="frame"] [class*="Mbwy4a_header"]:not([class*="Mbwy4a_headerActions"])::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      height: 0.5px;
-      background: var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.14));
-      opacity: 0.55;
-      pointer-events: none;
-    }
+    /* 2026-11-03 owner 第四轮：问题与选项改成同一个滚动区后，分隔线去掉
+       （「问题区和回答区中间的细线去掉」）。header 的 padding-bottom 8 保留作留白。 */
     [data-mobile-nav="frame"] [class*="Mbwy4a_options"] {
       padding-left: 8px;
       padding-right: 8px;
