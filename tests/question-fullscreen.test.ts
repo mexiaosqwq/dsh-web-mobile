@@ -579,3 +579,12 @@ test('the fullscreen effect adds no scroll listener and no per-frame work', () =
   // 且它在菜单关着时零查询（见该文件头「成本」两轮优化）。
   assert.ok(!/addEventListener\('touchmove'/.test(EFFECT))
 })
+
+test('the fullscreen band re-measures when the visible band is published (2026-11-03)', () => {
+  // 录屏实测：可见带变量在键盘停稳后才发布（两帧确认），晚于最后一次 resize；
+  // 只在 resize 时量会把 reserve 钉在发布前的旧几何上（键盘收起后卡片不回来）。
+  const viewport = readFileSync(join(ROOT, 'src/client/effects/viewport-meta.ts'), 'utf8')
+  assert.match(viewport, /root\.style\.setProperty\('--dsha-mobile-visible-vh', value\)\s*\n\s*document\.dispatchEvent\(new CustomEvent\(VISIBLE_BAND_EVENT\)\)/)
+  assert.match(EFFECT, /document\.addEventListener\(VISIBLE_BAND_EVENT, schedule\)/)
+  assert.match(EFFECT, /document\.removeEventListener\(VISIBLE_BAND_EVENT, schedule\)/)
+})

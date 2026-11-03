@@ -51,6 +51,7 @@ import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { NS } from '../i18n/locales.ts'
 import { installMobileEffect } from '../platform/breakpoints.ts'
 import { getFrame } from '../platform/frame.ts'
+import { VISIBLE_BAND_EVENT } from '../platform/visible-band.ts'
 import { addReconcilerTask } from './reconciler-adapter.ts'
 
 /** Frame marker: the card owns the whole answer band. */
@@ -365,6 +366,9 @@ export function installQuestionFullscreen(ctx: ClientContext): void {
     window.addEventListener('resize', schedule)
     window.addEventListener('orientationchange', schedule)
     window.visualViewport?.addEventListener('resize', schedule)
+    // 可见带变量是在键盘停稳后才发布的（viewport-meta），晚于最后一次 resize：
+    // 发布那一刻再量一次，否则 reserve 停在发布前的旧几何上。
+    document.addEventListener(VISIBLE_BAND_EVENT, schedule)
     document.addEventListener('focusin', schedule, true)
     document.addEventListener('focusout', schedule, true)
     schedule()
@@ -373,6 +377,7 @@ export function installQuestionFullscreen(ctx: ClientContext): void {
       window.removeEventListener('resize', schedule)
       window.removeEventListener('orientationchange', schedule)
       window.visualViewport?.removeEventListener('resize', schedule)
+      document.removeEventListener(VISIBLE_BAND_EVENT, schedule)
       document.removeEventListener('focusin', schedule, true)
       document.removeEventListener('focusout', schedule, true)
       removeTask()
