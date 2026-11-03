@@ -4,7 +4,7 @@
 
 <!-- BEGIN:generated -->
 
-共 23 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
+共 24 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
 手改无效 —— 检查器会把不一致判为 fatal。
 
 | id | 位置 | 适配对象（for） | 到期条件（until） | 测试（test） |
@@ -25,13 +25,14 @@
 | `plugin-panel-head-left-align` | src/client/styles/layout.css.ts:3250 | dsh-client-ui-plugin-manager 0.2.1-rc.2 的 section[data-plugin-panel] 页首（_pageHead / _pageHeading / h1 三层） | 宿主给页首容器独立标记，或页首不再需要给 FAB 让位，届时删本块 | `tests/css-rules.test.ts` |
 | `plugin-panel-subpage-back` | src/client/effects/panel-exit.ts:106 | 0.1.6-alpha.2 宿主的插件管理页子页：列表「更多」头的 button class 含 _moreBack，三种详情根（data-plugin-detail / data-plugin-item-detail / data-plugin-row-detail）里的 crumb button class 含 _crumb | 宿主把面板子页的返回暴露成 ctx.layout / panel 服务上的公开动作，或子页自己进 history | `tests/panel-exit-animation.test.ts` |
 | `preset-invisible-capsule` | src/client/styles/layout.css.ts:2693 | 宿主 SVAs4q_label 智能体预设 chip 的外包裹层 | 宿主给预设 chip 自身加上左右内边距（本外壳与 margin 一并删） | `tests/a2-header-gating.test.ts` |
+| `question-card-single-scroll` | src/client/styles/layout.css.ts:3762 | dsh-client-ui-user-questions 的 QuestionComposer（Mbwy4a_card > header + body + footer； | 宿主让 header 参与滚动或自己给长问题限高 | `tests/question-fullscreen.test.ts` |
 | `session-inspector-disclosure-size` | src/client/styles/compat.css.ts:1362 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（CSS 模块哈希前缀 GTtnTq） | 宿主把 GTtnTq_disclosure 提到 ≥24px，或换成可缩放图标并自带内边距 | `tests/css-rules.test.ts` |
 | `session-inspector-sticky-flicker` | src/client/styles/compat.css.ts:1398 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（GTtnTq_table / GTtnTq_sticky） | 宿主把表格改成 border-collapse:separate，或不再用 sticky <tr> 表达祖先上下文 | `tests/css-rules.test.ts` |
 | `wallpaper-drawer-fill` | src/client/styles/layout.css.ts:249 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-specific-sidebar-fill 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-header-fill` | src/client/styles/layout.css.ts:1286 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-panel-fill` | src/client/styles/layout.css.ts:381 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent）+ 0.2.x 全屏右侧栏面板 | 上游给全屏面板提供不透明的填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wide-touch-session-shortcuts` | src/client/styles/misc.css.ts:439 | dsh-client-ui-workspace 的会话行 _rowActions 与归档 / 置顶快捷按钮 | 宿主自带触屏快捷按钮收起规则，或会话行提供独立的操作区布局契约，届时删本块 | `tests/dsha-session-interaction.test.ts` |
-| `zen-remote-header-yield` | src/client/styles/layout.css.ts:3901 | dsh-zen-remote 2.2.5 的手机档 header reflow（headerActions 里注入 [data-mobile-nav="header-back"]，titleRow 改成 92px/1fr/92px 三栏，titleCluster 靠 display:contents 变成直系 grid 项） | dsh-zen-remote 不再重排 header，或它改为不依赖 display:contents 的稳定槽位，届时删本块 | `tests/a2-header-gating.test.ts` |
+| `zen-remote-header-yield` | src/client/styles/layout.css.ts:3928 | dsh-zen-remote 2.2.5 的手机档 header reflow（headerActions 里注入 [data-mobile-nav="header-back"]，titleRow 改成 92px/1fr/92px 三栏，titleCluster 靠 display:contents 变成直系 grid 项） | dsh-zen-remote 不再重排 header，或它改为不依赖 display:contents 的稳定槽位，届时删本块 | `tests/a2-header-gating.test.ts` |
 
 `why`（为何不能用正规写法）逐条写在源码的 @patch 块里 —— 它必须贴着代码，
 因为读代码的人不会先来翻这张表。
@@ -48,7 +49,7 @@
 
 | 模块 | `!important` | 哈希子串选择器 | `:has(` |
 | --- | --- | --- | --- |
-| `src/client/styles/layout.css.ts` | 560 | 646 | 324 |
+| `src/client/styles/layout.css.ts` | 569 | 652 | 324 |
 | `src/client/styles/compat.css.ts` | 388 | 112 | 23 |
 | `src/client/styles/misc.css.ts` | 94 | 64 | 40 |
 | `src/client/styles/base.css.ts` | 18 | 4 | 12 |
@@ -69,11 +70,11 @@
 | `src/client/effects/model-menu-keyboard-guard.ts` | 0 | 1 | 0 |
 | `src/client/effects/panel-exit.ts` | 0 | 11 | 0 |
 | `src/client/effects/plugin-card-tap.ts` | 0 | 2 | 0 |
-| `src/client/effects/question-fullscreen.ts` | 0 | 6 | 0 |
+| `src/client/effects/question-fullscreen.ts` | 0 | 8 | 0 |
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
-| **合计** | **1069** | **912** | **403** |
+| **合计** | **1078** | **920** | **403** |
 
 <!-- END:inventory -->

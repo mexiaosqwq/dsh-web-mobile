@@ -3753,15 +3753,51 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
          「问题区还是太长，再缩 1/3」→ 34vh/232px 的三分之二 ≈ 23vh/155px
          （约 6~7 行正文），问题区与选项区高度观感终于同级。
          overscroll-behavior:contain 防止滑到底后
-         把会话一起带走；touch-action 按全库约定写 pan-y pinch-zoom。 */
-      max-height: min(23vh, 155px);
-      overflow-y: auto;
+         把会话一起带走；touch-action 按全库约定写 pan-y pinch-zoom。
+         2026-11-03 owner 第四轮：封顶撤掉——全屏了问题区仍被压在 155px 里滚，
+         两个滚动区观感割裂。改为「整张卡一个滚动区」（见下方 card-single-scroll）：
+         问题正文按自然高度排，问题与选项一起滚，卡高仍由宿主 min(60vh,520px)
+         或全屏带决定。 */
+    }
+    /* @patch
+       id: question-card-single-scroll
+       for: dsh-client-ui-user-questions 的 QuestionComposer（Mbwy4a_card > header + body + footer；
+            宿主 card overflow:hidden、header flex-shrink:0、body 是唯一滚动区）
+       why: 宿主让问题正文（header 里的 h2）不参与滚动，长问题会把 body 压成一条缝；
+            插件不能改它的 DOM，只能把滚动区从 body 换成整张卡
+       until: 宿主让 header 参与滚动或自己给长问题限高
+       test: tests/question-fullscreen.test.ts
+    */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"]) {
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
       overscroll-behavior: contain;
       touch-action: pan-y pinch-zoom;
       scrollbar-width: none;
     }
-    [data-mobile-nav="frame"] [class*="Mbwy4a_title"]::-webkit-scrollbar {
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]::-webkit-scrollbar {
       display: none;
+    }
+    /* body 不再自己滚：按内容自然高度排，滚动交给卡片。两轴都必须是 visible ——
+       上面 A 节给 body 钉的 overflow-x:hidden 会让它仍是一个滚动容器（另一轴被算成
+       auto），加上宿主的 overscroll-behavior:contain，手指落在选项区时滑动停在 body
+       里、传不到卡片（owner 实测「问题区能滑、回答区动不了」）。横向裁切挪到卡片上。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"]) > [class*="Mbwy4a_body"] {
+      flex: 0 0 auto !important;
+      overflow: visible !important;
+      overscroll-behavior: auto !important;
+    }
+    /* 提交 / 跳过按钮钉在卡片底：卡片 padding-bottom 10px，sticky 用 -10px 贴到底边，
+       底色取卡片同色并向下补 10px，滚动内容不会从按钮下面透出来。 */
+    [data-mobile-nav="frame"] [class*="Mbwy4a_card"]:not([class*="Mbwy4a_cardMinimized"]) > [class*="Mbwy4a_footer"] {
+      position: sticky;
+      bottom: -10px;
+      z-index: 1;
+      background: var(--dsw-specific-input-major);
+      padding-top: 8px !important;
+      padding-bottom: 10px !important;
+      margin-top: 4px !important;
+      margin-bottom: -10px !important;
     }
     /* 排版微调（owner 2026-10-25）：问题区与选项区之间加一条分隔线——两段内容
        同色同字重，靠留白分不开，读起来像一段连续文字。用 0.5px 光学细线
@@ -3778,17 +3814,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       position: relative;
       padding-bottom: 8px;
     }
-    [data-mobile-nav="frame"] [class*="Mbwy4a_header"]:not([class*="Mbwy4a_headerActions"])::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      height: 0.5px;
-      background: var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.14));
-      opacity: 0.55;
-      pointer-events: none;
-    }
+    /* 2026-11-03 owner 第四轮：问题与选项改成同一个滚动区后，分隔线去掉
+       （「问题区和回答区中间的细线去掉」）。header 的 padding-bottom 8 保留作留白。 */
     [data-mobile-nav="frame"] [class*="Mbwy4a_options"] {
       padding-left: 8px;
       padding-right: 8px;

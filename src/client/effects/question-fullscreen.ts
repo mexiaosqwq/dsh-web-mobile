@@ -198,11 +198,19 @@ export function installQuestionFullscreen(ctx: ClientContext): void {
       // focused (i.e. every keyboard episode that is not about this card).
       const active = document.activeElement
       if (!(active instanceof HTMLElement) || !active.matches(ANSWER_FIELD_SELECTOR)) return
-      const body = active.closest<HTMLElement>(CARD_BODY_SELECTOR)
+      // 2026-11-03：手机档滚动区从 body 换成了整张卡（layout.css.ts question-card-single-scroll），
+      // 所以滚卡片；卡片不滚（老样式 / 最小化）时仍退回 body。底部钉住的按钮行要从
+      // 可视底边里扣掉，否则回答框会停在按钮后面。
+      const cardEl = active.closest<HTMLElement>('[class*="Mbwy4a_card"]')
+      const bodyEl = active.closest<HTMLElement>(CARD_BODY_SELECTOR)
+      const body = cardEl !== null && cardEl.scrollHeight > cardEl.clientHeight + 1 ? cardEl : bodyEl
       if (body === null) return
+      const pinned = body === cardEl ? cardEl.querySelector<HTMLElement>(':scope > [class*="Mbwy4a_footer"]') : null
       const field = active
       const fieldRect = field.getBoundingClientRect()
-      const bodyRect = body.getBoundingClientRect()
+      const box = body.getBoundingClientRect()
+      const pinnedTop = pinned?.getBoundingClientRect().top ?? Number.NaN
+      const bodyRect = { top: box.top, bottom: Number.isFinite(pinnedTop) ? Math.min(box.bottom, pinnedTop) : box.bottom }
       const visual = window.visualViewport
       const visibleTop = visual?.offsetTop ?? Number.NaN
       const visibleBottom = visual === null || visual === undefined ? Number.NaN : visual.offsetTop + visual.height
