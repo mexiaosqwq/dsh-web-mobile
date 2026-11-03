@@ -96,10 +96,21 @@ export function installSessionFocusGuard(ctx: ClientContext): void {
     let windowTimer = 0
     let windowOpen = false
 
+    // 2026-11-03 性能：原先一个 childList+subtree 的全树观察者常驻整页，流式输出的每批
+    // 变动都会唤醒它（共享协调器刻意丢弃的正文 mutation 又被拉回主线程）。它只有在窗口
+    // 打开时才需要看子树——窗口外唯一要看的是退场标记，那是一个属性变化。拆成两个：
+    // 常驻的只看 data-mobile-panel-exit 属性；看子树的只在窗口打开的 ≤800ms 里连着。
+    const inputObserver = new MutationObserver(() => {
+      if (!windowOpen) return
+      const el = document.querySelector<HTMLElement>(COMPOSER_INPUT_SELECTOR)
+      if (el !== null) shadow(el)
+    })
+
     const restore = (): void => {
       window.clearTimeout(windowTimer)
       windowTimer = 0
       windowOpen = false
+      inputObserver.disconnect()
       const el = document.querySelector<HTMLElement>(`[${SHADOW_MARKER}]`)
       if (el === null) return
       el.removeAttribute(SHADOW_MARKER)
@@ -125,6 +136,7 @@ export function installSessionFocusGuard(ctx: ClientContext): void {
     const arm = (): void => {
       restore()
       windowOpen = true
+      inputObserver.observe(document.documentElement, { childList: true, subtree: true })
       const el = document.querySelector<HTMLElement>(COMPOSER_INPUT_SELECTOR)
       if (el !== null) shadow(el)
       windowTimer = window.setTimeout(restore, FOCUS_GUARD_WINDOW_MS)
@@ -137,11 +149,8 @@ export function installSessionFocusGuard(ctx: ClientContext): void {
     // mount-time focus. Arm on the marker's arrival — it lands before the panel
     // actually leaves (panel-exit animates first, then selectPanel), so the
     // window is already open when the conversation remounts.
-    const observer = new MutationObserver(() => {
+    const markerObserver = new MutationObserver(() => {
       if (!windowOpen && hasPanelExitMarker()) arm()
-      if (!windowOpen) return
-      const el = document.querySelector<HTMLElement>(COMPOSER_INPUT_SELECTOR)
-      if (el !== null) shadow(el)
     })
 
     // A tap on the editing surface is the user saying "I want to type": close
@@ -178,8 +187,7 @@ export function installSessionFocusGuard(ctx: ClientContext): void {
       if (!windowOpen) arm()
     }
 
-    observer.observe(document.documentElement, {
-      childList: true,
+    markerObserver.observe(document.documentElement, {
       subtree: true,
       attributes: true,
       attributeFilter: [PANEL_EXIT_ATTR],
@@ -189,7 +197,7 @@ export function installSessionFocusGuard(ctx: ClientContext): void {
     document.addEventListener('focusin', onFocusIn, true)
     return () => {
       unsubscribe()
-      observer.disconnect()
+      markerObserver.disconnect()
       document.removeEventListener(PANEL_EXIT_EVENT, onPanelExit)
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('focusin', onFocusIn, true)

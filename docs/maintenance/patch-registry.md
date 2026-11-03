@@ -69,11 +69,11 @@
 | `src/client/effects/model-menu-keyboard-guard.ts` | 0 | 1 | 0 |
 | `src/client/effects/panel-exit.ts` | 0 | 11 | 0 |
 | `src/client/effects/plugin-card-tap.ts` | 0 | 2 | 0 |
-| `src/client/effects/question-fullscreen.ts` | 0 | 5 | 0 |
+| `src/client/effects/question-fullscreen.ts` | 0 | 6 | 0 |
 | `src/client/effects/session-menu.ts` | 0 | 7 | 0 |
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
-| **合计** | **1069** | **911** | **403** |
+| **合计** | **1069** | **912** | **403** |
 
 <!-- END:inventory -->

@@ -126,9 +126,25 @@ export function installQuestionFullscreen(ctx: ClientContext): void {
     let reserveText = ''
     let frame = 0
 
+    // 2026-11-03 性能：本任务 scopes:['*']，流式时每批变动都跑；原先每次都在整个 frame
+    // 上做一次 [class*=] 子串查询，卡片不在时（绝大多数时间）就是一次全树扫。卡片只会
+    // 出现在 composer 座位里，所以先缓存座位、只在座位子树里找；找到的卡片也缓存，
+    // 仍连在座位里就直接复用。座位不在（老宿主 / 空态）时退回原来的整 frame 查询。
+    let seatCache: HTMLElement | null = null
+    let cardCache: HTMLElement | null = null
+    const composerSeat = (host: HTMLElement): HTMLElement | null => {
+      if (seatCache !== null && seatCache.isConnected && host.contains(seatCache)) return seatCache
+      seatCache = host.querySelector<HTMLElement>(SEAT_SELECTOR)
+      return seatCache
+    }
     const cardFrame = (): HTMLElement | null => {
       const host = getFrame()
-      return host === null ? null : host.querySelector<HTMLElement>(CARD_FRAME_SELECTOR)
+      if (host === null) return null
+      const seat = composerSeat(host)
+      const scope = seat ?? host
+      if (cardCache !== null && cardCache.isConnected && scope.contains(cardCache)) return cardCache
+      cardCache = scope.querySelector<HTMLElement>(CARD_FRAME_SELECTOR)
+      return cardCache
     }
 
     const label = (): string => t(armed ? 'questionCollapse' : 'questionExpand')
