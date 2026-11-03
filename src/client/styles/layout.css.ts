@@ -1992,7 +1992,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     flex-wrap: nowrap !important;
     align-items: center !important;
     gap: 0 !important;
-    padding-left: 32px !important;
+    padding-left: 22px !important;
     padding-right: 0 !important;
     padding-top: 0 !important;
   }
@@ -2018,7 +2018,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        toggle 8,6 28x28；真机 DOM 规则枚举确认胜出者就是本块）。
        NOTE: 本文件整体是 JS 模板字符串，注释里绝不能出现反引号。 */
     padding: 0 !important;
-    padding-left: 32px !important;
+    padding-left: 22px !important;
   }
   /* --- 0.2.0-rc.x：header 变 grid，座位从 titleRow 内部搬到了 header 自己的第一列 ---
      上面两条把「面板开关的 32px 座位」记在座位自己身上（padding-left）。在
@@ -2056,9 +2056,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      2026-10-30 宿主把前缀从 wSkVaW_ 换成 tlcmdG_ 时，只有这条活着，全表其余 9 条
      前缀形选择器当天全部归零（标题簇预留、corner 去重、tabs/tab/titleRow/
      headerUtilities 全灭），随后统一改成后缀形。 */
+  /* 2026-11-03 店主：开关与标题之间约 21px「拉近一半」→ 座位 32 → 22px（三代宿主同步，
+     上面两条老代际也改）。标题字左缘从 ≈x53 移到 ≈x43，仍在 28px 开关（8..36）右侧。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has(> [data-conversation-header-leading]) [class*="_titleRow"] {
     box-sizing: border-box !important;
-    padding-left: 32px !important;
+    padding-left: 22px !important;
   }
   /* 0.1.6 的新头部里，titleRow 的第一个孩子是新增的空座位
      headerLeading（macOS 桌面控件，安卓上渲染 null）。插件按 0.1.5 老结构

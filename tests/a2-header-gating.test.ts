@@ -111,7 +111,7 @@ test('the 0.2.0 grid header carries its seat on the title row, not on the seat b
   const titleRule = source.slice(source.indexOf(`${grid} [class*="_titleRow"] {`))
   assert.ok(titleRule.startsWith(grid), 'title-row seat rule not found')
   const declarations = titleRule.slice(0, 240)
-  assert.ok(declarations.includes('padding-left: 32px !important'), 'title row must carry the 32px seat')
+  assert.ok(declarations.includes('padding-left: 22px !important'), 'title row must carry the toggle seat (32 → 22px, owner 2026-11-03)')
   assert.ok(declarations.includes('box-sizing: border-box !important'), 'border-box keeps the seat inside column 2')
   assert.ok(source.includes(`${grid} > [data-conversation-header-leading] {`), 'the seat box itself must be zeroed')
   assert.ok(
