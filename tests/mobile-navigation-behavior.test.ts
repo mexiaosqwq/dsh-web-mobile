@@ -55,7 +55,7 @@ function sessionFixture() {
   const drawer = { contains: () => true, querySelector: () => null }
   const doc = {
     querySelector: (selector: string) => selector.includes('aria-modal') ? (modal ? {} : null)
-      : selector.endsWith('> :first-child') ? drawer : frame,
+      : selector.endsWith('> [class*="sidebarCol"]') ? drawer : frame,
     addEventListener: (type: string, fn: Function) => listeners.set(type, fn),
     removeEventListener: (type: string, fn: Function) => {
       if (listeners.get(type) === fn) listeners.delete(type)

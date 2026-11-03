@@ -45,7 +45,28 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
 
   /* AppFrame: the drawer takes the sidebar column out of grid flow, so the
      remaining in-flow items (center, details) land in tracks 1..2: give the
-     center every pixel and keep the details track at zero. The top padding
+     center every pixel and keep the details track at zero.
+     TRACK ORDER IS LOAD-BEARING, and the sentence above used to be read wrong.
+     The host pins the three columns to fixed tracks — AppFrame.module.css
+     (since 2026-10-20, host >= 0.2.2): sidebarCol{grid-column:1},
+     centerCol{grid-column:2}, rightbarCol{grid-column:3} — and writes the
+     template inline from state (0px minmax(0px,1fr) minmax(0px,0px) on a
+     phone). Auto-placement no longer happens, so the old
+     「minmax(0,1fr) 0 0」 put the centre in a ZERO-WIDTH second track. Captured
+     2026-11-04 on 402x684, host 0.2.2-alpha.2: the frame's own inline template
+     (0px minmax(0px,1fr) minmax(0px,0px)) was overwritten to 402px 0px 0px and
+     centerCol measured @402 w=0 — with it scrollBody, composerSeat,
+     composerStack, composerCard and the input all 0 wide. The whole
+     conversation was invisible and nothing threw.
+     So the first two tracks swap: 「0 1fr 0」. Track 1 must stay 0 because this
+     block converts the first grid child into a drawer at EVERY mobile width
+     (see the [data-mobile-nav="frame"] > [class*="sidebarCol"] rule below), not only
+     where the host sets data-sidebar-drawer; leaving the host's sidebar width
+     there would reserve an empty 280px strip at 769-1023px coarse. Track 3
+     keeps the value it always had (zero) — AppFrame.module.css documents that
+     the right panel "hangs over the centre from a zero-width column", which is
+     what a phone wants when that panel is full screen.
+     The top padding
      clears the status bar / notch for every in-flow surface (session header,
      messages, composer); the absolutely-positioned drawer is unaffected (its
      containing block is the frame's padding box, i.e. still the frame top).
@@ -115,7 +136,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     box-sizing: border-box !important;
     position: relative !important;
     height: var(--dsha-mobile-visible-vh, 100%) !important;
-    grid-template-columns: minmax(0, 1fr) 0 0 !important;
+    grid-template-columns: 0 minmax(0, 1fr) 0 !important;
     padding-top: env(safe-area-inset-top, 0px) !important;
     /* Bottom safe area, symmetric with the top inset above. It MUST stay in
        this rule: box-sizing: border-box is the pair that makes the padding eat
@@ -152,7 +173,20 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      position/inset/width on the element, the column kept a correct-looking box
      while neither painting nor hit-testing, which is the "all black, click
      anywhere closes" root cause. The backdrop we append carries the dimming. */
-  [data-mobile-nav="frame"] > :first-child {
+  /* The host's own drawer mask (0.2.2) is redundant here, and it is IN THE WRONG
+     STACKING BAND: 「.frame[data-sidebar-drawer]:not([data-sidebar-collapsed])
+     .drawerMask{opacity:1}」 puts a full-frame dim at z-index 70 while the host
+     pins the drawer column at 71 - i.e. the mask sits UNDER the drawer, which is
+     its own design. We replace the whole mechanism (column 1300, backdrop 1250,
+     see base.css) because the host's mask has no tap target of its own and our
+     backdrop carries the close handler. Leaving both would dim the frame twice
+     (0.45 black over the host's mask blur). Hidden, not restyled: it must not
+     keep 「backdrop-filter」 either. */
+  [data-mobile-nav="frame"] > [data-sidebar-mask] {
+    display: none !important;
+  }
+
+  [data-mobile-nav="frame"] > [class*="sidebarCol"] {
     position: absolute !important;
     inset: 0 auto 0 0 !important;
     /* !important is load-bearing: the host ships
@@ -253,10 +287,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      until: 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除
      test: tests/wallpaper-surface-fill.test.ts
   */
-  body[data-dsh-bg] [data-mobile-nav="frame"] > :first-child {
+  body[data-dsh-bg] [data-mobile-nav="frame"] > [class*="sidebarCol"] {
     background: var(--dsw-static-neutral-bluish-50, #f9fafb);
   }
-  body[data-ds-dark-theme][data-dsh-bg] [data-mobile-nav="frame"] > :first-child {
+  body[data-ds-dark-theme][data-dsh-bg] [data-mobile-nav="frame"] > [class*="sidebarCol"] {
     background: var(--dsw-static-neutral-bluish-900, #1b1b1c);
   }
 
@@ -275,7 +309,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      a min(88vw, 280px) column translated -110% of its own width, i.e. -308px
      at 390px. The gesture layer never depended on this rule - it writes an
      inline transform !important - so only the CSS-driven click paths regressed. */
-  [data-mobile-nav="frame"][data-sidebar-collapsed] > :first-child {
+  [data-mobile-nav="frame"][data-sidebar-collapsed] > [class*="sidebarCol"] {
     width: min(88vw, 280px) !important;
     transform: translateX(-110%) !important;
   }
@@ -289,7 +323,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      overflow:hidden drawer to scrollLeft=102, and every static child (plus the
      fixed overlay) shifts 102px off-screen. With transform:none the overlay is
      viewport-anchored: it dims the full screen and the sheet sits at left:8. */
-  [data-mobile-nav="frame"]:not([data-sidebar-collapsed]) > :first-child {
+  [data-mobile-nav="frame"]:not([data-sidebar-collapsed]) > [class*="sidebarCol"] {
     transform: none !important;
   }
 
@@ -408,7 +442,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      (audit S2 2026-08-27 — the old reduce block only covered the settings
      sheet and its mask). Same idiom as the animation:none blocks below. */
   @media (prefers-reduced-motion: reduce) {
-    [data-mobile-nav="frame"] > :first-child {
+    [data-mobile-nav="frame"] > [class*="sidebarCol"] {
       transition: none !important;
     }
   }

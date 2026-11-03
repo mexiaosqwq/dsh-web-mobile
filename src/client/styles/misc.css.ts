@@ -247,7 +247,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
      max rAF gap 167 -> 33ms; the benefit scales with conversation length.
      Desktop untouched (this block lives inside the max-width: 1023px
      media query). */
-  [data-mobile-nav="frame"] > :first-child [role="tree"] {
+  [data-mobile-nav="frame"] > [class*="sidebarCol"] [role="tree"] {
     content-visibility: auto;
     contain-intrinsic-size: auto 600px;
   }
@@ -291,7 +291,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
      selected chars, opening with the title / mode / tab labels). On the
      composer side only the input card ([data-composer-card], host marker
      since 0.1.2) and the plugin stats row. */
-  [data-mobile-nav="frame"] > :first-child,
+  [data-mobile-nav="frame"] > [class*="sidebarCol"],
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]),
   [data-mobile-nav="frame"] [data-composer-card],
   [data-mobile-nav="stats"],
@@ -302,9 +302,9 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   }
   [data-mobile-nav="frame"] [data-composer-input],
   [data-mobile-nav="frame"] [data-composer-card] textarea,
-  [data-mobile-nav="frame"] > :first-child [role="dialog"],
-  [data-mobile-nav="frame"] > :first-child input,
-  [data-mobile-nav="frame"] > :first-child textarea,
+  [data-mobile-nav="frame"] > [class*="sidebarCol"] [role="dialog"],
+  [data-mobile-nav="frame"] > [class*="sidebarCol"] input,
+  [data-mobile-nav="frame"] > [class*="sidebarCol"] textarea,
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) input {
     -webkit-user-select: text !important;
     user-select: text !important;

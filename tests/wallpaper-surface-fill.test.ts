@@ -26,10 +26,10 @@ const HEADER_RE = 'header:has\\(\\[class\\*="_headerLeading"\\]\\)'
 
 test('wallpaper: the drawer refills from the static sidebar palette', () => {
   assert.match(layout,
-    /body\[data-dsh-bg\] \[data-mobile-nav="frame"\] > :first-child \{\s*background: var\(--dsw-static-neutral-bluish-50, #f9fafb\);/,
+    /body\[data-dsh-bg\] \[data-mobile-nav="frame"\] > \[class\*="sidebarCol"\] \{\s*background: var\(--dsw-static-neutral-bluish-50, #f9fafb\);/,
     '浅色抽屉在壁纸下必须回到 --dsw-static-neutral-bluish-50')
   assert.match(layout,
-    /body\[data-ds-dark-theme\]\[data-dsh-bg\] \[data-mobile-nav="frame"\] > :first-child \{\s*background: var\(--dsw-static-neutral-bluish-900, #1b1b1c\);/,
+    /body\[data-ds-dark-theme\]\[data-dsh-bg\] \[data-mobile-nav="frame"\] > \[class\*="sidebarCol"\] \{\s*background: var\(--dsw-static-neutral-bluish-900, #1b1b1c\);/,
     '深色抽屉在壁纸下必须回到 --dsw-static-neutral-bluish-900')
 })
 

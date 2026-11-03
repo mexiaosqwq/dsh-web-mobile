@@ -124,7 +124,7 @@ test('root and drawer keep pinch-zoom while still refusing horizontal pan', () =
   // repeated property: the declaration stopped being the rule's first line when
   // the split rules were merged (2026-09-16), and asserting on that position
   // would make this guard fail on a pure reordering.
-  const drawerBody = /\[data-mobile-nav="frame"\] > :first-child \{([\s\S]*?)\n  \}/.exec(LAYOUT_CSS)?.[1]
+  const drawerBody = /\[data-mobile-nav="frame"\] > \[class\*="sidebarCol"\] \{([\s\S]*?)\n  \}/.exec(LAYOUT_CSS)?.[1]
   assert.ok(drawerBody, 'the drawer column rule must exist')
   const drawer = [...drawerBody.matchAll(/touch-action: ([^;]+);/g)].at(-1)?.[1]
   assert.equal(drawer, 'pan-y pinch-zoom !important')

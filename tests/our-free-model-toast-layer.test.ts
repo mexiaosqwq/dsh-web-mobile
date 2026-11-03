@@ -56,7 +56,7 @@ test('the toast host is body-anchored, never frame- or root-scoped', () => {
 
 test('the raised layer clears the drawer and the backdrop', () => {
   const toastZ = Number(rules().match(/z-index: (\d+) !important/)?.[1])
-  const drawerZ = Number(blockOf(LAYOUT_CSS, '[data-mobile-nav="frame"] > :first-child {').match(/z-index: (\d+)/)?.[1])
+  const drawerZ = Number(blockOf(LAYOUT_CSS, '[data-mobile-nav="frame"] > [class*="sidebarCol"] {').match(/z-index: (\d+)/)?.[1])
   const backdropZ = Number(blockOf(BASE_CSS, '[data-mobile-nav="backdrop"] {').match(/z-index: (\d+)/)?.[1])
   assert.ok(Number.isFinite(toastZ) && Number.isFinite(drawerZ) && Number.isFinite(backdropZ), 'z-index values must parse')
   assert.ok(backdropZ < drawerZ, 'the backdrop must stay under the drawer')

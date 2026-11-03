@@ -83,7 +83,7 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     // Capture phase: run before the shell or a plugin processes the click,
     // so takeover panels never render under the open drawer.
     const drawerRoot = (): HTMLElement | null =>
-      document.querySelector<HTMLElement>('[data-mobile-nav="frame"] > :first-child')
+      document.querySelector<HTMLElement>('[data-mobile-nav="frame"] > [class*="sidebarCol"]')
 
     // Shared frame: inside the drawer, on a row navigation target, and not on
     // one of its buttons. Deliberately free of the DSHA tap-close exemption —

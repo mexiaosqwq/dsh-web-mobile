@@ -219,6 +219,7 @@ dsh web
 - `统计条被宿主拆条`
 - `横屏键盘 composer`
 - `提问卡全屏`
+- `AppFrame 列定位`
 
 ## Testing & QA
 

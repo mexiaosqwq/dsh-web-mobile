@@ -413,6 +413,7 @@ test('hover feedback only exists for hover-capable pointers (no sticky hover on 
   assert.ok(COMPAT_CSS.includes('[data-mobile-nav="preview-full-toggle"]:active'))
 })
 
+
 test('phone stats row keeps an unfolded context ring as a bare ring at the right edge (2026-11-03)', () => {
   // 店主二轮：图标保留；未折叠的环隐掉百分比、贴右缘、与统计间距 4px。锚宿主稳定属性，
   // 不依赖 [data-mobile-nav="stats"] 标记；已折叠的环（带 data-mobile-nav）不受影响。
@@ -439,4 +440,51 @@ test('the phone header sits 12px closer to the status bar, never past -16 (2026-
     b.selector.trim() === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])' && /margin-top/.test(b.body))
   assert.ok(block !== undefined)
   assert.match(block.body, /margin-top:\s*-12px !important/)
+})
+
+
+test('the frame grid keeps the centre column in track 2 (2026-11-04 真机白屏)', () => {
+  // 宿主 ≥0.2.2 把三列**显式**钉进固定轨道（AppFrame.module.css：
+  // .sidebarCol{grid-column:1} / .centerCol{grid-column:2} / .rightbarCol{grid-column:3}），
+  // 同时自己在 frame 的 inline style 里写模板——402x684 手机上实测是
+  // `0px minmax(0px,1fr) minmax(0px,0px)`，本来完全正确。
+  // 我们那条 !important 覆盖曾经写成 `minmax(0,1fr) 0 0`：中心列落在**第 2 轨道**，
+  // 于是宽 0、起点 x=402，scrollBody / composerSeat / composerStack / composerCard /
+  // 输入框全部跟着 0 宽，整个会话区不可见而没有任何报错。
+  // 钉住两件事：第一条轨道为 0（抽屉在流外，任何移动宽度都如此），中心占 1fr 且必须是
+  // **第二条**轨道，第三条保持 0（宿主文档写明右侧面板从 0 宽列挂在中心之上）。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const frame = blocks.find((block) => block.selector === 'html [data-mobile-nav="frame"]')
+  assert.ok(frame !== undefined, 'frame 规则在位')
+  assert.match(frame.body, /grid-template-columns:\s*0 minmax\(0, 1fr\) 0 !important/)
+  assert.doesNotMatch(
+    frame.body,
+    /grid-template-columns:\s*minmax\(0, 1fr\) 0 0/,
+    '旧轨道顺序把中心列挤进 0 宽的第 2 轨道',
+  )
+  // 抽屉规则必须仍在移动块里：它把侧栏列变成流外抽屉，这是第一条轨道为 0 的前提。
+  const drawer = blocks.find((block) => block.selector === '[data-mobile-nav="frame"] > [class*="sidebarCol"]')
+  assert.ok(drawer !== undefined, '抽屉规则在位')
+  assert.match(drawer.body, /position:\s*absolute !important/)
+  assert.match(drawer.body, /z-index:\s*1300 !important/, '抽屉必须在宿主遮罩（70）与本站遮罩（1250）之上')
+})
+
+test('the drawer column is found by class, never by child position (2026-11-04 黑框盖住抽屉)', () => {
+  // 宿主 0.2.2 在 frame 里**先**渲染它自己的抽屉遮罩：
+  //   {drawer && <div className={css.drawerMask} data-sidebar-mask aria-hidden>}
+  // 于是 frame 的首个子项变成了遮罩，而不再是侧栏列。本插件曾经用
+  // `[data-mobile-nav="frame"] > :first-child` 认抽屉，结果整块抽屉样式（absolute /
+  // 280 宽 / z 1300 / 关闭态 transform）全落到**遮罩**上：真机采集 2026-11-04 402x684 里
+  // drawerMask 量到 @0,0 280x684 z=1300，真正的 sidebarCol 留在宿主值 z=71、原地打开 ——
+  // 屏幕上就是「左边弹出一个黑框，把后面的菜单盖住」。
+  // 判据：抽屉一律按稳定的类后缀认（`[class*="sidebarCol"]`，同 drawer-session-log 的既有写法），
+  // 不许再用子序选择器；宿主自带的遮罩一并隐藏（本站 own backdrop 在 1250 且带关闭手势）。
+  const mobile = LAYOUT_CSS.slice(LAYOUT_CSS.indexOf('@media (max-width: 1023px)'))
+  assert.doesNotMatch(mobile, /\[data-mobile-nav="frame"\]\s*>\s*:first-child/, '抽屉不许按首子项定位')
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const drawer = blocks.find((block) => block.selector === '[data-mobile-nav="frame"] > [class*="sidebarCol"]')
+  assert.ok(drawer !== undefined, '抽屉按类后缀定位')
+  const mask = blocks.find((block) => block.selector === '[data-mobile-nav="frame"] > [data-sidebar-mask]')
+  assert.ok(mask !== undefined, '宿主自带的抽屉遮罩要被隐藏（否则两层遮罩 + 它落在抽屉之下）')
+  assert.match(mask.body, /display:\s*none !important/)
 })

@@ -19,7 +19,7 @@ const CHROME_GRACE_MS = 5_000;
 const CHIP_SELECTOR = '[data-gitgraph-chip-anchor] [data-gitgraph-chip]';
 const MOBILE_STYLE_SELECTOR = 'style[data-plugin="dsh-web-mobile"]';
 const MOBILE_FRAME_SELECTOR = '[data-mobile-nav="frame"]';
-const MOBILE_DRAWER_SELECTOR = '[data-mobile-nav="frame"] > :first-child';
+const MOBILE_DRAWER_SELECTOR = '[data-mobile-nav="frame"] > [class*="sidebarCol"]';
 const MOBILE_BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]';
 const MOBILE_TOGGLE_SELECTOR = '[data-mobile-nav="toggle"]';
 const MOBILE_FAB_SELECTOR = '[data-mobile-nav="fab"]';
