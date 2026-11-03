@@ -432,3 +432,11 @@ test('phone stats row keeps an unfolded context ring as a bare ring at the right
   // 图标不再被隐藏。
   assert.ok(!LAYOUT_CSS.includes('[data-composer-stat] [class*="_pill"] > svg'))
 })
+
+test('the phone header sits 12px closer to the status bar, never past -16 (2026-11-03)', () => {
+  // -16 已实测越界（标题被 App 顶部层盖住，2026-10-25 回退）；-12 是店主 11-03 要的收窄。
+  const block = findRuleBlocks(MISC_CSS).find((b) =>
+    b.selector.trim() === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])' && /margin-top/.test(b.body))
+  assert.ok(block !== undefined)
+  assert.match(block.body, /margin-top:\s*-12px !important/)
+})
