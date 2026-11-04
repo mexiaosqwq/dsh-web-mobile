@@ -121,3 +121,16 @@ test('a hot swap puts the conversation scroll back where it was (2026-10-07 店�
   assert.match(source, /if \(element\.scrollTop > 0\)/, '仅记录非零滚动位置')
   assert.match(source, /saved\.url === location\.href/, '不得跨页面恢复旧滚动位置')
 })
+
+test('a control press with the keyboard dismissed takes focus off the editor first (2026-11-04)', () => {
+  // 返回键收起输入法后编辑面仍是 activeElement；keepFocus 阻止了失焦，点按结束引擎就把输入法顶回来。
+  assert.match(SOURCE, /if \(document\.activeElement === editor && !keyboardUp\(\)\) editor\.blur\(\)/)
+  // 只在控件分支里、影子装上之前失焦：编辑面点按与空白点按不受影响。
+  const controlGate = SOURCE.indexOf('target.closest(COMPOSER_CONTROL_SELECTOR)')
+  const blur = SOURCE.indexOf('!keyboardUp()) editor.blur()')
+  const install = SOURCE.indexOf("editor.setAttribute(SHADOW_MARKER, '')")
+  assert.ok(controlGate > 0 && controlGate < blur && blur < install)
+  // 键盘判定：无键盘高度 − 可见带高度，阈值 120px。
+  assert.match(SOURCE, /--dsh-web-mobile-vh/)
+  assert.match(SOURCE, /KEYBOARD_MIN_PX = 120/)
+})
