@@ -103,7 +103,7 @@ export declare function computePickerPlacement(anchor: PickerAnchorBox, own: Pic
     left: number;
 };
 /**
- * 安装手机档的输入框文件入口弹层。
+ * 安装输入框文件入口弹层。按 TOUCH_QUERY 武装（#259 ②：平板 ≥1024 原生布局同样没有拖放/hover；落位不依赖手机壳）。
  * @param ctx - client 上下文。
  */
 export declare function installComposerFilePicker(ctx: ClientContext): void;

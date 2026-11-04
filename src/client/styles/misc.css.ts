@@ -472,6 +472,16 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     flex-direction: column !important;
     border-radius: 14px !important;
   }
+  /* ②″ 内容列可收缩（#259 ①，横屏设置拖不动、下半截被裁）：上面把 panel 改成纵向 flex 后，
+     内容列这个 flex item 的 min-height 默认 auto，不会缩到 panel 的 max-height 以下，
+     于是宿主内层 options（flex:1; min-height:0; overflow-y:auto）永远拿不到受限高度，
+     超出部分被 panel 的 overflow:hidden 裁掉。与手机档（layout.css 设置 sheet 内容列）同形。
+     max-height 仍用 100dvh：平板档不跑 syncStableViewportHeight，没有 --dsh-web-mobile-vh 可用；
+     sheet 顶边贴齐，键盘弹起时 dvh 变矮只是让内容区多滚一截，不会把 sheet 推走。 */
+  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
   [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child {
     width: 100%;
     flex-direction: row !important;
@@ -527,6 +537,44 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="quick-settings-wrap"],
   [data-mobile-nav="quick-settings"] {
     display: inline-flex !important;
+  }
+
+  /* ③′ 输入框回形针放回来（#259 ②）：触屏平板同样没有拖放与 hover，回形针是顺手的文件入口；
+     弹层逻辑见 effects/composer-file-picker.ts（按 TOUCH_QUERY 武装）。手机档的盒子样式
+     （28px 圆、-8px 左移、::after 外扩命中区）在 layout.css 的移动块里，平板不命中，这里补
+     同尺寸的盒子，不带手机那条按宿主 modes 留白量出来的 -8px 左移（平板工具行是宿主原生排布）。
+     宿主没有 hidden input 的旧代（rc）照手机档同样藏掉：点了是永久的空操作。 */
+  [data-composer-card] [data-mobile-nav="file-upload"] {
+    flex: 0 0 auto !important;
+    position: relative !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    display: inline-grid !important;
+    place-items: center;
+    border: 0 !important;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  [data-composer-card] [data-mobile-nav="file-upload"]:active {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+  }
+  [data-composer-card] [data-mobile-nav="file-upload"]::after {
+    content: '';
+    position: absolute;
+    inset: -7px;
+    border-radius: 999px;
+  }
+  [data-composer-card] [data-mobile-nav="file-upload"]:disabled {
+    opacity: 0.38;
+    cursor: default;
+  }
+  [data-composer-card]:not(:has(input[type=file])) [data-mobile-nav="file-upload"] {
+    display: none !important;
   }
 
   /* ④ 设置弹层顶部的「Open configuration file」按钮：手机档在 layout.css 的家族谓词里
