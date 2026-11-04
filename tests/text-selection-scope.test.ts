@@ -38,7 +38,7 @@ test('chrome surfaces are unselectable on the phone tier (both spellings)', () =
   assert.ok(noneRule, 'a user-select:none rule exists in the phone-tier block')
   assert.match(noneRule.body, /-webkit-user-select:\s*none !important/)
   for (const sel of [
-    '[data-mobile-nav="frame"] > :first-child', // drawer
+    '[data-mobile-nav="frame"] > [class*="_sidebarCol"]', // drawer
     // conversation header — anchored to the HOST header class: the ask-question
     // card renders its own <header> in composerSeat, also under [data-phase],
     // and a bare header here made its question text unselectable (2026-10-20).
@@ -81,9 +81,9 @@ test('the composer editing surface and drawer fields are re-enabled explicitly',
   assert.match(textRule.body, /-webkit-user-select:\s*text !important/)
   for (const sel of [
     '[data-mobile-nav="frame"] [data-composer-input]',
-    '[data-mobile-nav="frame"] > :first-child [role="dialog"]',
-    '[data-mobile-nav="frame"] > :first-child input',
-    '[data-mobile-nav="frame"] > :first-child textarea',
+    '[data-mobile-nav="frame"] > [class*="_sidebarCol"] [role="dialog"]',
+    '[data-mobile-nav="frame"] > [class*="_sidebarCol"] input',
+    '[data-mobile-nav="frame"] > [class*="_sidebarCol"] textarea',
   ]) {
     assert.ok(textRule.selectors.includes(sel), `missing re-enable selector: ${sel}`)
   }

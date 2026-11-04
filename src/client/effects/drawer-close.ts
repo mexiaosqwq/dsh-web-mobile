@@ -4,7 +4,7 @@
 // below are a pure move - do not reflow or reword them.
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installMobileEffect } from '../platform/breakpoints.ts'
-import { getFrame } from '../platform/frame.ts'
+import { getDrawer, getFrame } from '../platform/frame.ts'
 import { consumeIfGestured, isStrokeLocked } from './gesture-guard.ts'
 import { findSessionIdInFiber, isTapWithinSlop, reactFiberOf } from './session-row-fiber.ts'
 import { currentSessionIdOf, sessionsCanOpen } from '../core/sessions-compat.ts'
@@ -82,8 +82,7 @@ export function installOverlayInteractions(ctx: ClientContext): void {
     }
     // Capture phase: run before the shell or a plugin processes the click,
     // so takeover panels never render under the open drawer.
-    const drawerRoot = (): HTMLElement | null =>
-      document.querySelector<HTMLElement>('[data-mobile-nav="frame"] > :first-child')
+    const drawerRoot = (): HTMLElement | null => getDrawer()
 
     // Shared frame: inside the drawer, on a row navigation target, and not on
     // one of its buttons. Deliberately free of the DSHA tap-close exemption —

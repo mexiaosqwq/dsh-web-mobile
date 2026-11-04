@@ -132,6 +132,32 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
 
+  /* @patch
+     id: shell-grid-drawer-mask
+     for: dsh-client-ui-layout 0.2.2-rc.1 的 AppFrame（三列显式 grid-area + 原生 drawerMask 作为首个子元素）
+     why: 本插件把侧栏绝对定位、只留一条 1fr 轨道；主列继承宿主写死的 1/2 会落在 0 宽轨道上（真机整页白屏），
+          原生遮罩还会抢走所有 '> :first-child' 抽屉锚点。
+     until: 宿主给移动壳提供独立的列轨道/标记，或不再在 frame 里插入首个子元素遮罩
+     test: tests/css-rules.test.ts
+  */
+  /* 0.2.2 host pins the three shell columns with explicit grid-area
+     (sidebar 1/1, center 1/2, right 1/3). Our drawer keeps the sidebar out of
+     flow and leaves a single 1fr track, so the center column must not keep the
+     host's hard-coded 1/2: that track is one of the two we force to 0, which
+     collapses the whole conversation area to 0px wide (phone blank page).
+     Re-seat it explicitly on the 1fr track. */
+  [data-mobile-nav="frame"] > [class*="_centerCol"] {
+    grid-area: 1 / 1 / 2 / 2 !important;
+  }
+  /* 0.2.2 also inserts a native drawer mask into the frame, and renders it as
+     the FIRST child. We keep our own backdrop (z 1250) and own drawer column,
+     so the host layer would only double-dim; worse, every drawer rule below
+     anchors on '> :first-child' and would style the mask as the sidebar.
+     Hide the host mask and keep the plugin's own. */
+  [data-mobile-nav="frame"] > [class*="_drawerMask"] {
+    display: none !important;
+  }
+
   /* The sidebar column (first grid child) becomes a left drawer. The drawer
      hugs the sidebar content exactly (the wide sidebar carries an inline
      width, ~280px): a fixed 92vw box would leave a white strip where the
@@ -152,7 +178,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      position/inset/width on the element, the column kept a correct-looking box
      while neither painting nor hit-testing, which is the "all black, click
      anywhere closes" root cause. The backdrop we append carries the dimming. */
-  [data-mobile-nav="frame"] > :first-child {
+  [data-mobile-nav="frame"] > [class*="_sidebarCol"] {
     position: absolute !important;
     inset: 0 auto 0 0 !important;
     /* !important is load-bearing: the host ships
@@ -253,10 +279,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      until: 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除
      test: tests/wallpaper-surface-fill.test.ts
   */
-  body[data-dsh-bg] [data-mobile-nav="frame"] > :first-child {
+  body[data-dsh-bg] [data-mobile-nav="frame"] > [class*="_sidebarCol"] {
     background: var(--dsw-static-neutral-bluish-50, #f9fafb);
   }
-  body[data-ds-dark-theme][data-dsh-bg] [data-mobile-nav="frame"] > :first-child {
+  body[data-ds-dark-theme][data-dsh-bg] [data-mobile-nav="frame"] > [class*="_sidebarCol"] {
     background: var(--dsw-static-neutral-bluish-900, #1b1b1c);
   }
 
@@ -275,7 +301,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      a min(88vw, 280px) column translated -110% of its own width, i.e. -308px
      at 390px. The gesture layer never depended on this rule - it writes an
      inline transform !important - so only the CSS-driven click paths regressed. */
-  [data-mobile-nav="frame"][data-sidebar-collapsed] > :first-child {
+  [data-mobile-nav="frame"][data-sidebar-collapsed] > [class*="_sidebarCol"] {
     width: min(88vw, 280px) !important;
     transform: translateX(-110%) !important;
   }
@@ -289,7 +315,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      overflow:hidden drawer to scrollLeft=102, and every static child (plus the
      fixed overlay) shifts 102px off-screen. With transform:none the overlay is
      viewport-anchored: it dims the full screen and the sheet sits at left:8. */
-  [data-mobile-nav="frame"]:not([data-sidebar-collapsed]) > :first-child {
+  [data-mobile-nav="frame"]:not([data-sidebar-collapsed]) > [class*="_sidebarCol"] {
     transform: none !important;
   }
 
@@ -408,7 +434,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      (audit S2 2026-08-27 — the old reduce block only covered the settings
      sheet and its mask). Same idiom as the animation:none blocks below. */
   @media (prefers-reduced-motion: reduce) {
-    [data-mobile-nav="frame"] > :first-child {
+    [data-mobile-nav="frame"] > [class*="_sidebarCol"] {
       transition: none !important;
     }
   }

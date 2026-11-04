@@ -440,3 +440,22 @@ test('the phone header sits 12px closer to the status bar, never past -16 (2026-
   assert.ok(block !== undefined)
   assert.match(block.body, /margin-top:\s*-12px !important/)
 })
+
+test('host 0.2.2: explicit shell column grid-area and native drawer mask are neutralized (2026-11-04)', () => {
+  // 0.2.2 给外壳三列补了显式 grid-area（sidebar 1/1 / center 1/2 / right 1/3），
+  // 并在 frame 里插入原生 drawerMask（且是第一个子元素）。本插件只留一条 1fr 轨道，
+  // 若主列继续吃宿主写死的 1/2 就会落在 0 宽轨道上（真机整页白屏）；遮罩还会抢占
+  // 所有 `> :first-child` 抽屉锚点。两条修复都必须留在移动块里、且不得回收成
+  // first-child 锚点。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const center = blocks.find((b) => b.selector.trim() === '[data-mobile-nav="frame"] > [class*="_centerCol"]')
+  assert.ok(center, 'center column must be re-seated on the 1fr track')
+  assert.match(center.body, /grid-area:\s*1 \/ 1 \/ 2 \/ 2 !important/)
+  const mask = blocks.find((b) => b.selector.trim() === '[data-mobile-nav="frame"] > [class*="_drawerMask"]')
+  assert.ok(mask, 'the host native drawer mask must be neutralized')
+  assert.match(mask.body, /display:\s*none !important/)
+  // The mask is the frame's first child on 0.2.2 — the drawer anchor must be the
+  // stable `_sidebarCol` suffix, never `:first-child`.
+  assert.ok(!/\[data-mobile-nav="frame"\] > :first-child/.test(LAYOUT_CSS), 'layout.css.ts 不得再用 frame 首子元素当抽屉')
+  assert.ok(!/\[data-mobile-nav="frame"\] > :first-child/.test(MISC_CSS), 'misc.css.ts 不得再用 frame 首子元素当抽屉')
+})

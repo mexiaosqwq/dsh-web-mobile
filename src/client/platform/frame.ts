@@ -35,3 +35,22 @@ export function getFrame(): HTMLElement | null {
   frameCache = found
   return found
 }
+
+/**
+ * The sidebar column, i.e. the frame's drawer element.
+ *
+ * Hosts up to 0.2.1 kept the sidebar as the frame's first element child, so
+ * every drawer rule and gesture anchored on `> :first-child`. Host 0.2.2 renders
+ * a native drawer mask BEFORE the sidebar whenever the shell is in drawer mode,
+ * which turned that anchor into the mask (drawer chrome drawn on the mask, real
+ * drawer unstyled, gestures aimed at the mask). The column's `_sidebarCol` class
+ * suffix is stable across generations (0.1.7 → 0.2.2); keep the first-child form
+ * only as the fallback for a host that ever renames it.
+ */
+export function getDrawer(): HTMLElement | null {
+  const frame = getFrame()
+  if (frame === null) return null
+  const column = frame.querySelector('[class*="_sidebarCol"]')
+  if (column instanceof HTMLElement) return column
+  return frame.firstElementChild instanceof HTMLElement ? frame.firstElementChild : null
+}
