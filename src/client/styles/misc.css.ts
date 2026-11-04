@@ -687,8 +687,13 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
    2026-11-03 店主截图：状态栏与标题行之间仍空一截 → -8 与已越界的 -16 取中间 -12
    （标题约 42，离状态栏下缘仍留约 4px）。 */
 @media (max-width: 1023px) and (pointer: coarse) {
+  /* The -12 was tuned against a shell whose own safe-area top padding had
+     already pushed the header down. When the WebView reports no top inset
+     (non-edge-to-edge, or a lost viewport-fit=cover meta) the same -12 pulls
+     the title under the status bar. Clamp the pull to the inset we actually
+     have: no inset => no negative margin; >=12px => the original -12. */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) {
-    margin-top: -12px !important;
+    margin-top: max(-12px, calc(-1 * var(--dsha-safe-area-inset-top, env(safe-area-inset-top, 0px)))) !important;
   }
 }
 

@@ -1580,6 +1580,26 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     }
     /* 页签行钉到内容高（16px 行高 + 5px 下划线位 = 21px）：文字与下划线贴住行底，
        不再在 36px 的老行高里居中，多出来的空白由上面的 row-gap 统一管理。 */
+    /* 2026-11-05: 0.2.2 真机上这组「21px 固定行高 + -8px 上提」把页签文字顶出了
+       header 底边（header 57px，页签文字底约 66px，被下边框横切），第一颗页签也
+       被可横滚的行容器裁成只剩「话」。让页签行按内容自行撑高、取消上提，并关掉
+       行容器的溢出裁剪/横滚；标题↔页签的间距交给 row-gap。 */
+    /* 2026-11-05: 0.2.2 把插件自己的 toggle/files 放进 titleCluster 里的
+       headerActions，而 titleCluster 是 overflow:auto 的横向滚动容器：绝对定位的
+       两颗按钮以 header 为包含块，却被这个滚动容器裁掉——左侧 ☰ 只剩右缘一条，
+       右侧文件夹按钮整个不见（真机：「侧边栏图标看不见，右边一丢丢，像被遮罩盖住」）。
+       簇的溢出守卫交给 crumbs 自己的滚动窗，簇本身不再裁剪。 */
+    html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] {
+      overflow: visible !important;
+    }
+    html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-conversation-tabs][role="tablist"] {
+      height: auto !important;
+      margin-top: 0 !important;
+      overflow: visible !important;
+    }
+    html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_tabs"] {
+      overflow: visible !important;
+    }
     html body [data-mobile-nav="frame"] [data-phase] header [role="tablist"] {
       min-height: 0 !important;
       height: 21px !important;

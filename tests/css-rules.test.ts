@@ -433,12 +433,18 @@ test('phone stats row keeps an unfolded context ring as a bare ring at the right
   assert.ok(!LAYOUT_CSS.includes('[data-composer-stat] [class*="_pill"] > svg'))
 })
 
-test('the phone header sits 12px closer to the status bar, never past -16 (2026-11-03)', () => {
+test('the phone header pull is clamped to the measured top inset (2026-11-05)', () => {
   // -16 已实测越界（标题被 App 顶部层盖住，2026-10-25 回退）；-12 是店主 11-03 要的收窄。
+  // 2026-11-05 真机：WebView 报 safe-area-inset-top = 0 时，写法固定的 -12 会把 header
+  // 拉到视口外（header y=-12、标题簇 y=-16）。改成按实际 inset 收缩：0 → 不上移，
+  // >=12px → 保留原来的 -12；上限仍是 -12，不会回到 -16。
   const block = findRuleBlocks(MISC_CSS).find((b) =>
     b.selector.trim() === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])' && /margin-top/.test(b.body))
   assert.ok(block !== undefined)
-  assert.match(block.body, /margin-top:\s*-12px !important/)
+  assert.match(
+    block.body,
+    /margin-top:\s*max\(-12px, calc\(-1 \* var\(--dsha-safe-area-inset-top, env\(safe-area-inset-top, 0px\)\)\)\) !important/,
+  )
 })
 
 test('host 0.2.2: explicit shell column grid-area and native drawer mask are neutralized (2026-11-04)', () => {

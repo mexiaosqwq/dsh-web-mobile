@@ -330,6 +330,7 @@ export function apply(ctx: ClientContext): void {
     order: 10,
     locale: NS,
     inject: () => ({}),
+
   }, ComposerFileButton))
 }
 
