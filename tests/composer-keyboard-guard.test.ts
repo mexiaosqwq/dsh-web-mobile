@@ -110,8 +110,8 @@ test('a hot swap puts the conversation scroll back where it was (2026-10-07 店�
   // 会话滚动区重锚到顶部（店主：「聊到一半突然闪到最上面」）。卸载前记、重挂后回填。
   const source = readFileSync(fileURLToPath(new URL('../src/client/index.tsx', import.meta.url)), 'utf8')
   assert.match(source, /const SWAP_RESTORE_MS = 10_000/, '存档要有保鲜期常量')
-  assert.match(source, /function conversationScrollers\(\): HTMLElement\[\] \{\s*return \[\.\.\.document\.querySelectorAll<HTMLElement>\('\[data-mobile-nav="frame"\] \[class\*="scrollBody"\]'\)\]\s*\}/,
-    '滚动区取宿主的 _scrollBody（overflow-y:auto 的那个盒子）')
+  assert.match(source, /function conversationScrollers\(\): HTMLElement\[\] \{\s*return \[\.\.\.document\.querySelectorAll<HTMLElement>\('\[data-conversation-scroll\], \[data-mobile-nav="frame"\] \[class\*="scrollBody"\]'\)\]\s*\}/,
+    '滚动区先认宿主自带的 [data-conversation-scroll]：卸载时 frame 标记已被后注册的 reconciler 摘掉（2026-11-04）')
   // 卸载路径：先记位置，再删表（顺序不可换，删完就读不到了）。
   assert.match(source, /return \(\) => \{\s*rememberConversationScroll\(\)\s*tag\.remove\(\)/,
     'disposer 必须先记滚动位置再删样式表')

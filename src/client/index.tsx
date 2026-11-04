@@ -68,8 +68,11 @@ const scrollState = scrollWindow.__dshaMobileScrollState instanceof WeakMap
   ? scrollWindow.__dshaMobileScrollState
   : (scrollWindow.__dshaMobileScrollState = new WeakMap<HTMLElement, SavedScroll>())
 
+// 宿主自己写在会话滚动区上的 [data-conversation-scroll] 打头（2026-11-04 热换后对话弹到顶，内置 3.2.2 同样）：
+// effect 按后注册先清理（cordis clear() 反序），frame 标记归后注册的 reconciler 所有、先被摘掉，
+// 只靠它的话卸载时 0 命中、什么也没存下。
 function conversationScrollers(): HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>('[data-mobile-nav="frame"] [class*="scrollBody"]')]
+  return [...document.querySelectorAll<HTMLElement>('[data-conversation-scroll], [data-mobile-nav="frame"] [class*="scrollBody"]')]
 }
 
 /**
