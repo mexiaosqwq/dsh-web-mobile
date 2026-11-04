@@ -110,8 +110,8 @@ test('a hot swap puts the conversation scroll back where it was (2026-10-07 店�
   // 会话滚动区重锚到顶部（店主：「聊到一半突然闪到最上面」）。卸载前记、重挂后回填。
   const source = readFileSync(fileURLToPath(new URL('../src/client/index.tsx', import.meta.url)), 'utf8')
   assert.match(source, /const SWAP_RESTORE_MS = 10_000/, '存档要有保鲜期常量')
-  assert.match(source, /function conversationScrollers\(\): HTMLElement\[\] \{\s*return \[\.\.\.document\.querySelectorAll<HTMLElement>\('\[data-mobile-nav="frame"\] \[class\*="scrollBody"\]'\)\]\s*\}/,
-    '滚动区取宿主的 _scrollBody（overflow-y:auto 的那个盒子）')
+  assert.match(source, /function conversationScrollers\(\): HTMLElement\[\] \{\s*return \[\.\.\.document\.querySelectorAll<HTMLElement>\('\[data-conversation-scroll\], \[data-mobile-nav="frame"\] \[class\*="scrollBody"\]'\)\]\s*\}/,
+    '滚动区先认宿主自带的 [data-conversation-scroll]：卸载时 frame 标记已被后注册的 reconciler 摘掉（2026-11-04）')
   // 卸载路径：先记位置，再删表（顺序不可换，删完就读不到了）。
   assert.match(source, /return \(\) => \{\s*rememberConversationScroll\(\)\s*tag\.remove\(\)/,
     'disposer 必须先记滚动位置再删样式表')
@@ -120,4 +120,17 @@ test('a hot swap puts the conversation scroll back where it was (2026-10-07 店�
   assert.match(source, /element\.scrollTop === 0\)\s*element\.scrollTop = saved\.top/, '只回填被弹到顶的那种')
   assert.match(source, /if \(element\.scrollTop > 0\)/, '仅记录非零滚动位置')
   assert.match(source, /saved\.url === location\.href/, '不得跨页面恢复旧滚动位置')
+})
+
+test('a control press with the keyboard dismissed takes focus off the editor first (2026-11-04)', () => {
+  // 返回键收起输入法后编辑面仍是 activeElement；keepFocus 阻止了失焦，点按结束引擎就把输入法顶回来。
+  assert.match(SOURCE, /if \(document\.activeElement === editor && !keyboardUp\(\)\) editor\.blur\(\)/)
+  // 只在控件分支里、影子装上之前失焦：编辑面点按与空白点按不受影响。
+  const controlGate = SOURCE.indexOf('target.closest(COMPOSER_CONTROL_SELECTOR)')
+  const blur = SOURCE.indexOf('!keyboardUp()) editor.blur()')
+  const install = SOURCE.indexOf("editor.setAttribute(SHADOW_MARKER, '')")
+  assert.ok(controlGate > 0 && controlGate < blur && blur < install)
+  // 键盘判定：无键盘高度 − 可见带高度，阈值 120px。
+  assert.match(SOURCE, /--dsh-web-mobile-vh/)
+  assert.match(SOURCE, /KEYBOARD_MIN_PX = 120/)
 })

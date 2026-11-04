@@ -67,6 +67,21 @@ const COMPOSER_CONTROL_SELECTOR =
  *  one own-property recipe) so both guards stay interoperable. */
 export const SHADOW_MARKER = 'data-mobile-nav-focus-shadow'
 
+/** 键盘至少吃掉这么多像素才算「弹着」（滚动条/地址栏抖动远小于此，最矮的输入法也远大于此）。 */
+const KEYBOARD_MIN_PX = 120
+
+/**
+ * 软键盘此刻是否弹着：无键盘高度（phone-chrome 维护的 --dsh-web-mobile-vh，只增不减）与可见带高度之差。
+ * 平板档不跑 phone-chrome，变量缺席时退回 innerHeight —— adjustResize 下会把「弹着」误判成「收着」，
+ * 后果只是这一下按钮会把键盘收起，不会反过来把收着的键盘顶起来。
+ */
+function keyboardUp(): boolean {
+  const stable = Number.parseFloat(document.documentElement.style.getPropertyValue('--dsh-web-mobile-vh'))
+  const base = Number.isFinite(stable) && stable > 0 ? stable : window.innerHeight
+  const visible = window.visualViewport?.height ?? window.innerHeight
+  return base - visible > KEYBOARD_MIN_PX
+}
+
 export function installComposerKeyboardGuard(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: composer keyboard guard', () => {
     // 2026-09-23 扩档（店主报"点加号会弹键盘、而且再点关不掉"）：
@@ -139,6 +154,12 @@ export function installComposerKeyboardGuard(ctx: ClientContext): void {
       }
       // A button-area tap: shadow focus for the remainder of this dispatch.
       restore()
+      // 2026-11-04 店主报障「输完字收起输入法，点发送又弹出来」：返回键收起输入法不会让编辑面失焦，
+      // keepFocus 又 preventDefault 掉了按钮的 mousedown 失焦 ⇒ 点完发送，引擎看到「焦点仍在可编辑元素上
+      // 的一次真实点按」就把输入法顶回来——没有 focus() 调用、也没有 focusin，影子和兜底都拦不到。
+      // 键盘收着时先把焦点从编辑面拿走：之后提交清空草稿时 Lexical 的 root.focus() 落在下面的影子上，
+      // 兜底 focusin 也还在窗口内。键盘弹着时不动，连续发送照旧不收键盘。草稿与光标在宿主 keyboard 状态里。
+      if (document.activeElement === editor && !keyboardUp()) editor.blur()
       editor.setAttribute(SHADOW_MARKER, '')
       Object.defineProperty(editor, 'focus', {
         configurable: true,

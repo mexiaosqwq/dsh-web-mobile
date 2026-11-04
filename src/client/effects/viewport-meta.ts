@@ -158,15 +158,22 @@ export function syncStableViewportHeight(): () => void {
     // conversation list painted blank (white) for 1-2s on the owner's phone
     // (2026-10-31). Publishing on settle costs one resize, right after the
     // keyboard stops, and the animation itself is left to the compositor.
+    // 2026-11-04 店主报「键盘收起/弹起时闪一下」（录屏逐帧：整页跳一帧再回来；二分定位到本处两帧确认）：
+    // DSHA 壳不逐帧改 WebView 尺寸，键盘动画的起止各一步跳到终值（WebFullscreenUi 的 IME 内边距）。
+    // 只等停稳才发布，外壳就比视口晚 ≥2 帧，中间那帧按旧高度排版 = 闪。所以静止后的**第一次**变化立即发布
+    // （一步跳变的引擎这就是终值），动画中的后续帧仍不写，停稳再收拢一次 —— 逐帧动画的引擎每次键盘动画
+    // 最多写两次，不回到 2026-10-31 的逐帧重排。
+    const atRest = pendingVisibleFrames >= 2
     pendingVisibleFrames = visibleValue === pendingVisible ? pendingVisibleFrames + 1 : 0
     pendingVisible = visibleValue
-    if (pendingVisibleFrames >= 2 &&
+    if ((atRest || pendingVisibleFrames >= 2) &&
       root.style.getPropertyValue('--dsha-mobile-visible-vh') !== visibleValue)
       publishVisible(visibleValue)
     // The keyboard stops without announcing it: the last resize event still sees
     // a fresh value, so confirmation has to come from a frame of its own. One
     // rAF at a time; during the animation each tick re-arms exactly once.
-    else if (pendingVisibleFrames < 2 && pendingVisibleFrame === 0)
+    // 立即发布之后也要继续确认（不是 else）：否则计数停在 0，下一次键盘动画不算「静止后」，又会晚两帧。
+    if (pendingVisibleFrames < 2 && pendingVisibleFrame === 0)
       pendingVisibleFrame = requestAnimationFrame(() => {
         pendingVisibleFrame = 0
         syncStableViewport()

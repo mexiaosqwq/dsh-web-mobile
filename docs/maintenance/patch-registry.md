@@ -51,7 +51,7 @@
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 569 | 652 | 324 |
 | `src/client/styles/compat.css.ts` | 388 | 112 | 23 |
-| `src/client/styles/misc.css.ts` | 94 | 64 | 40 |
+| `src/client/styles/misc.css.ts` | 103 | 65 | 44 |
 | `src/client/styles/base.css.ts` | 18 | 4 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
@@ -75,6 +75,6 @@
 | `src/client/effects/subagent-chip-touch.ts` | 0 | 6 | 0 |
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
-| **合计** | **1078** | **920** | **403** |
+| **合计** | **1087** | **921** | **407** |
 
 <!-- END:inventory -->

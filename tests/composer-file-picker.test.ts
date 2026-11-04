@@ -14,6 +14,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = readFileSync(join(ROOT, 'src/client/effects/composer-file-picker.ts'), 'utf8')
 const BUTTON = readFileSync(join(ROOT, 'src/client/components/ComposerFileButton.tsx'), 'utf8')
 const BASE_CSS = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
+const MISC_CSS = readFileSync(join(ROOT, 'src/client/styles/misc.css.ts'), 'utf8')
 
 test('only the image route writes accept; attachments leave the host input untouched', () => {
   assert.equal(acceptForKind('image'), 'image/*')
@@ -24,6 +25,8 @@ test('only the image route writes accept; attachments leave the host input untou
 
 test('the effect is mobile-gated, capture-phase, and disposes both listeners', () => {
   assert.match(SRC, /installMobileEffect\(ctx, 'dsh-web-mobile: composer file picker'/)
+  // #259 ②：宽屏触屏（平板 ≥1024）也要回形针 ⇒ 按粗指针武装，不能退回默认的 MOBILE_QUERY。
+  assert.match(SRC, /\}, TOUCH_QUERY\)\n\}\s*$/)
   assert.match(SRC, /addEventListener\('click', onClick, true\)/)
   assert.match(SRC, /removeEventListener\('click', onClick, true\)/)
   assert.match(SRC, /removeEventListener\('keydown', onKey, true\)/)
@@ -137,4 +140,16 @@ test('unmounting and re-opening close the sheet through its own teardown (issue 
   // 重开：上一张也必须走 close，不能只 remove() 节点（同一条泄漏路径）。
   assert.match(SRC, /activeClose\?\.\(\)\n  activeClose = null/)
   assert.match(SRC, /if \(activeClose === close\) activeClose = null/)
+})
+
+test('#259: the wide-touch tier shows the paperclip and fits the settings sheet content column', () => {
+  const start = MISC_CSS.indexOf('@media (min-width: 1024px) and (pointer: coarse) {')
+  assert.ok(start >= 0, '平板档媒体块在位')
+  const end = MISC_CSS.indexOf('\n}\n', start)
+  const tablet = MISC_CSS.slice(start, end)
+  // ② 回形针：桌面隐藏块藏了它，平板档要按粗指针放回来（rc 代无 hidden input 时仍藏）。
+  assert.match(tablet, /\[data-composer-card\] \[data-mobile-nav="file-upload"\] \{[^}]*display: inline-grid !important/)
+  assert.match(tablet, /\[data-composer-card\]:not\(:has\(input\[type=file\]\)\) \[data-mobile-nav="file-upload"\] \{[^}]*display: none !important/)
+  // ① 设置 sheet：panel 纵向 flex 后，内容列必须可收缩，宿主 options 才能滚。
+  assert.match(tablet, /:not\(\[data-shortcut-modal="shortcuts"\]\) > :last-child \{\s*flex: 1 1 auto;\s*min-height: 0;\s*\}/)
 })
