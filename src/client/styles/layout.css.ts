@@ -181,11 +181,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] > [class*="_sidebarCol"] {
     position: absolute !important;
     inset: 0 auto 0 0 !important;
-    /* !important is load-bearing: the host ships
-       [data-dsh-frame] [data-pane="sidebar"] { width: min(88vw, 320px) !important }
-       under (max-width: 768px), which at 390px resolves to a flat 320px and
-       BEATS a plain declaration here - measured: our max-content never applied
-       and the column stayed 320px.
+    /* !important is load-bearing: 0.2.2's AppFrame writes the drawer column's
+       width as an INLINE style (style={{ width: sidebarWidth }} when drawer),
+       which beats any plain declaration here. (The 0.1.x host rule
+       [data-dsh-frame] [data-pane="sidebar"] that first made this important is
+       gone from the 0.2.2 bundles.)
        280 is the drawer's hard floor, measured by sweeping the column width from
        304 down to 264: the inner surface is a FIXED 280px box and never
        reflows, so every pixel below 280 is simply clipped off its right edge
@@ -332,24 +332,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      both get removed). Nothing in this plugin queries that element; the drawer
      still opens from our toggle, the edge swipe, and closes by tapping the
      backdrop or swiping it away. */
-  /* Two selectors and both are needed. The competitor is NOT the host's own
-     CSS: @linxin666/dsh-web-all injects, under (max-width: 768px),
-     [data-dsh-frame][data-sidebar-collapsed] [data-pane="sidebar"]
-     [data-dsh-responsive-part="sidebar-toggle"] { pointer-events: auto;
-     display: inline-flex !important }. That is 4 attribute selectors AND
-     !important - exactly what the first selector below is - so this is NOT an
-     out-specify, it is a TIE decided by sheet order, and it holds only because
-     our sheet is injected after theirs. Measured twice, not inferred:
-     scripts/probes/cascade-conflict-probe.mjs reports both sides imp=true at
-     (0,4,0) and lists this as a reviewed order-tie; if the injection order
-     flips, the dismiss shadow returns as a visible inline-flex box with
-     pointer-events restored. Done (audit D-5 option A, 2026-09-16): every
-     selector below carries a leading html, which lifts the first one to
-     (0,4,1) and ends the tie - the outcome no longer depends on which sheet is
-     injected later. The hash class and the label stay as fallbacks for hosts
-     without that hook. */
-  html [data-mobile-nav="frame"][data-sidebar-collapsed] [data-pane="sidebar"] [data-dsh-responsive-part="sidebar-toggle"],
-  html [data-mobile-nav="frame"] [data-dsh-responsive-part="sidebar-toggle"],
+  /* 2026-11-05：0.1.x 的 [data-pane="sidebar"] / [data-dsh-responsive-part="sidebar-toggle"]
+     两臂已删——0.2.2 宿主包里这两个属性零输出（当年与 @linxin666/dsh-web-all 的 (0,4,0) 平局也
+     随之消失）。留下的哈希类与按标签的兜底都带前导 html，与第三方注入的同类规则不再按表序分胜负。 */
   html [data-mobile-nav="frame"] [class*="hHd-Xa_toggle"]:is([aria-label*="sidebar" i], [aria-label*="侧边栏"]),
   /* The label-only fallbacks MUST stay scoped to the seats the host's own
      drawer handle can live in. Unscoped they match by aria-label substring,
@@ -1941,8 +1926,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      ① 让座位压过顶栏（31 > 30）——用户正在打字的表面绝不许被盖住；
      ② 横屏矮带里座位本来就放不下，先让掉次要行（dock 行：上下文圈/统计胶囊），
         把高度还给编辑行，顺带把顶栏的标题行与抽屉入口露出来。
-     dock 锚稳定的 data-composer-dock（0.2.1 InputBar 行标记）与 data-composer-stats（0.1.5/0.1.7/0.2.0
-     的统计行，见 pitfalls「统计条被宿主拆条」）；两代标记互不重叠，缺席的一侧自然空转。 */
+     dock 锚稳定的 data-composer-dock（0.2.1 起的 InputBar 行标记；0.1.x/0.2.0 的 data-composer-stats
+     在 0.2.2 宿主包里已无输出，那一臂于 2026-11-05 随低代际清理删除）。 */
   /* @patch
      id: composer-seat-above-header
      for: dsh-client-ui-conversation 0.2.1 的 composer 座位（[class*="_composerSeat"]，position:sticky; bottom:0）+ 本插件顶栏规则（header.wSkVaW_header 的 z-index:30 与不透明底）
@@ -1958,8 +1943,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      42 帧对 65 帧，正好是统计行那一行的高度；店主的「输入框缩下去」就是这个。
      z-index 那条不受影响：竖屏里它只负责让座位压过顶栏。 */
   @media (orientation: landscape) {
-    [data-mobile-nav="frame"][data-mobile-nav-composer-tight] [class*="_composerSeat"] [data-composer-dock],
-    [data-mobile-nav="frame"][data-mobile-nav-composer-tight] [class*="_composerSeat"] [data-composer-stats] {
+    [data-mobile-nav="frame"][data-mobile-nav-composer-tight] [class*="_composerSeat"] [data-composer-dock] {
       display: none !important;
     }
   }
@@ -2486,14 +2470,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      [10,12,38,38]（右缘 48）里 —— 图标 14px 全遮、文字首字压 4px；
      elementFromPoint 在图标中心与文字首字处都命中 FAB，点「返回插件列表」
      实际触发的是 FAB 的 exit-panel（2026-09-25 报障截图同形）。
-     所以保留直子三条（旧代宿主仍走它们），再按 crumb 自己的哈希片段补三条
-     后代选择器。片段取「_crumb」：同前缀的 svg.crumbIcon 不是 button 天然排除，
+     直子三条在 0.2.2 永不命中（详情根的首子恒为 DetailTop 的 div），已于 2026-11-05 删除，只留按
+     crumb 自己的哈希片段写的三条后代选择器。片段取「_crumb」：同前缀的 svg.crumbIcon 不是 button 天然排除，
      本子树里也没有别的 crumb 家族（文件面板 ZuhsRW_crumb* 在另一棵树）。
      实测让位后 crumb 变 [56,28,310,14] —— flex 拉伸项自己收窄 32px，无横向
      溢出（面板 scrollWidth 恒 390），点文字可正常返回列表。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] > button:first-child,
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] > button:first-child,
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] > button:first-child,
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] button[class*="_crumb"],
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
