@@ -304,8 +304,8 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
   box-shadow: rgba(0, 0, 0, .04) 0 0 0 .5px, rgba(0, 0, 0, .04) 0 3px 8px 0, rgba(0, 0, 0, .05) 0 0 20px 0;
 }
 @media (prefers-reduced-motion: reduce) {
+  /* （2026-11-06 审计 C7）delete-dialog 自身没有动画，animation:none 是空操作，已移除。 */
   [data-mobile-nav="delete-dialog-backdrop"],
-  [data-mobile-nav="delete-dialog"],
   [data-mobile-nav="file-picker-backdrop"],
   [data-mobile-nav="file-picker"] {
     animation: none !important;

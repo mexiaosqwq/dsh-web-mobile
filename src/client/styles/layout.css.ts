@@ -541,13 +541,13 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      with the low-generation branches. Never widen this to
      [data-message-bubble]: that is the user message itself (2026-09-06
      regression hid every user message on touch devices). */
-  @media (hover: none), (pointer: coarse) {
-    [data-phase] [role="tooltip"] {
-      display: none !important;
-      visibility: hidden !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-    }
+  /* （2026-11-06 审计 D7）这里原本还套了一层 @media (hover:none),(pointer:coarse)，
+     外层已经是 pointer:coarse，内层恒真，包裹去掉。 */
+  [data-phase] [role="tooltip"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
 
   [data-phase]
@@ -901,6 +901,12 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      Anchor on the unique aria-haspopup="dialog" trigger (no other composer
      control uses it), not the hashed class, so an upstream hash bump cannot
      silently unhook us. */
+  /* （2026-11-06 审计 D2 复核：这三条**保留**）0.1.7-rc.2 起宿主把 ContextMeter
+     移进了输入卡下方的 data-composer-dock 行，官方 DOM 里 trailing 车道已经没有
+     aria-haspopup="dialog" 触发器，所以这三条对官方布局是 no-op。但它们服务的是
+     第三方模型座位插件（tests/third-party-model-seat.test.ts 明确钉住「座位规则不得
+     碰官方 pill」）；该插件不在本机，删掉等于拿一个活跃的集成去赌，风险不对等。
+     若将来确认第三方座位也不再渲染 dialog 触发器，再把这三条一起删。 */
   [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_root"]:has(> [class*="_trigger"][aria-haspopup="dialog"]) {
     margin-right: 0px;
   }
@@ -943,9 +949,6 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      screenshot). Fix: when no model pill renders, the meter root becomes the
      absorber, welding [meter][send] at the right edge like the main view's
      [pill][meter][send]; the send's auto only survives when neither renders. */
-  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"]:not(:has([class*="_trigger"][aria-haspopup="menu"])) > [class*="_root"]:has(> [class*="_trigger"][aria-haspopup="dialog"]) {
-    margin-left: auto;
-  }
 
   /* --- rc.2+ 的第二个失效面：子代理 composer 里环锚点回不到发送键左边（2026-10-12）---
      上面那条「无模型胶囊时由 ContextMeter 当吸收器」的兜底，在 **0.1.7-rc.2+** 上
@@ -975,6 +978,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
   [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"] {
     flex: none;
+    margin-left: auto;
+  }
+  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"]:not(:has([class*="_trigger"][aria-haspopup="menu"])) > [class*="_root"]:has(> [class*="_trigger"][aria-haspopup="dialog"]) {
     margin-left: auto;
   }
   [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"]:has([class*="_trigger"][aria-haspopup="menu"], > [class*="_root"] > [class*="_trigger"][aria-haspopup="dialog"]) > [class*="_primary"] {
@@ -1009,15 +1015,6 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      （车道直系子元素即主键），祖先链任一新代断层都不至于整条规则死掉。
      后续：2026-10-20 四/五轮把**手机档**再改到 30px + 18px 图标并统一颜色，
      覆盖在文件末尾「输入区功能键尺寸」段；本段仍是 768–1023 平板档的值，别删。 */
-  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"] {
-    box-sizing: border-box !important;
-    width: 28px !important;
-    min-width: 28px !important;
-    height: 28px !important;
-    min-height: 28px !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-  }
   [class*="_trailing"] > [class*="_primary"] {
     box-sizing: border-box !important;
     width: 28px !important;
@@ -1026,10 +1023,6 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     min-height: 28px !important;
     padding: 0 !important;
     border-radius: 50% !important;
-  }
-  [data-phase] [class*="_card"]:has(textarea, [data-composer-input]) [class*="_row"]:has([class*="_trailing"]) > [class*="_trailing"] > [class*="_primary"] svg {
-    width: 16px !important;
-    height: 16px !important;
   }
   [class*="_trailing"] > [class*="_primary"] svg {
     width: 16px !important;
@@ -1233,8 +1226,8 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     position: absolute;
     inset: 3px;
     border-radius: 999px;
-    background: transparent;
-    transition: background .12s ease;
+    /* （2026-11-06 审计 C6）background / transition 两条已删：下一层同选择器用
+       「background: transparent !important」把这层永久钉成透明，写了也永远不生效。 */
   }
   [data-composer-card] [data-mobile-nav="file-upload"]::before {
     /* 胶囊已由盒子本体承担，这一层永久透明（保留节点是为了不惊动既有锚点）。 */
@@ -2505,11 +2498,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      本子树里也没有别的 crumb 家族（文件面板 ZuhsRW_crumb* 在另一棵树）。
      实测让位后 crumb 变 [56,28,310,14] —— flex 拉伸项自己收窄 32px，无横向
      溢出（面板 scrollWidth 恒 390），点文字可正常返回列表。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] button[class*="_crumb"],
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
-    margin-left: var(--dsh-web-mobile-panel-clearance) !important;
-  }
+  /* （2026-11-06 审计 C1）这里原本有一条给详情 crumb 让位的 margin-left；
+     同一组三条选择器在下方手机档里已用「margin-left: 0 !important」明确覆盖它
+     （二级页去掉了悬浮返回键，不再需要让位），那条永远不生效，已删。 */
   /* 插件页顶部那一大截空白，根因找到了（2026-11-05）：
      宿主给「全局面板」留了 48px 顶部内边距 ——
        .pI_x6G_frame[data-sidebar-drawer] .pI_x6G_mainPanel[data-global-panel]{

@@ -630,7 +630,6 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     flex-flow: row nowrap !important;
     align-items: center !important;
     white-space: nowrap !important;
-    margin-right: 6px !important;
     padding: 0 !important;
   }
   /* 第一组（轮次·步数·tok/s）保持完整。 */

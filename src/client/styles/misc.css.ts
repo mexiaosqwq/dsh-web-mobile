@@ -576,28 +576,11 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     display: none !important;
   }
 
-  /* ④ 设置弹层顶部的「Open configuration file」按钮：手机档在 layout.css 的家族谓词里
-     藏了它（约 94px + 32px 关闭键会把工具栏撑到 138px，挤掉页签行）。平板照做。 */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) [class*="_actions"] {
-    display: none !important;
-  }
-  /* ⑤ 关掉上面那颗按钮之后，内容列顶部的工具栏（关闭 ✕）会留在文档流里、落到页签行
-     左下方（实测 x≈38 / y≈123）。手机档的做法是把它绝对定位钉到弹层右上角
-     （layout.css 的 #105 A′：top 10 / right 12 / z-index 10 / 32px 高）；平板这里
-     补同一条，让 ✕ 与页签行右端对齐。 */
-  [aria-modal="true"]:has(> :first-child > :last-child > button):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) {
-    position: absolute;
-    top: 10px;
-    right: 12px;
-    z-index: 10;
-    flex: 0 0 auto;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 8px;
-    padding: 0 0 0 4px;
-    height: 32px;
-    min-height: 32px;
-  }
+  /* （2026-11-06 审计 D4）这里原本是两条 0.1.x 的设置工具栏规则，锚在
+     「面板末子 > _header」上。0.2.2 的 aria-modal 面板子节点顺序是
+     navTitle → nav → header → options —— 末子是 options，这条链 0 命中
+     （layout.css 的同批清理早已删掉同一串）。现行做法见 layout.css 的
+     settings.action 隐藏与「关闭键热区」两条，手机与平板共用。 */
 }
 
 /* 手机档：「更多视图」⋯ 与侧边栏「更多」重复，而且它把页签行挤成两行
