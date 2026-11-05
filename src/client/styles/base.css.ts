@@ -388,7 +388,7 @@ export const BASE_CSS = `
      Raise the portal root, not the dialog.
      GATE (2026-09-25, real device): the gate is OUR BACKDROP'S PRESENCE, not
      the drawer-open marker. Marker and paint disagree for the whole close
-     transition — the backdrop fades over .2s and is removed 260ms after the
+     transition — the backdrop fades over .28s (with the column) and is removed after the
      marker flips (overlay-backdrop-fab.ts), the column transitions .28s
      (layout.css.ts) and React swaps the pane subtree ~200ms late — so a
      marker-gated raise went dark inside that window and the drawer band
@@ -580,12 +580,15 @@ export const BASE_CSS = `
   z-index: 1250;
   background: rgba(0, 0, 0, .45);
   cursor: pointer;
-  animation: dsh-web-mobile-fade .2s var(--ds-ease-in-out, ease-in-out);
+  /* 时长与缓动同抽屉列（layout.css.ts 的 sidebarCol「transition: transform .28s
+     var(--ds-ease-in-out, ease-in-out)」，手机与平板同一条；手势提交 COMMIT_ANIM_MS 280 也是它）：
+     遮罩与抽屉同起同落，不再先暗完、抽屉还在滑（2026-11-05 对齐，原为 .2s）。 */
+  animation: dsh-web-mobile-fade .28s var(--ds-ease-in-out, ease-in-out);
   /* Fade-out twin of the mount animation: the task eases the dimming away
      (inline opacity 0 + pointer-events none) and removes the element after
      the fade. Also used by the gesture layer so the backdrop fades in step
      with a close-follow commit's slide-out. */
-  transition: opacity .2s var(--ds-ease-in-out, ease-in-out);
+  transition: opacity .28s var(--ds-ease-in-out, ease-in-out);
   -webkit-tap-highlight-color: transparent;
 }
 @keyframes dsh-web-mobile-fade {

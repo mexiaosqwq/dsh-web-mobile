@@ -551,3 +551,23 @@ test('settings sheet: the :is() family predicate keeps its shape (specificity co
   const count = LAYOUT_CSS.split(SETTINGS_IS).length - 1
   assert.ok(count >= 10, `settings :is() predicate still used by the whole block (found ${count})`)
 })
+
+// 抽屉遮罩与抽屉列同时长、同缓动（2026-11-05）；reduced-motion 下两者都无动画。
+test('drawer backdrop fades with the drawer column: same duration, same easing, both off under reduced motion', () => {
+  const layout = scopedRules(LAYOUT_CSS)
+  const base = scopedRules(BASE_CSS)
+  const COL = '[data-mobile-nav="frame"] > [class*="_sidebarCol"]'
+  const col = layout.find((r) => r.selector === COL && /transition:\s*transform/.test(r.body) && r.media.length === 1)
+  assert.ok(col, 'drawer column transition rule present')
+  const m = /transition:\s*transform\s+([\d.]+m?s)\s+(var\([^;]+\))/.exec(col.body)
+  assert.ok(m, `drawer transition parsable: ${col.body}`)
+  const [, duration, easing] = m
+  const bd = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.length === 0)
+  assert.ok(bd, 'backdrop base rule present')
+  assert.ok(bd.body.includes(`animation: dsh-web-mobile-fade ${duration} ${easing}`), `backdrop fade-in must be ${duration} ${easing}: ${bd.body}`)
+  assert.ok(bd.body.includes(`transition: opacity ${duration} ${easing}`), `backdrop fade-out must be ${duration} ${easing}`)
+  const rmBackdrop = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
+  assert.ok(rmBackdrop && /animation:\s*none !important/.test(rmBackdrop.body) && /transition:\s*none !important/.test(rmBackdrop.body))
+  const rmCol = layout.find((r) => r.selector === COL && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
+  assert.ok(rmCol && /transition:\s*none !important/.test(rmCol.body), 'drawer column has no transition under reduced motion')
+})
