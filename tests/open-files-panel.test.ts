@@ -62,3 +62,29 @@ test('openFilesPanel: prefers the opener when both controls are present', () => 
   assert.equal(opens, 1)
   assert.equal(collapses, 0)
 })
+
+// 0.2.2 keeps the opener mounted while the panel is open and marks it `disabled`
+// (dsh-client-ui-sidebar-right ExpandButton: only desktop unmounts it). Clicking
+// a disabled button is a no-op, so the header control went dead with the panel
+// up (real device 2026-11-05). A disabled opener must count as absent.
+test('openFilesPanel: an opener that stays mounted but disabled yields to the collapse control', () => {
+  let collapses = 0
+  let opens = 0
+  const frame = { removeAttribute: () => assert.fail('explorer fallback must not run'), setAttribute: () => assert.fail('explorer fallback must not run') }
+  const opened = openFilesPanel(bothDoc({ click: () => { opens += 1 }, disabled: true }, { click: () => { collapses += 1 } }), frame)
+  assert.equal(opened, true)
+  assert.equal(opens, 0)
+  assert.equal(collapses, 1)
+})
+
+test('openFilesPanel: a disabled opener with no collapse control is not a host hit', () => {
+  let opens = 0
+  let marks = 0
+  const frame = { removeAttribute: () => { marks += 1 }, setAttribute: () => { marks += 1 } }
+  const opened = openFilesPanel(openerDoc({ click: () => { opens += 1 }, disabled: true }), frame)
+  // No usable control at all: fall through to the explorer marker instead of
+  // pretending the dead expand button did something.
+  assert.equal(opened, false)
+  assert.equal(opens, 0)
+  assert.equal(marks, 2)
+})
