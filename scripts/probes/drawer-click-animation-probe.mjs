@@ -56,7 +56,7 @@ async function waitFor(fn, label, timeoutMs) {
 const GEOMETRY = `(() => {
   const frame = document.querySelector('${FRAME}')
   if (frame === null) return 'null'
-  const pane = frame.firstElementChild
+  const pane = frame.querySelector('[class*="_sidebarCol"]')
   const cs = getComputedStyle(pane)
   const r = pane.getBoundingClientRect()
   return JSON.stringify({
@@ -111,7 +111,7 @@ async function main() {
      * animation from a jump. */
     const sample = async (clickJs, frames = 16) => await evaluate(`(async () => {
       try {
-        const pane = () => document.querySelector('${FRAME}').firstElementChild
+        const pane = () => document.querySelector('${FRAME} [class*="_sidebarCol"]')
         const before = getComputedStyle(pane()).transform
         void ${clickJs}
         const seen = []

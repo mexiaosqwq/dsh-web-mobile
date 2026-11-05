@@ -158,7 +158,7 @@ async function main() {
         }
         return { textarea: pick('textarea'), mirror: pick('[data-input-mirror]'), backdrop: pick('[data-input-backdrop]') }
       })()
-      const drawer = document.querySelector('[data-mobile-nav="frame"] > :first-child')
+      const drawer = document.querySelector('[data-mobile-nav="frame"] [class*="_sidebarCol"]')
       const gesture = (() => {
         const event = new Event('gesturestart', { bubbles: true, cancelable: true })
         document.dispatchEvent(event)

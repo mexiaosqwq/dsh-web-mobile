@@ -51,7 +51,6 @@ export function installDocumentScrollLock(ctx: ClientContext): void {
     window.addEventListener('scroll', pin, { passive: true })
     document.addEventListener('scroll', pin, true)
     pin()
-    void nativeScrollBy
     return () => {
       window.scrollBy = nativeScrollBy as typeof window.scrollBy
       window.scrollTo = nativeScrollTo as typeof window.scrollTo

@@ -34,7 +34,7 @@ import { join } from 'node:path'
 const DEFAULT_URL = 'http://127.0.0.1:3456/'
 const DEFAULT_TIMEOUT_MS = 30_000
 const CHROME_GRACE_MS = 5_000
-const DRAWER_SELECTOR = '[data-mobile-nav="frame"] > :first-child'
+const DRAWER_SELECTOR = '[data-mobile-nav="frame"] [class*="_sidebarCol"]'
 const FRAME_SELECTOR = '[data-mobile-nav="frame"]'
 const BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]'
 const FAB_SELECTOR = '[data-mobile-nav="fab"]'
@@ -511,7 +511,7 @@ async function main() {
     const inlineTx = async () => {
       const r = await client.send('Runtime.evaluate', {
         expression:
-          '(() => { const f = document.querySelector(\'[data-mobile-nav="frame"]\'); const d = f?.firstElementChild; if (!d) return null; const r = d.getBoundingClientRect(); return JSON.stringify({ inline: d.style.transform, inlineT: d.style.transition, computed: getComputedStyle(d).transform, left: Math.round(r.left), width: Math.round(r.width), items: d.querySelectorAll(\'[role="treeitem"]\').length, collapsed: f.hasAttribute(\'data-sidebar-collapsed\') }) })()',
+          '(() => { const f = document.querySelector(\'[data-mobile-nav="frame"]\'); const d = f?.querySelector('[class*="_sidebarCol"]'); if (!d) return null; const r = d.getBoundingClientRect(); return JSON.stringify({ inline: d.style.transform, inlineT: d.style.transition, computed: getComputedStyle(d).transform, left: Math.round(r.left), width: Math.round(r.width), items: d.querySelectorAll(\'[role="treeitem"]\').length, collapsed: f.hasAttribute(\'data-sidebar-collapsed\') }) })()',
         returnByValue: true,
       })
       return JSON.parse(r.result.value)
@@ -720,7 +720,7 @@ async function main() {
     await waitDrawer(client, 'reopen for files-zone close checks', config.timeoutMs, signal, true)
     await sleep(500, signal)
     const besideX = await client.evaluate(`(() => {
-      const d = document.querySelector('[data-mobile-nav="frame"]')?.firstElementChild
+      const d = document.querySelector('[data-mobile-nav="frame"] [class*="_sidebarCol"]')
       if (!d) return null
       return Math.round(d.getBoundingClientRect().right + 40)
     })()`)
@@ -757,7 +757,7 @@ async function main() {
     // open - the files panel would mount under the drawer.
     const band = await client.evaluate(`(() => {
       const frame = document.querySelector('[data-mobile-nav="frame"]')
-      const drawer = frame && frame.firstElementChild
+      const drawer = frame && frame.querySelector('[class*="_sidebarCol"]')
       if (!drawer) return null
       return {
         right: Math.round(drawer.getBoundingClientRect().right),
