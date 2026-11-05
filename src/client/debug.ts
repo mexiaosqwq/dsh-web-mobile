@@ -51,8 +51,12 @@ export function readBundleRev(): string | null {
 }
 export function installDebugBadge(ctx: ClientContext): void {
   ctx.effect(() => {
+    // 也认 hash：带 token 的地址会先 303 跳到 `/` 鉴权，跳转会把 `?` 后面的参数
+    // 全部丢掉（2026-11-06 实测：`/?token=…&mobile-nav-debug=1` → `301/303` →
+    // `http://127.0.0.1:41333/`）。`#` 后面的片段在跳转中会保留，所以
+    // `/?token=…#mobile-nav-debug=1` 才是这个环境里唯一能活到页面的写法。
     const params = new URLSearchParams(location.search)
-    if (!params.has('mobile-nav-debug')) return () => {}
+    if (!params.has('mobile-nav-debug') && !location.hash.includes('mobile-nav-debug')) return () => {}
     const errors: string[] = []
     const onError = (event: ErrorEvent) => errors.push(`ERR ${event.message.slice(0, 120)}`)
     const onRejection = (event: PromiseRejectionEvent) => errors.push(`REJ ${String(event.reason).slice(0, 120)}`)
