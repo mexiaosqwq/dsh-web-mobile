@@ -297,8 +297,9 @@ test('tablet tier keeps the pre-batch geometry through the shared mobile block (
     '共用档文件夹按钮必须是本批之前的 right:8px')
   assert.equal(sharedDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'flex: 0 0 36px !important'), true,
     '共用档文件夹座位必须是本批之前的 36px')
-  assert.equal(sharedDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'top: 2px !important'), true,
-    '共用档文件夹座位必须是本批之前的 top:2px')
+  // 2026-11-05 店主定「自适应」：纵向不再写死 top:2px，改由静态位置随动作行居中（两档同步）。
+  assert.equal(sharedDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'top: auto !important'), true,
+    '共用档文件夹座位纵向随动作行居中（top:auto）')
   assert.equal(sharedDecl(scoped, '_titleCluster', 'gap: 0 4px !important'), true,
     '共用档标题簇间距必须是本批之前的 0 4px')
   assert.equal(sharedDecl(scoped, '_headerActions', 'gap: 4px !important'), true,
@@ -394,13 +395,13 @@ test('phone view tabs zero the host hit-inline margins together with their paddi
   assert.ok(phoneDecl(rules, sel, 'margin-right: 0 !important'))
 })
 
-// 真机 2026-11-05：状态栏与标题行隔太开。header 已贴视口顶（inset 0 时不再负 margin），手机档
-// 只收标题行地板 40 → 32，并把 toggle / files 一起上移 4px，三心对齐。平板档不动。
-test('phone title row floor is 32px and both corner buttons move up with it', () => {
+// 真机 2026-11-05：图标比标题偏上（旧 top:6/2/5 是 14px 字号下的魔数，字号放大后不同心）。
+// 两角按钮改为 top:auto —— 静态位置即动作行的纵向居中线，任何缩放都与标题同心；手机档不得再写死 top。
+test('corner buttons centre on the title row via their static position, not a fixed top', () => {
   const rules = scopedRules(layoutSource())
-  assert.ok(phoneDecl(rules, '[class*="_titleCluster"]', 'min-height: 32px !important'))
-  assert.ok(phoneDecl(rules, '[data-mobile-nav="toggle"]', 'top: 2px !important'))
-  assert.ok(phoneDecl(rules, '[data-mobile-nav="files"]', 'top: 1px !important'))
-  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', 'min-height: 40px !important'))
-  assert.ok(sharedDecl(rules, '[data-mobile-nav="toggle"]', 'top: 6px !important'))
+  for (const btn of ['[data-mobile-nav="toggle"]', '[data-mobile-nav="files"]']) {
+    assert.ok(sharedDecl(rules, btn, 'top: auto !important'), btn)
+    const fixed = rules.filter((r) => r.sel.includes('header') && r.sel.includes(btn) && /(^|[;\s])top:\s*-?\d/.test(r.body))
+    assert.deepEqual(fixed.map((r) => r.sel), [], btn)
+  }
 })

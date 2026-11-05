@@ -1454,18 +1454,23 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
   /* 两角按钮：toggle 左上、files 右上，同一个包含块（header），随 frame 的安全区一起移动。
      files 在流里到不了右上角（宿主给空 utilities 座位留了尾巴），绝对定位同时把它的流宽还给
-     标题道。files 36px 座位 top:2 与 toggle 28px top:6 同心（y=20）；手机档值见下方手机档作用域。 */
+     标题道。纵向不写死 top（2026-11-05 自适应）：top:auto 让两颗按钮停在静态位置——它们是
+     headerActions（align-items:center）的弹性子项，静态位置就是动作行的纵向居中线，而动作行
+     与标题同在 titleCluster 里居中，所以无论字号缩放、WebView textZoom 还是行高怎么变，
+     按钮都与标题同心（旧的 top:6 / 2 / 5 是 14px 字号下的魔数，真机放大字体后图标偏上）。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="toggle"] {
     position: absolute !important;
     left: 8px !important;
-    top: 6px !important;
+    top: auto !important;
+    bottom: auto !important;
     z-index: 2 !important;
   }
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="files"] {
     position: absolute !important;
     right: 8px !important;
     left: auto !important;
-    top: 2px !important;
+    top: auto !important;
+    bottom: auto !important;
     z-index: 2 !important;
     width: 36px !important;
     height: 36px !important;
@@ -1773,17 +1778,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       min-height: 0 !important;
     }
     /* 标题簇：右侧预留 46 → 34（2026-10-12/13「46→40→36→32→26→34」串的终值，与 files 座位
-       36→30、右移 4px 配对），簇内间隙 4 → 6。
-       标题行地板 40 → 32（2026-11-05 店主真机：状态栏与标题行隔太开）：0.2.2 的 WebView 顶
-       inset 为 0、header 已贴视口顶，负 margin 只会把它拉出视口，能收的只有这条行高。行心
-       20 → 16，toggle top 6 → 2、files top 5 → 1 同步上移 4px，三心仍对齐。 */
+       36→30、右移 4px 配对），簇内间隙 4 → 6。 */
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] {
       margin-right: 34px !important;
       gap: 0 6px !important;
-      min-height: 32px !important;
-    }
-    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="toggle"] {
-      top: 2px !important;
     }
     /* 0.2.2（1f8089c）：toggle/files 落在 titleCluster 里的 headerActions，而簇是 overflow:auto
        的横滚容器——以 header 为包含块的两颗绝对定位按钮仍被它裁掉（真机：左侧 ☰ 只剩右缘一条，
@@ -1803,13 +1801,12 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerActions"] {
       gap: 6px !important;
     }
-    /* files：座位 36 → 30、右缘 8 → 4（2026-10-12 用户规格），top 1 保持图标中心 y=16 与 ☰ 同线。 */
+    /* files：座位 36 → 30、右缘 8 → 4（2026-10-12 用户规格）；纵向随动作行居中（见共用档）。 */
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="files"] {
       right: 4px !important;
       width: 30px !important;
       height: 30px !important;
       flex: 0 0 30px !important;
-      top: 1px !important;
     }
     /* 预设 chip 的不可见胶囊 + 长名字防护（2026-10-12 用户规格）。 */
     /* @patch

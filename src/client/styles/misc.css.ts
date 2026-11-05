@@ -680,20 +680,10 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
 }
 
 
-/* 头部顶部留白：屏幕状态栏高 38px（152px @4x），标题原始落在 54px。
-   2026-10-25 试过 -16（标题约 38），会进入 App 的顶部遮盖层，已回退到 -8
-   （标题约 46，仍在状态栏之下）；再往上需要 App 层配合，见 04-plan 交接文档。
-   2026-11-03 店主截图：状态栏与标题行之间仍空一截 → -8 与已越界的 -16 取中间 -12
-   （标题约 42，离状态栏下缘仍留约 4px）。 */
-@media (max-width: 1023px) and (pointer: coarse) {
-  /* The -12 was tuned against a shell whose own safe-area top padding had
-     already pushed the header down. When the WebView reports no top inset
-     (non-edge-to-edge, or a lost viewport-fit=cover meta) the same -12 pulls
-     the title under the status bar. Clamp the pull to the inset we actually
-     have: no inset => no negative margin; >=12px => the original -12. */
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) {
-    margin-top: max(-12px, calc(-1 * var(--dsha-safe-area-inset-top, env(safe-area-inset-top, 0px)))) !important;
-  }
-}
+/* 头部顶部留白：自适应（2026-11-05 店主定）。顶部只认外壳的
+   padding-top: env(safe-area-inset-top)（layout.css 的 frame 规则）：有刘海/状态栏 inset 的
+   全屏 WebView、PWA、iOS Safari 由系统给出真实 inset，非全屏容器 inset 为 0、header 贴视口顶。
+   以前按一台机器量出来的 -8 / -12 / -16 负上移（及 max(-12px, -inset) 夹取）全部撤掉：
+   它在 inset 为 0 的容器里是 0，在 inset 真实的设备上却会把标题拉进状态栏。 */
 
 `
