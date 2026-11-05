@@ -83,3 +83,12 @@ test('the guard blurs the active text entry when the finger lands elsewhere', ()
   assert.match(SRC, /blurUnfocusedTap\(target\)/)
   assert.match(SRC, /\(active as HTMLElement\)\.blur\(\)/)
 })
+
+// 真机第二次取证：返回会话时键盘仍弹起。除 JS focus() 外还有引擎自己的「焦点还原」
+// （面板移除时把焦点还给上一个聚焦过的可编辑面），那条路径不调 focus()，只能在
+// focusin 这个共同出口上复核并当场收掉。
+test('every focus is re-checked on focusin, so engine-side restores are dropped too', () => {
+  assert.match(SRC, /document\.addEventListener\('focusin', onFocusIn, true\)/)
+  assert.match(SRC, /document\.removeEventListener\('focusin', onFocusIn, true\)/)
+  assert.match(SRC, /if \(isAllowed\(target\)\) return/)
+})

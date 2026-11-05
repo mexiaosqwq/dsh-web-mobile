@@ -142,11 +142,29 @@ export function installFocusGestureGuard(ctx: ClientContext): void {
     if (typeof HTMLInputElement !== 'undefined') disposers.push(patch(HTMLInputElement.prototype))
     if (typeof HTMLTextAreaElement !== 'undefined') disposers.push(patch(HTMLTextAreaElement.prototype))
 
+    /**
+     * 兜底：**任何**来源的聚焦都在 focusin 复核一次。
+     *
+     * 原型上包 focus 只能拦住 JS 主动调用；真机 2026-11-05 第二次取证（返回会话时
+     * 键盘仍自己弹起）说明还有别的入口：面板被移除时浏览器会把焦点**还原**给上一个
+     * 聚焦过的可编辑面，这条路径根本不调 focus()，是引擎自己做的。focusin 是它们
+     * 共同的出口——不管谁把焦点放上去，只要不是手指点在这颗输入面上，当场收掉。
+     * 代价是这类「还原」可能闪一帧键盘，但不会停留。
+     */
+    const onFocusIn = (event: Event): void => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (isAllowed(target)) return
+      if (typeof (target as HTMLElement).blur) (target as HTMLElement).blur()
+    }
+
     document.addEventListener('pointerdown', record, true)
     document.addEventListener('touchstart', record, true)
     document.addEventListener('mousedown', record, true)
+    document.addEventListener('focusin', onFocusIn, true)
 
     return () => {
+      document.removeEventListener('focusin', onFocusIn, true)
       document.removeEventListener('pointerdown', record, true)
       document.removeEventListener('touchstart', record, true)
       document.removeEventListener('mousedown', record, true)
