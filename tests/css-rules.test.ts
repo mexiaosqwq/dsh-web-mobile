@@ -571,3 +571,12 @@ test('drawer backdrop fades with the drawer column: same duration, same easing, 
   const rmCol = layout.find((r) => r.selector === COL && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
   assert.ok(rmCol && /transition:\s*none !important/.test(rmCol.body), 'drawer column has no transition under reduced motion')
 })
+
+// 真机 2026-11-05：输入框的字很大。宿主给粗指针设备的 16px 下限是 iOS 聚焦放大
+// 保险，Android 不需要；卡片字号拉回字号轴（默认 14px），iOS 由元素级 16px 兜住。
+test('the phone composer card returns to the font-size axis (host coarse-pointer 16px floor undone)', () => {
+  const rule = findRuleBlocks(LAYOUT_CSS).find((b) =>
+    b.selector.includes('[data-composer-card]') && /font-size:\s*max\(14px, var\(--dsh-content-font-size, 14px\)\) !important/.test(b.body))
+  assert.ok(rule !== undefined, 'the composer card must carry the 14px axis floor')
+  assert.ok(rule.selector.includes('data-mobile-nav="frame"'), 'scoped to the mobile frame')
+})

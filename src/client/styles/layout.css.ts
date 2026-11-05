@@ -1367,6 +1367,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        卡片 98 -> 78、编辑器 36 -> 32、按钮行 42 -> 36、文字底到按钮顶 29 -> 19px。
      横向 padding（8px）与两个按钮尺寸（28/34px）一律不动，触控目标不变；
      编辑器仍是可增长的多行框（max-height 336px），只是单行时不再垫高。 */
+  /* 输入框字号（owner 2026-11-05 真机：「输入框的字很大」，收到 14px）：
+     宿主给粗指针设备的下限是 @media (pointer:coarse) 的
+     .uV2eYG_card{font-size:max(16px, var(--dsh-content-font-size,14px))}，
+     那是给 iOS 聚焦放大留的保险；Android 没有这个限制，13–14px 才是宿主
+     自己的字号轴默认值。这里把卡片字号拉回字号轴（默认 14px，用户在
+     「字号大小」里调大仍然跟随），编辑器与镜像层都继承它。
+     iOS 不受影响：misc.css 的 html[data-mobile-nav-ios] 那条直接写在
+     [contenteditable] / textarea 上（16px !important），元素自身声明
+     永远压过继承值。 */
+  [data-mobile-nav="frame"] [data-phase] [data-composer-card] {
+    font-size: max(14px, var(--dsh-content-font-size, 14px)) !important;
+  }
   [data-mobile-nav="frame"] [data-phase="active"] [data-composer-card] {
     padding-top: 2px !important;
     gap: 4px !important;

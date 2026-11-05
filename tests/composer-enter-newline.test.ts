@@ -60,3 +60,13 @@ test('host contract: Lexical addFront on flagged priority, and the composer send
 function existsHost(): boolean {
   try { readFileSync(HOST_CONVERSATION, 'utf8'); return true } catch { return false }
 }
+
+// 真机 2026-11-05「有概率发送」：宿主换掉编辑器实例后，如果不再触发 focusin
+// （键盘一直弹着、焦点没变），新编辑器上就没有我们的处理器。补挂必须挂在
+// 所有能引出 KEY_ENTER_COMMAND 的事件上，且都在捕获期（早于 Lexical 的根监听）。
+test('the hook is re-armed from keydown and beforeinput, not only focusin', () => {
+  for (const type of ['focusin', 'keydown', 'beforeinput']) {
+    assert.match(SRC, new RegExp(`document\\.addEventListener\\('${type}', ensure, true\\)`), type)
+    assert.match(SRC, new RegExp(`document\\.removeEventListener\\('${type}', ensure, true\\)`), type)
+  }
+})

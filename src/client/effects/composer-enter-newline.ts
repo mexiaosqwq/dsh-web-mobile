@@ -133,20 +133,32 @@ export function installComposerEnterNewline(ctx: ClientContext): void {
       disposers.add(dispose)
     }
 
-    const onFocusIn = (event: FocusEvent): void => {
+    /**
+     * 按事件目标补挂（幂等）。只靠 focusin 不够：宿主在 hero → active 相位切换、
+     * 会话切换、子代理视图这些时机换掉编辑器实例，换掉之后若不再触发 focusin
+     * （键盘一直弹着、焦点没变），新编辑器上就没有我们的处理器，回车又变回发送
+     * ——真机 2026-11-05「有概率发送」正是这个窗口。所有能引出 KEY_ENTER_COMMAND
+     * 的事件都在捕获期先补挂：keydown 与 beforeinput 都早于 Lexical 自己的根监听，
+     * 所以补挂能赶在同一拍生效。
+     */
+    const ensure = (event: Event): void => {
       const target = event.target
       if (!(target instanceof Element)) return
       const root = target.closest(COMPOSER_INPUT_SELECTOR)
       if (root !== null) hook(root)
     }
 
-    document.addEventListener('focusin', onFocusIn, true)
+    document.addEventListener('focusin', ensure, true)
+    document.addEventListener('keydown', ensure, true)
+    document.addEventListener('beforeinput', ensure, true)
     // 安装时键盘可能已经弹着：当前聚焦的编辑器也挂上。
     const active = document.activeElement?.closest(COMPOSER_INPUT_SELECTOR)
     if (active instanceof Element) hook(active)
 
     return () => {
-      document.removeEventListener('focusin', onFocusIn, true)
+      document.removeEventListener('focusin', ensure, true)
+      document.removeEventListener('keydown', ensure, true)
+      document.removeEventListener('beforeinput', ensure, true)
       for (const dispose of [...disposers]) dispose()
     }
   })
