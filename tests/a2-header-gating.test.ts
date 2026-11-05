@@ -405,3 +405,12 @@ test('corner buttons centre on the title row via their static position, not a fi
     assert.deepEqual(fixed.map((r) => r.sel), [], btn)
   }
 })
+
+// 真机 2026-11-05「状态栏下隔太开」：手机档标题行按内容高——簇与动作行的地板都清零；共用档（平板）不变。
+test('phone title row hugs its content: cluster and actions floors are cleared on phones only', () => {
+  const rules = scopedRules(layoutSource())
+  assert.ok(phoneDecl(rules, '[class*="_titleCluster"] {', 'min-height: 0 !important') || phoneRule(rules, '[class*="_titleCluster"]')?.includes('min-height: 0 !important'))
+  assert.ok(phoneDecl(rules, '[class*="_titleCluster"] > [class*="_headerActions"]', 'min-height: 0 !important'))
+  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', 'min-height: 40px !important'))
+  assert.ok(sharedDecl(rules, '[class*="_headerActions"]', 'min-height: 36px !important'))
+})
