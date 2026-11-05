@@ -599,3 +599,12 @@ test('the phone plugin panel drops the host title-bar padding and aligns its hea
   assert.match(head.body, /background: var\(--dsw-alias-bg-layer-1, #fff\) !important/, '滚动时页首要有实底')
   assert.match(head.body, /flex-wrap: nowrap !important/)
 })
+
+// 真机 2026-11-05：插件页页首原本 position:sticky，钉在顶上、正文从底下滑过，
+// 看起来像和悬浮返回键连成一条固定栏。手机档改成 static，随正文一起滚。
+test('the phone plugin page head scrolls with the content (not sticky)', () => {
+  const rule = findRuleBlocks(LAYOUT_CSS).find((b) =>
+    b.selector.includes('[data-plugin-bar][data-natural]'))
+  assert.ok(rule !== undefined, '必须覆盖宿主 data-natural 的 sticky')
+  assert.match(rule.body, /position: static !important/)
+})

@@ -2520,6 +2520,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] [data-global-panel] {
     padding-top: 0 !important;
   }
+  /* 手机档：插件页页首不要再 sticky（owner 2026-11-05：「插件不应该和返回键一起，
+     应该跟整个界面一起走」）。宿主 data-natural 态是 position:sticky; top:0;
+     z-index:2 —— 页首钉在顶上、正文从它底下滑过，看起来就像它和悬浮返回键组成一条
+     固定栏。改成 static 后页首回到正常流里，滚动随正文一起走；子项仍是相对页首的
+     绝对定位（宿主用 --plugin-part-* 量好后写死），坐标不变。 */
+  [data-mobile-nav="frame"] [data-plugin-bar][data-natural] {
+    position: static !important;
+  }
   section[data-plugin-panel] header[data-window-drag] {
     padding-top: 12px !important;
     /* 左让位只补差额：上面那条老的手机档规则已经给了
