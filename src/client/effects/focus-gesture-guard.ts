@@ -25,6 +25,9 @@ import { installMobileEffect } from '../platform/breakpoints.ts'
  * 「让某次 focus 不生效」，叠加时先命中者返回即可。
  */
 
+/** 输入卡根：卡内的按下不在这里收键盘（见 blurUnfocusedTap）。 */
+const COMPOSER_CARD_SELECTOR = '[data-composer-card]'
+
 /** 用户手指在输入面上的记录有效时长：轻点后 React 的回调链通常 <100ms。 */
 const GESTURE_WINDOW_MS = 1200
 
@@ -90,6 +93,11 @@ export function installFocusGestureGuard(ctx: ClientContext): void {
       const active = document.activeElement
       if (!(active instanceof Element) || !isTextEntry(active)) return
       if (active === target || active.contains(target) || target.contains(active)) return
+      // 输入卡内部的按钮（发送 / 停止 / 📎 / 模型）不在这里收键盘：真机 2026-11-05
+      // 「点发送，键盘退下去了但消息没发出去，要再点一次」——手指按下时收掉焦点，
+      // 这一次 tap 就被 Android 当成「关键盘」吃掉了，click 不再派发。卡内的收键盘
+      // 归宿主自己的 keepFocus 管，这里放行。
+      if (target.closest(COMPOSER_CARD_SELECTOR) !== null) return
       if (typeof (active as HTMLElement).blur !== 'function') return
       ;(active as HTMLElement).blur()
     }

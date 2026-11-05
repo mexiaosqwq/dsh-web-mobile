@@ -92,3 +92,10 @@ test('every focus is re-checked on focusin, so engine-side restores are dropped 
   assert.match(SRC, /document\.removeEventListener\('focusin', onFocusIn, true\)/)
   assert.match(SRC, /if \(isAllowed\(target\)\) return/)
 })
+
+// 真机 2026-11-05：「点发送，键盘退下去了但消息没发出去，要再点一次」——按下时收掉
+// 焦点，这一次 tap 被 Android 当成「关键盘」吃掉，click 不再派发。卡内按钮放行。
+test('a press inside the composer card does not drop the caret (send must fire on one tap)', () => {
+  assert.match(SRC, /const COMPOSER_CARD_SELECTOR = '\[data-composer-card\]'/)
+  assert.match(SRC, /if \(target\.closest\(COMPOSER_CARD_SELECTOR\) !== null\) return/)
+})
