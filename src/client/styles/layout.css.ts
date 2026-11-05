@@ -2470,9 +2470,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      ② 上内边距压到 12px：与悬浮键的 top:12 同高，页首整体上移。 */
   section[data-plugin-panel] header[data-window-drag] {
     padding-top: 12px !important;
-    margin-left: 56px !important;
-    width: calc(100% - 56px) !important;
+    /* 用 padding-left 而不是 margin-left + 收窄宽度（2026-11-05 真机第二版）：
+       页首是 flex-wrap 容器，宽度一缩就把「刷新 / 添加插件」挤到第二行，
+       页首反而更高。padding 只挪内容、不改行宽。 */
+    padding-left: 56px !important;
     box-sizing: border-box !important;
+  }
+  /* 二级页（详情）没有那条 sticky 页首，左上也让掉了悬浮键：整块往上提 32px，
+     与列表页的页首起点对齐。只动详情根，不碰共享的滚动体内边距。 */
+  [data-plugin-detail],
+  [data-plugin-item-detail],
+  [data-plugin-row-detail] {
+    margin-top: -32px !important;
   }
   /* 自动化任务面板（@deepseek-ai/dsh-client-ui-schedule，0.2.0-rc.2 随实验性
      bundle 提供）不是 section[data-plugin-panel]：该 bundle 里

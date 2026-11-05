@@ -588,9 +588,13 @@ test('the phone plugin page head aligns with the plugin FAB', () => {
     b.selector.includes('section[data-plugin-panel] header[data-window-drag]'))
   assert.ok(rule !== undefined, '页首要按 data-window-drag 锚定')
   assert.match(rule.body, /padding-top: 12px !important/)
-  assert.match(rule.body, /margin-left: 56px !important/)
-  assert.match(rule.body, /width: calc\(100% - 56px\) !important/)
+  assert.match(rule.body, /padding-left: 56px !important/)
   const bodyPadding = findRuleBlocks(LAYOUT_CSS).filter((b) =>
     b.selector.includes('[data-plugin-body]') && /padding-top:/.test(b.body))
   assert.deepEqual(bodyPadding.map((b) => b.selector), [], '不得再动滚动体内边距（会穿出页首）')
+  // 页首不得再改宽度：那是 flex-wrap 容器，收窄会把工具栏挤到第二行。
+  assert.doesNotMatch(rule.body, /width: calc\(100% - 56px\)/)
+  const detail = findRuleBlocks(LAYOUT_CSS).find((b) => b.selector.includes('[data-plugin-detail]')
+    && /margin-top: -32px !important/.test(b.body))
+  assert.ok(detail !== undefined, '详情页整块上提 32px')
 })
