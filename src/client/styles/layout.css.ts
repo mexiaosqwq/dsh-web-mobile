@@ -1475,8 +1475,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      right:8 的 36px 盒，预留不足时尾部 chip 会被按钮压住、点 chip 尾巴打开文件面板），且记在
      margin 上——簇是 overflow:auto 的滚动容器，裁剪线在 padding box，padding 预留挡不住溢出。
      簇内间隙 4px（手机档 6px，见下）。overflow-x:auto 是极端字体下的溢出守卫，放得下时惰性；
-     手机档另由 html body 条改回 visible（1f8089c）。 */
+     手机档另由 html body 条改回 visible（1f8089c）。
+     0.2.2 的簇还带 mask-image 右缘渐隐（wSkVaW_titleCluster）：遮罩按簇的边框盒绘制，会把
+     座位在簇外的绝对定位后代一起抹掉——真机 2026-11-05：左上开关只剩右缘一条「]」、右上文件
+     按钮整个不见、计数 chip 被切。overflow:visible 管不到遮罩，这里直接撤掉；标题截断由
+     crumbCurrent 的省略号负责。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] {
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
     display: flex !important;
     flex-wrap: nowrap !important;
     flex: 1 1 auto !important;
@@ -1860,7 +1866,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     /* 页签行：容器（div.tabs，外面套着 display:contents 的槽包装，必须写后代）去掉宿主 margin-top
        10px、左缩进对齐 toggle；tablist 按内容撑高、取消上提、不裁剪（1f8089c：「21px 固定行高 +
        -8px 上提」把页签文字顶出 header 底边、第一颗页签被裁成只剩「话」）；按钮 6 / 3 内边距
-       贴近分隔线（2026-10-20 店主定稿）。 */
+       贴近分隔线（2026-10-20 店主定稿）。0.2.2 的 wSkVaW_tab 用 --dsh-tab-hit-inline（10px）
+       同时算左右负外边距、内边距与下划线内缩；本档把内边距清成 0 后负外边距还在，两颗页签各
+       吃进 20px、16px 间隙被抵成 -4px（真机 2026-11-05「对话轨迹」叠字），所以变量一并归零。 */
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_tabs"] {
       padding-left: 8px !important;
       margin-top: 0 !important;
@@ -1878,6 +1886,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     }
     html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-conversation-tabs][role="tablist"] > button[role="tab"],
     html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-conversation-tabs] > button[class*="_tab"]:not([class*="_tabs"]) {
+      --dsh-tab-hit-inline: 0px;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
       padding: 6px 0 3px !important;
     }
     html [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_tab"]:not([class*="_tabs"]) {

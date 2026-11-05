@@ -375,3 +375,21 @@ test('the zen-remote header reflow gets the cluster yielded, not overridden', ()
   assert.ok(crumbs !== undefined, 'the crumbs clip rule is missing')
   assert.ok(crumbs.body.includes('overflow: hidden !important'), 'the centered title must clip inside its column')
 })
+
+// 真机 2026-11-05：0.2.2 的 titleCluster 带 mask-image 渐隐，遮罩按簇的边框盒绘制，把座位在
+// 簇外的开关 / 文件按钮一起抹掉（overflow:visible 管不到遮罩）。撤遮罩必须在共用档，平板同受害。
+test('the title cluster drops the host fade mask in the shared mobile scope', () => {
+  const rules = scopedRules(layoutSource())
+  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', 'mask-image: none !important'))
+  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', '-webkit-mask-image: none !important'))
+})
+
+// 真机 2026-11-05：「对话轨迹」叠字。宿主 tab 的负外边距由 --dsh-tab-hit-inline 推出，
+// 手机档清零内边距时必须连变量与左右外边距一起清零。
+test('phone view tabs zero the host hit-inline margins together with their padding', () => {
+  const rules = scopedRules(layoutSource())
+  const sel = '[data-conversation-tabs] > button[class*="_tab"]'
+  assert.ok(phoneDecl(rules, sel, '--dsh-tab-hit-inline: 0px'))
+  assert.ok(phoneDecl(rules, sel, 'margin-left: 0 !important'))
+  assert.ok(phoneDecl(rules, sel, 'margin-right: 0 !important'))
+})
