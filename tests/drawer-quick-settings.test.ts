@@ -446,3 +446,22 @@ test('pressing the gear itself does not arm the row pre-marker', () => {
     harness.restore()
   }
 })
+
+// 真机 2026-11-05：齿轮点下去看不到任何反馈（`:active` 在这颗 30px 透明按钮上画不出来）。
+// 按下态改成显式属性：pointerdown 就挂，松开后至少留 140ms。
+test('the gear paints a pressed state from pointerdown, not only from :active', () => {
+  const harness = installHarness(null)
+  try {
+    const task = createDrawerQuickSettingsTask({ locale: { bind: () => (key: string) => key } } as unknown as ClientContext)
+    task.ensure()
+    const gear = mount(harness).button
+    assert.equal(gear.dataset.mobileNav, 'quick-settings')
+    gear.fire('pointerdown')
+    assert.equal(gear.attrs['data-mobile-nav-quick-pressed'], '', 'pointerdown 当帧就要有按下态')
+    gear.fire('pointerup')
+    harness.runTimer()
+    assert.equal(gear.attrs['data-mobile-nav-quick-pressed'], undefined, '最短可见时长过后摘掉')
+  } finally {
+    harness.restore()
+  }
+})

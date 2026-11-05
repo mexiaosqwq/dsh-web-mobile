@@ -164,7 +164,11 @@ export const BASE_CSS = `
   position: relative;
   z-index: 1;
 }
-[data-mobile-nav="quick-settings"]:active {
+/* 按下态用显式属性（effects/drawer-quick-settings.ts 在 pointerdown 挂、松开后
+   再留 140ms）。:active 保留作键盘 / 桌面兜底：真机上这颗 30px 透明按钮的
+   :active 一点都画不出来（2026-11-05）。 */
+[data-mobile-nav="quick-settings"]:active,
+[data-mobile-nav="quick-settings"][data-mobile-nav-quick-pressed] {
   background: var(--dsw-alias-interactive-bg-active, rgba(0, 0, 0, .1));
   transform: scale(.94);
 }

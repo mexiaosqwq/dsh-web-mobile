@@ -70,6 +70,11 @@ const PENDING_ATTR = 'data-mobile-nav-quick-pending'
 /** 预标记最长存活时间：宿主没开菜单（长按、拖走）时不能一直挂着。 */
 const PENDING_MS = 700
 
+/** 齿轮按下态的最短可见时长：短到一次点击也要闪一下，长到能看清。 */
+const PRESS_MIN_MS = 140
+/** 齿轮按下态标记（属性值恒为空串，CSS 只看存在性）。 */
+const PRESSED_ATTR = 'data-mobile-nav-quick-pressed'
+
 /**
  * 抽屉页脚账户行右端的一键设置齿轮。
  *
@@ -98,6 +103,9 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
   }
 
   let pendingMark = 0
+  /** 齿轮按下态的计时（保证短按也看得见）。 */
+  let pressTimer = 0
+  let pressedAt = 0
 
   /** 摘掉 pointerdown 预标记（幂等）。 */
   const clearPendingMark = (): void => {
@@ -190,6 +198,34 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     selectSettingsItem(trigger)
   }
 
+  /**
+   * 齿轮的按下态用显式属性，而不是只靠 `:active`（2026-11-05 真机：`:active` 在
+   * 这颗按钮上一点都画不出来——它 30px、透明底、又在一颗整行大按钮的同一行里）。
+   * pointerdown 立刻挂 `data-mobile-nav-quick-pressed`，松开后再留 PRESS_MIN_MS 才摘，
+   * 短促一点击也能看见一眼；指针取消/离开同样收尾。CSS 见 base.css 同族规则。
+   */
+  const press = (on: boolean): void => {
+    if (button === null) return
+    if (on) button.setAttribute(PRESSED_ATTR, '')
+    else button.removeAttribute(PRESSED_ATTR)
+  }
+
+  const onPressStart = (): void => {
+    window.clearTimeout(pressTimer)
+    press(true)
+    pressedAt = performance.now()
+  }
+
+  const onPressEnd = (): void => {
+    const remain = PRESS_MIN_MS - (performance.now() - pressedAt)
+    window.clearTimeout(pressTimer)
+    if (remain > 0) {
+      pressTimer = window.setTimeout(() => press(false), remain)
+      return
+    }
+    press(false)
+  }
+
   const build = (): void => {
     wrap = document.createElement('span')
     wrap.dataset.mobileNav = 'quick-settings-wrap'
@@ -201,6 +237,10 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     button.title = t('quickSettings')
     button.innerHTML = SETTINGS_SVG
     button.addEventListener('click', onClick)
+    button.addEventListener('pointerdown', onPressStart)
+    button.addEventListener('pointerup', onPressEnd)
+    button.addEventListener('pointercancel', onPressEnd)
+    button.addEventListener('pointerleave', onPressEnd)
     wrap.appendChild(button)
   }
 
@@ -258,6 +298,7 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
       syncMenuEntry(target)
     },
     dispose: () => {
+      window.clearTimeout(pressTimer)
       clearPending()
       clearPendingMark()
       unbindRowHook()

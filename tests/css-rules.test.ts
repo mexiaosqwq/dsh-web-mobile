@@ -580,3 +580,20 @@ test('the phone composer card returns to the font-size axis (host coarse-pointer
   assert.ok(rule !== undefined, 'the composer card must carry the 14px axis floor')
   assert.ok(rule.selector.includes('data-mobile-nav="frame"'), 'scoped to the mobile frame')
 })
+
+// 真机 2026-11-05（插件页）：页首被宿主 padding-top 28 顶到 FAB 下面一行，
+// 店主「整体上移、插件两个字应该在返回键右边」。页首压到 12px 并与 FAB 同心，
+// 滚动体与详情页同档上移。
+test('the phone plugin page aligns its head with the FAB and tightens the top paddings', () => {
+  const find = (needle: string) => findRuleBlocks(LAYOUT_CSS).find((b) => b.selector.includes(needle))
+  const head = find('section[data-plugin-panel] [class*="_pageHead"]')
+  assert.ok(head !== undefined, 'page head rule must exist')
+  assert.match(head.body, /padding-top: 12px !important/)
+  assert.match(head.body, /align-items: center !important/)
+  const body = find('section[data-plugin-panel] [class*="_pageBody"]')
+  assert.ok(body !== undefined)
+  assert.match(body.body, /padding-top: 12px !important/)
+  const detailHead = find('[data-plugin-detail] [class*="_detailHead"]')
+  assert.ok(detailHead !== undefined)
+  assert.match(detailHead.body, /margin-top: 12px !important/)
+})
