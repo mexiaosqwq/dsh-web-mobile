@@ -586,14 +586,22 @@ test('the phone composer card returns to the font-size axis (host coarse-pointer
 // 滚动体与详情页同档上移。
 test('the phone plugin page aligns its head with the FAB and tightens the top paddings', () => {
   const find = (needle: string) => findRuleBlocks(LAYOUT_CSS).find((b) => b.selector.includes(needle))
-  const head = find('section[data-plugin-panel] [class*="_pageHead"]')
-  assert.ok(head !== undefined, 'page head rule must exist')
+  // 2026-11-05 真机：插件页不在 [data-mobile-nav="frame"] 之内，带前缀的规则整族没命中，
+  // 所以页面级几何必须有**不带前缀**的一份；同时把宿主的 48px 标题栏净空在面板内清零。
+  const hasUnprefixed = (b: { selector: string }) =>
+    b.selector.split(',').some((one) => !one.includes('data-mobile-nav="frame"'))
+  const unprefixed = findRuleBlocks(LAYOUT_CSS).filter(hasUnprefixed)
+  const head = unprefixed.find((b) => b.selector.includes('section[data-plugin-panel] [class*="_pageHead"]'))
+  assert.ok(head !== undefined, 'unprefixed page head rule must exist')
   assert.match(head.body, /padding-top: 12px !important/)
-  assert.match(head.body, /align-items: center !important/)
-  const body = find('section[data-plugin-panel] [class*="_pageBody"]')
+  assert.match(head.body, /margin-left: var\(--dsh-web-mobile-panel-clearance\) !important/)
+  const panel = unprefixed.find((b) => b.selector.split(',').some((one) => one.trim() === 'section[data-plugin-panel]'))
+  assert.ok(panel !== undefined, 'the panel itself must zero the host frame clearance')
+  assert.match(panel.body, /--dsh-frame-top-clearance: 0px/)
+  const body = unprefixed.find((b) => b.selector.includes('section[data-plugin-panel] [class*="_pageBody"]'))
   assert.ok(body !== undefined)
   assert.match(body.body, /padding-top: 12px !important/)
-  const detailHead = find('[data-plugin-detail] [class*="_detailHead"]')
+  const detailHead = unprefixed.find((b) => b.selector.includes('[data-plugin-detail] [class*="_detailHead"]'))
   assert.ok(detailHead !== undefined)
   assert.match(detailHead.body, /margin-top: 12px !important/)
 })

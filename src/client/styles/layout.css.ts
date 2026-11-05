@@ -2455,7 +2455,13 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      32px 会过量）。在 390px 上它算出来正好还是 32px，与上一版行为一致。
      锚点全部是宿主 data-* 标记，比 css-module 哈希类（X_2TxG_）稳定；
      pre-alpha.2 宿主没有这些标记，规则天然不命中（代际门控）。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] {
+  /* 2026-11-05 真机：插件页**不在** [data-mobile-nav="frame"] 之内（标题实测左缘 ~35、
+     与 FAB 盒 10..48 重叠，说明带 frame 前缀的让位规则整族都没命中），所以页面级规则
+     一律只锚 section[data-plugin-panel]（宿主稳定 data-*），前缀交给外层的移动档 @media。
+     同时把宿主的 --dsh-frame-top-clearance（默认 48px，给桌面标题栏留的）在面板内清零：
+     手机上它没有任何对照物，只会把页首整体压下一大截。 */
+  section[data-plugin-panel] {
+    --dsh-frame-top-clearance: 0px;
     --dsh-web-mobile-panel-clearance: calc(56px - clamp(24px, 4vw, 48px));
   }
   /* 页首是宿主滚动盒的直接子元素，宿主给它 width:100%（.X_2TxG_page>*）。
@@ -2473,18 +2479,33 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        标题被顶到 FAB 下面一行。这里把页首内边距压到与 FAB 同高（12px）并改成
        纵向居中：标题行与 FAB 同一行、与它同心，副标题跟在标题下面。 */
     padding-top: 12px !important;
-    align-items: center !important;
   }
   /* 列表 / 详情共用滚动体：宿主 padding-top 32 → 12，整页上移一档。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageBody"] {
+  [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageBody"],
+  section[data-plugin-panel] [class*="_pageBody"] {
     padding-top: 12px !important;
   }
+  /* 页首与详情的青除规则同样补一份不带 frame 前缀的（见上方 2026-11-05 说明）。 */
+  section[data-plugin-panel] [class*="_pageHead"] {
+    margin-left: var(--dsh-web-mobile-panel-clearance) !important;
+    width: calc(100% - var(--dsh-web-mobile-panel-clearance)) !important;
+    padding-top: 12px !important;
+    align-items: flex-start !important;
+  }
   /* 二级（插件详情）：宿主细节头 margin-top 32、正文 20，一起收。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] [class*="_detailHead"] {
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] [class*="_detailHead"],
+  section[data-plugin-panel] [data-plugin-detail] [class*="_detailHead"] {
     margin-top: 12px !important;
   }
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] [class*="_detailMain"] {
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] [class*="_detailMain"],
+  section[data-plugin-panel] [data-plugin-detail] [class*="_detailMain"] {
     margin-top: 12px !important;
+  }
+  /* 详情页返回 crumb：与列表页同一条让位量（否则它压在 FAB 上，点了开抽屉）。 */
+  section[data-plugin-panel] [data-plugin-detail] button[class*="_crumb"],
+  section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
+  section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
+    margin-left: var(--dsh-web-mobile-panel-clearance) !important;
   }
   /* 详情 crumb 是被拉伸的 flex item（没有 width:100%），margin 就是对的工具。
      **0.1.7-rc.2 起「直子」形态落空**：宿主把 crumb 套进了 DetailTop 的根盒
