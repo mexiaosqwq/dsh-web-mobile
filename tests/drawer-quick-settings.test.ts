@@ -465,3 +465,20 @@ test('the gear paints a pressed state from pointerdown, not only from :active', 
     harness.restore()
   }
 })
+
+// 真机 2026-11-05：点账户行开菜单时「没有任何反馈，关掉才有灰」——宿主那颗 launcher
+// 的 :active 在菜单同拍挂载时被收掉。按下态改用显式属性（与齿轮同一套）。
+test('the account row paints a pressed state from pointerdown too', () => {
+  const harness = installHarness(null)
+  try {
+    const task = createDrawerQuickSettingsTask({ locale: { bind: () => (key: string) => key } } as unknown as ClientContext)
+    task.ensure()
+    harness.fireDocument('pointerdown', { target: Object.assign(harness.row, { closest: () => null }) })
+    assert.ok(harness.row.hasAttribute('data-mobile-nav-row-pressed'), 'pointerdown 当帧就要有按下态')
+    harness.fireDocument('pointerup', {})
+    harness.runTimer()
+    assert.equal(harness.row.hasAttribute('data-mobile-nav-row-pressed'), false, '最短可见时长过后摘掉')
+  } finally {
+    harness.restore()
+  }
+})

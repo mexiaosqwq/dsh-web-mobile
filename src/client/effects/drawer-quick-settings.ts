@@ -74,6 +74,8 @@ const PENDING_MS = 700
 const PRESS_MIN_MS = 140
 /** 齿轮按下态标记（属性值恒为空串，CSS 只看存在性）。 */
 const PRESSED_ATTR = 'data-mobile-nav-quick-pressed'
+/** 账户行按下态标记（同上，属性值恒为空串）。 */
+const ROW_PRESSED_ATTR = 'data-mobile-nav-row-pressed'
 
 /**
  * 抽屉页脚账户行右端的一键设置齿轮。
@@ -106,6 +108,9 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
   /** 齿轮按下态的计时（保证短按也看得见）。 */
   let pressTimer = 0
   let pressedAt = 0
+  /** 账户行按下态的计时。 */
+  let rowPressTimer = 0
+  let rowPressedAt = 0
 
   /** 摘掉 pointerdown 预标记（幂等）。 */
   const clearPendingMark = (): void => {
@@ -122,6 +127,31 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
    * 第一项——整张卡片的高度变化就是真机上看到的「弹跳」（2026-11-05）。
    * 只认账户行内的、不是我们齿轮的按下；预标记在菜单被打标记时摘掉，超时兜底。
    */
+  /**
+   * 账户行的按下态也用显式属性（2026-11-05 真机：点它开菜单时看不到任何反馈，
+   * 关掉时才闪一下灰）。成因与齿轮相同——菜单在同一拍挂载，浏览器把 :active 收掉，
+   * 0.12s 的淡入一帧都没画出来。这里在 pointerdown 时给行挂 ROW_PRESSED_ATTR，
+   * 松开后再留 140ms，CSS 见 base.css 同族规则。
+   */
+  const pressRow = (on: boolean): void => {
+    const target = row()
+    if (target === null) return
+    if (on) target.setAttribute(ROW_PRESSED_ATTR, '')
+    else target.removeAttribute(ROW_PRESSED_ATTR)
+  }
+
+  const onRowPressEnd = (): void => {
+    if (rowPressedAt === 0) return
+    const remain = PRESS_MIN_MS - (performance.now() - rowPressedAt)
+    rowPressedAt = 0
+    window.clearTimeout(rowPressTimer)
+    if (remain > 0) {
+      rowPressTimer = window.setTimeout(() => pressRow(false), remain)
+      return
+    }
+    pressRow(false)
+  }
+
   const onRowPointerDown = (event: Event): void => {
     // 鸭子类型而不是 instanceof Element：跨 realm（iframe / 测试桩）时 instanceof 会假阴性，
     // 而这颗监听只需要 closest/contains 两个能力（同 open-files-panel 的写法）。
@@ -133,21 +163,28 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     document.documentElement.setAttribute(PENDING_ATTR, '')
     window.clearTimeout(pendingMark)
     pendingMark = window.setTimeout(clearPendingMark, PENDING_MS)
+    window.clearTimeout(rowPressTimer)
+    rowPressedAt = performance.now()
+    pressRow(true)
   }
 
-  /** 预标记监听只在任务首次 armed 之后挂（测试与桌面分支都不该在构造期碰 document）。 */
+  /** 预标记与按下态监听只在任务首次 armed 之后挂（构造期不碰 document）。 */
   let rowHookBound = false
 
   const bindRowHook = (): void => {
     if (rowHookBound) return
     rowHookBound = true
     document.addEventListener('pointerdown', onRowPointerDown, true)
+    document.addEventListener('pointerup', onRowPressEnd, true)
+    document.addEventListener('pointercancel', onRowPressEnd, true)
   }
 
   const unbindRowHook = (): void => {
     if (!rowHookBound) return
     rowHookBound = false
     document.removeEventListener('pointerdown', onRowPointerDown, true)
+    document.removeEventListener('pointerup', onRowPressEnd, true)
+    document.removeEventListener('pointercancel', onRowPressEnd, true)
   }
 
   /**
@@ -299,6 +336,7 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     },
     dispose: () => {
       window.clearTimeout(pressTimer)
+      window.clearTimeout(rowPressTimer)
       clearPending()
       clearPendingMark()
       unbindRowHook()

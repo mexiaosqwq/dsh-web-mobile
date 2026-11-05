@@ -167,6 +167,15 @@ export const BASE_CSS = `
 /* 按下态用显式属性（effects/drawer-quick-settings.ts 在 pointerdown 挂、松开后
    再留 140ms）。:active 保留作键盘 / 桌面兜底：真机上这颗 30px 透明按钮的
    :active 一点都画不出来（2026-11-05）。 */
+/* 账户行的按下态：同样用显式属性（effects/drawer-quick-settings.ts 在 pointerdown
+   挂、松开后再留 140ms）。宿主那颗 launcher 的 :active 在「菜单同拍挂载」时会被
+   浏览器收掉，淡入一帧都没画出来（2026-11-05 真机：点开没反馈、关掉才有灰）。
+   形状镜像通用按压位：inset 高亮填满整颗按钮。 */
+[class*="sidebarCol"] [class*="triggerRow"][data-mobile-nav-row-pressed] > button,
+[class*="sidebarCol"] [class*="triggerRow"][data-mobile-nav-row-pressed] > * > button:not([data-mobile-nav="quick-settings"]) {
+  box-shadow: inset 0 0 0 100vmax var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 8%, transparent));
+}
+
 [data-mobile-nav="quick-settings"]:active,
 [data-mobile-nav="quick-settings"][data-mobile-nav-quick-pressed] {
   background: var(--dsw-alias-interactive-bg-active, rgba(0, 0, 0, .1));
