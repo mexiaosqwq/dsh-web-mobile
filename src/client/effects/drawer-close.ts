@@ -5,6 +5,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installMobileEffect } from '../platform/breakpoints.ts'
 import { getDrawer, getFrame } from '../platform/frame.ts'
+import { openDrawerAfterKeyboard } from '../platform/drawer-open.ts'
 import { consumeIfGestured, isStrokeLocked } from './gesture-guard.ts'
 import { isTapWithinSlop } from './session-row-fiber.ts'
 import { closeDrawerAnimated } from './sidebar-swipe.ts'
@@ -54,9 +55,21 @@ export const TAP_CLOSE_NAV_SELECTOR =
  * transition — that is the 快捷键弹层「抽搐/闪」 root cause. Routing every
  * closer through here removes the window at the source instead of relying on
  * the band to cover it.
+ *
+ * An OPEN (frame still collapsed) goes through openDrawerAfterKeyboard: a
+ * focused composer is blurred first and the drawer opens once the soft keyboard
+ * has gone, so the host's own focus move into the drawer cannot close the
+ * keyboard mid-slide (2026-11-05 drawer-jank report, R2). Every tap opener —
+ * the header toggle (index.tsx) and the FAB — routes through here.
  */
 export function toggleDrawer(ctx: ClientContext): void {
-  if (!closeDrawerAnimated(ctx)) ctx.layout.toggleSidebar()
+  if (closeDrawerAnimated(ctx)) return
+  const frame = getFrame()
+  if (frame !== null && frame.hasAttribute('data-sidebar-collapsed')) {
+    openDrawerAfterKeyboard(() => ctx.layout.toggleSidebar())
+    return
+  }
+  ctx.layout.toggleSidebar()
 }
 
 export function installOverlayInteractions(ctx: ClientContext): void {

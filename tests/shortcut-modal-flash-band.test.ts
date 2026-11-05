@@ -76,11 +76,12 @@ test('every non-gesture closer shares the one late-commit toggle', () => {
   // must keep the late-commit shape.
   const helperAt = DRAWER_CLOSE.indexOf('export function toggleDrawer(')
   assert.notEqual(helperAt, -1, 'toggleDrawer helper missing from drawer-close.ts')
-  assert.match(
-    DRAWER_CLOSE.slice(helperAt, DRAWER_CLOSE.indexOf('\n}', helperAt)),
-    /if \(!closeDrawerAnimated\(ctx\)\) ctx\.layout\.toggleSidebar\(\)/,
-    'toggleDrawer must animate the close and only fall back to a plain toggle',
-  )
+  const helper = DRAWER_CLOSE.slice(helperAt, DRAWER_CLOSE.indexOf('\n}', helperAt))
+  // Close first (animated, late commit); only when that declines does it open
+  // (via the shared keyboard-release entry, drawer-jank R2) or plain-toggle.
+  assert.match(helper, /^[^]*?if \(closeDrawerAnimated\(ctx\)\) return/, 'toggleDrawer must try the animated close first')
+  assert.match(helper, /openDrawerAfterKeyboard\(\(\) => ctx\.layout\.toggleSidebar\(\)\)/, 'the open branch must go through openDrawerAfterKeyboard')
+  assert.ok(helper.indexOf('closeDrawerAnimated(ctx)') < helper.indexOf('openDrawerAfterKeyboard'), 'close decision precedes the open branch')
   // The FAB's opener callback (createOverlayTask) is a closer once the drawer
   // is open: it must not bypass the helper.
   const overlayAt = ADAPTER.indexOf('createOverlayTask(t,')

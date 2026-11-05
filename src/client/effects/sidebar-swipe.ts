@@ -1,6 +1,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { getDrawer, getFrame } from '../platform/frame.ts'
 import { installMobileEffect } from '../platform/breakpoints.ts'
+import { releaseTextFocus } from '../platform/drawer-open.ts'
 import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
 import { fadeOverlayOut } from './overlay-backdrop-fab.ts'
 
@@ -834,6 +835,7 @@ function armOpenFollow(ctx: ClientContext): void {
   drawer.style.setProperty('content-visibility', 'hidden', 'important')
   cvDeferred = true
   openFollowArmed = true
+  releaseTextFocus() // drawer-jank R2: blur before the flip; no wait, the finger is moving
   ctx.layout.toggleSidebar()
   // Two frames (layout flush, then reveal). Kept in module state so a dispose
   // between them cancels the chain instead of revealing a drawer that no

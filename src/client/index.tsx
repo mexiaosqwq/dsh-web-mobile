@@ -7,7 +7,7 @@ import { MOBILE_CSS } from './styles/index.ts'
 import { installFrameController, installPhoneChrome } from './effects/phone-chrome.ts'
 import { installReconciler, registerReconcileTasks } from './effects/reconciler-adapter.ts'
 import { installSelectionChromeYield } from './effects/selection-chrome.ts'
-import { installOverlayInteractions } from './effects/drawer-close.ts'
+import { installOverlayInteractions, toggleDrawer } from './effects/drawer-close.ts'
 import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installSessionMenuDelete } from './effects/session-menu.ts'
@@ -308,7 +308,7 @@ export function apply(ctx: ClientContext): void {
     order: 10,
     locale: NS,
     inject: () => ({
-      toggleSidebar: () => ctx.layout.toggleSidebar(),
+      toggleSidebar: () => toggleDrawer(ctx),
     }),
   }, MobileNavToggle))
 
