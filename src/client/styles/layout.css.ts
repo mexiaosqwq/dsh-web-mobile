@@ -1779,9 +1779,16 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     }
     /* 标题簇：右侧预留 46 → 34（2026-10-12/13「46→40→36→32→26→34」串的终值，与 files 座位
        36→30、右移 4px 配对），簇内间隙 4 → 6。 */
+    /* 标题行按内容高（2026-11-05 真机量：标题字上方空 14px，其中约 6px 是簇 min-height:40 与
+       动作行 min-height:36 两道地板垫出来的）：手机档清零两道地板，行高回到行内最高控件（面包屑 /
+       chip 触发器的 28px），标题与页签整体上移。两角按钮随行居中（共用档 top:auto），不用跟着改数。 */
     [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] {
       margin-right: 34px !important;
       gap: 0 6px !important;
+      min-height: 0 !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] > [class*="_headerActions"] {
+      min-height: 0 !important;
     }
     /* 0.2.2（1f8089c）：toggle/files 落在 titleCluster 里的 headerActions，而簇是 overflow:auto
        的横滚容器——以 header 为包含块的两颗绝对定位按钮仍被它裁掉（真机：左侧 ☰ 只剩右缘一条，
