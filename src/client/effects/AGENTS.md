@@ -40,7 +40,9 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   任务注册面 `addReconcilerTask` + 本插件全部 reconciler 任务。改全树观察逻辑找这里，
   **不是** phone-chrome.ts。
 - `drawer-close.ts` — 抽屉关闭三条监听路（Escape / 遮罩与导航目标的捕获 click / DSHA
-  `dsha-session-open`）与共用的那一个 `toggleDrawer`（晚提交关闭）。
+  `dsha-session-open`）与共用的那一个 `toggleDrawer`（晚提交关闭）。打开分支（头部开关 / FAB）与手势
+  arm 共用 `platform/drawer-open.ts`：先失焦文本输入（点按还等键盘收起），翻状态前调 `drawerOpening()`
+  让 overlay-backdrop-fab 同任务挂遮罩（2026-11-05 drawer-jank R2/R3）。新开抽屉入口必须走它。
 - `drawer-session-log.ts` — 抽屉品牌行右端的会话日志导出图标（issue #225，替代页脚胶囊）：往
   `[class*="sidebarCol"] [class*="logoRow"]` 注入 `data-mobile-nav="session-log"` 按钮，
   `scopes:['*']` 处理宿主重建，`dispose` 退订 + 移除；无当前会话置灰。
