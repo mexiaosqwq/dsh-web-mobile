@@ -2505,6 +2505,29 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
     margin-left: var(--dsh-web-mobile-panel-clearance) !important;
   }
+  /* 插件页顶部那一大截空白，根因找到了（2026-11-05）：
+     宿主给「全局面板」留了 48px 顶部内边距 ——
+       .pI_x6G_frame[data-sidebar-drawer] .pI_x6G_mainPanel[data-global-panel]{
+         padding-top: max(0px, calc(48px - var(--dsh-frame-top-clearance,0px))) }
+     那 48 是给 macOS / Windows 标题栏让位的：那两处 clearance 也是 48，减完正好 0。
+     Android 没有标题栏、变量没定义（=0），于是 48px 成了纯空白。
+     **前几版把它当「清零变量」来改，方向正好反了**：变量清零只会让减完更大
+     （max(0,48-0) = 48），所以怎么改都没变化。这里直接把这个内边距归零。
+     再往上收的是插件页自己的页首：宿主 padding-top = calc(28px + clearance)，压到
+     12px，与左上那颗悬浮返回键（本插件的 FAB，top:12、38px 盒）同一行；左内边距
+     56px 给返回键让位。锚点只用宿主写在标签上的 data-global-panel / data-window-drag，
+     外层仍受移动档 @media 约束，桌面不受影响。 */
+  [data-mobile-nav="frame"] [data-global-panel] {
+    padding-top: 0 !important;
+  }
+  section[data-plugin-panel] header[data-window-drag] {
+    padding-top: 12px !important;
+    padding-left: 56px !important;
+    box-sizing: border-box !important;
+    /* 页首是 flex-wrap 容器：加了 56px 左内边距后若允许换行，工具栏会被挤到第二行
+       （2026-11-05 第三版就这么翻车）。 */
+    flex-wrap: nowrap !important;
+  }
   /* 自动化任务面板（@deepseek-ai/dsh-client-ui-schedule，0.2.0-rc.2 随实验性
      bundle 提供）不是 section[data-plugin-panel]：该 bundle 里
      「data-plugin-panel」命中 0 次，页头是 t-XoWW_pageHeading(display:flex)，
