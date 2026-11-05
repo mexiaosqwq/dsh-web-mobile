@@ -77,11 +77,29 @@ export function installFocusGestureGuard(ctx: ClientContext): void {
     let gestureTarget: Element | null = null
     let gestureAt = 0
 
+    /**
+     * 点输入框以外的地方 = 收起键盘。
+     *
+     * 只拦「程序化 focus」还不够：真机 2026-11-05（返回会话时输入法自己弹起来）——
+     * 输入框在打开面板前拿过焦点，面板撤掉时 WebView 会把软键盘还给那颗**已经聚焦**
+     * 的可编辑面，这一步不经过任何 JS `focus()`，拦不到。所以按下的位置不在输入面上时
+     * 主动 blur 掉当前文本焦点：面板再关掉时就没有「已聚焦的输入框」可还原，
+     * 键盘也就不会自己冒出来。顺带得到常见行为：点空白处收键盘。
+     */
+    const blurUnfocusedTap = (target: Element): void => {
+      const active = document.activeElement
+      if (!(active instanceof Element) || !isTextEntry(active)) return
+      if (active === target || active.contains(target) || target.contains(active)) return
+      if (typeof (active as HTMLElement).blur !== 'function') return
+      ;(active as HTMLElement).blur()
+    }
+
     const record = (event: Event): void => {
       const target = event.target
       if (target instanceof Element) {
         gestureTarget = target
         gestureAt = performance.now()
+        blurUnfocusedTap(target)
       }
     }
 

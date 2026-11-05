@@ -74,3 +74,12 @@ test('the guard patches every focus prototype and is armed from the entry', () =
   assert.match(SRC, /HTMLTextAreaElement\.prototype/)
   assert.match(ENTRY, /installFocusGestureGuard\(ctx\)/)
 })
+
+// 真机 2026-11-05（返回会话时输入法自己弹起）：那颗输入框在打开面板前拿过焦点，
+// 面板撤掉时 WebView 直接把键盘还给「已聚焦的可编辑面」——不经过任何 JS focus()，
+// 拦不到。所以按在输入面之外时要主动 blur，让「已聚焦」这件事本身不存在。
+test('the guard blurs the active text entry when the finger lands elsewhere', () => {
+  assert.match(SRC, /const blurUnfocusedTap = \(target: Element\): void => \{/)
+  assert.match(SRC, /blurUnfocusedTap\(target\)/)
+  assert.match(SRC, /\(active as HTMLElement\)\.blur\(\)/)
+})
