@@ -116,7 +116,12 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     position: relative !important;
     height: var(--dsha-mobile-visible-vh, 100%) !important;
     grid-template-columns: minmax(0, 1fr) 0 0 !important;
-    padding-top: env(safe-area-inset-top, 0px) !important;
+    /* 优先用 App 自己发布的 --dsha-safe-area-inset-top：它是「这个 WebView 实际被
+       状态栏遮住多少」。env() 报的是屏幕刘海/状态栏高度，与 WebView 的摆放位置无关——
+       App 内嵌浏览器把 WebView 放在自己的顶栏下面时，env() 仍是 38px，就让一次位、
+       页头下面多出一条空白（2026-11-06 真机读数：framePad 38px）。App 没发布该变量时
+       仍回退到 env()，行为不变。 */
+    padding-top: var(--dsha-safe-area-inset-top, env(safe-area-inset-top, 0px)) !important;
     /* Bottom safe area, symmetric with the top inset above. It MUST stay in
        this rule: box-sizing: border-box is the pair that makes the padding eat
        into the one-viewport height instead of adding scrollable overflow

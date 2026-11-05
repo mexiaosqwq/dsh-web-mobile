@@ -620,3 +620,12 @@ test('the phone branch collapses a sidebar that starts expanded', () => {
   assert.match(src, /if \(frame\.hasAttribute\('data-sidebar-collapsed'\)\) return/)
   assert.match(src, /ctx\.layout\.toggleSidebar\(\)/)
 })
+
+// 2026-11-06：App 内嵌浏览器把 WebView 放在自己的顶栏下面时，env(safe-area-inset-top)
+// 仍报 38px（它是屏幕级的值），于是 frame 让一次位、页头下面多一条空白。
+// 优先读 App 自己发布的 --dsha-safe-area-inset-top，没有再回退 env()。
+test('the frame prefers the app-provided safe-area inset over env()', () => {
+  const block = findRuleBlocks(LAYOUT_CSS).find((b) => b.selector.includes('html [data-mobile-nav="frame"]'))
+  assert.ok(block !== undefined)
+  assert.match(block.body, /padding-top: var\(--dsha-safe-area-inset-top, env\(safe-area-inset-top, 0px\)\) !important/)
+})
