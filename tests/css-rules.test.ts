@@ -581,27 +581,16 @@ test('the phone composer card returns to the font-size axis (host coarse-pointer
   assert.ok(rule.selector.includes('data-mobile-nav="frame"'), 'scoped to the mobile frame')
 })
 
-// 真机 2026-11-05（插件页）：页首被宿主 padding-top 28 顶到 FAB 下面一行，
-// 店主「整体上移、插件两个字应该在返回键右边」。页首压到 12px 并与 FAB 同心，
-// 滚动体与详情页同档上移。
-test('the phone plugin page aligns its head with the FAB and tightens the top paddings', () => {
-  const find = (needle: string) => findRuleBlocks(LAYOUT_CSS).find((b) => b.selector.includes(needle))
-  // 2026-11-05 真机：插件页不在 [data-mobile-nav="frame"] 之内，带前缀的规则整族没命中，
-  // 所以页面级几何必须有**不带前缀**的一份；同时把宿主的 48px 标题栏净空在面板内清零。
-  const hasUnprefixed = (b: { selector: string }) =>
-    b.selector.split(',').some((one) => !one.includes('data-mobile-nav="frame"'))
-  const unprefixed = findRuleBlocks(LAYOUT_CSS).filter(hasUnprefixed)
-  const head = unprefixed.find((b) => b.selector.includes('section[data-plugin-panel] [class*="_pageHead"]'))
-  assert.ok(head !== undefined, 'unprefixed page head rule must exist')
-  assert.match(head.body, /padding-top: 12px !important/)
-  assert.match(head.body, /margin-left: var\(--dsh-web-mobile-panel-clearance\) !important/)
-  const panel = unprefixed.find((b) => b.selector.split(',').some((one) => one.trim() === 'section[data-plugin-panel]'))
-  assert.ok(panel !== undefined, 'the panel itself must zero the host frame clearance')
-  assert.match(panel.body, /--dsh-frame-top-clearance: 0px/)
-  const body = unprefixed.find((b) => b.selector.includes('section[data-plugin-panel] [class*="_pageBody"]'))
-  assert.ok(body !== undefined)
-  assert.match(body.body, /padding-top: 12px !important/)
-  const detailHead = unprefixed.find((b) => b.selector.includes('[data-plugin-detail] [class*="_detailHead"]'))
-  assert.ok(detailHead !== undefined)
-  assert.match(detailHead.body, /margin-top: 12px !important/)
+// 真机 2026-11-05（插件页）：按哈希类名写的规则两轮都没命中（标题左缘仍 ~59、没有让位），
+// 改用宿主稳定的 data-* 结构属性：清零 48px 标题栏净空、页首与左上返回键同行、滚动体上移。
+test('the phone plugin page is anchored on host data attributes, not hashed classes', () => {
+  const has = (sel: string, body: RegExp) =>
+    findRuleBlocks(LAYOUT_CSS).some((b) => b.selector.includes(sel) && body.test(b.body))
+  assert.ok(has('[data-plugin-bar] > header', /padding-top: 12px !important/), '页首压到 12px')
+  assert.ok(has('[data-plugin-bar] > header', /margin-left: 56px !important/), '页首给返回键让位')
+  assert.ok(has('[data-plugin-body]', /--dsh-frame-top-clearance: 0px/), '面板内清零标题栏净空')
+  assert.ok(has('[data-plugin-body]', /padding-top: 12px !important/), '滚动体上移')
+  const classes = findRuleBlocks(LAYOUT_CSS).filter((b) =>
+    b.selector.includes('_pageHead') && /padding-top: 12px/.test(b.body))
+  assert.deepEqual(classes, [], '未命中的哈希类规则不再保留，免得下一个人以为它在生效')
 })

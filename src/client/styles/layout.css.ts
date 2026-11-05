@@ -2460,71 +2460,39 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      一律只锚 section[data-plugin-panel]（宿主稳定 data-*），前缀交给外层的移动档 @media。
      同时把宿主的 --dsh-frame-top-clearance（默认 48px，给桌面标题栏留的）在面板内清零：
      手机上它没有任何对照物，只会把页首整体压下一大截。 */
-  section[data-plugin-panel] {
+  /* 插件页（列表 + 详情）：2026-11-05 真机两轮都没生效 —— 按哈希类名写的规则
+     （[class*="_pageHead"] / [data-plugin-detail] [class*="_detailHead"]）在这个宿主上
+     一条都没命中：标题左缘仍 ~59（没有 56px 让位）、上缘仍在返回键下方一截。
+     改用宿主**稳定的 data-* 结构属性**重写，不再碰哈希类名：
+       section[data-plugin-panel] > … > div[data-plugin-body]（滚动体）
+       div[data-plugin-bar]（页首条）> header（页首）
+       data-plugin-detail / data-plugin-item-detail / data-plugin-row-detail（详情根）
+     ① 宿主的 --dsh-frame-top-clearance（默认 48px，给桌面标题栏留的）在面板内清零：
+        手机上没有任何东西占那条，只会把页首整体压下去。
+     ② 页首压到 12px 并与左上返回键（~38px 盒、top 12）同一行；左缘让位 56px。
+     ③ 滚动体上内边距 32 → 12；④ 详情：crumb 让位 + 详情头/正文上边距收到 12。 */
+  [data-plugin-body],
+  [data-plugin-bar] {
     --dsh-frame-top-clearance: 0px;
-    --dsh-web-mobile-panel-clearance: calc(56px - clamp(24px, 4vw, 48px));
   }
-  /* 页首是宿主滚动盒的直接子元素，宿主给它 width:100%（.X_2TxG_page>*）。
-     这种盒子上用 margin 会把整行顶出右缘、给面板加出一条横向滚动条，所以
-     这里用 margin + 等量收窄：margin 盒仍是 100%，左缘让开 FAB，右缘不再
-     外扩。0.2.1-rc.2 起工具栏已换行且按 flex-start 排布，「添加插件」不再
-     贴右，旧注释里那个「保持贴右」的右缘假设已不成立；规则本身的行为
-     （左缘让位、右缘不越界）不变。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHead"] {
-    margin-left: var(--dsh-web-mobile-panel-clearance) !important;
-    width: calc(100% - var(--dsh-web-mobile-panel-clearance)) !important;
-    /* 2026-11-05 店主真机（插件页）：「整体上移、插件两个字应该在返回键右边」。
-       返回键是本插件的 FAB（top 12、38px 盒），宿主页首自带
-       padding-top: calc(28px + --dsh-frame-top-clearance) 且 align-items:flex-start，
-       标题被顶到 FAB 下面一行。这里把页首内边距压到与 FAB 同高（12px）并改成
-       纵向居中：标题行与 FAB 同一行、与它同心，副标题跟在标题下面。 */
+  [data-plugin-bar] > header {
+    padding-top: 12px !important;
+    margin-left: 56px !important;
+    width: calc(100% - 56px) !important;
+    box-sizing: border-box !important;
+  }
+  [data-plugin-body] {
     padding-top: 12px !important;
   }
-  /* 列表 / 详情共用滚动体：宿主 padding-top 32 → 12，整页上移一档。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageBody"],
-  section[data-plugin-panel] [class*="_pageBody"] {
-    padding-top: 12px !important;
+  [data-plugin-detail] > :first-child > button,
+  [data-plugin-item-detail] > :first-child > button,
+  [data-plugin-row-detail] > :first-child > button {
+    margin-left: 56px !important;
   }
-  /* 页首与详情的青除规则同样补一份不带 frame 前缀的（见上方 2026-11-05 说明）。 */
-  section[data-plugin-panel] [class*="_pageHead"] {
-    margin-left: var(--dsh-web-mobile-panel-clearance) !important;
-    width: calc(100% - var(--dsh-web-mobile-panel-clearance)) !important;
-    padding-top: 12px !important;
-    align-items: flex-start !important;
-  }
-  /* 二级（插件详情）：宿主细节头 margin-top 32、正文 20，一起收。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] [class*="_detailHead"],
-  section[data-plugin-panel] [data-plugin-detail] [class*="_detailHead"] {
+  [data-plugin-detail] > :first-child + *,
+  [data-plugin-item-detail] > :first-child + *,
+  [data-plugin-row-detail] > :first-child + * {
     margin-top: 12px !important;
-  }
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] [class*="_detailMain"],
-  section[data-plugin-panel] [data-plugin-detail] [class*="_detailMain"] {
-    margin-top: 12px !important;
-  }
-  /* 详情页返回 crumb：与列表页同一条让位量（否则它压在 FAB 上，点了开抽屉）。 */
-  section[data-plugin-panel] [data-plugin-detail] button[class*="_crumb"],
-  section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
-  section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
-    margin-left: var(--dsh-web-mobile-panel-clearance) !important;
-  }
-  /* 详情 crumb 是被拉伸的 flex item（没有 width:100%），margin 就是对的工具。
-     **0.1.7-rc.2 起「直子」形态落空**：宿主把 crumb 套进了 DetailTop 的根盒
-     （实测链 [data-plugin-detail] > div.X_2TxG_detailTop > button.X_2TxG_crumb），
-     于是上面三条「> button:first-child」在详情页全部 matches()=false ——
-     crumb 的 margin-left 计算值 0px，停在宿主 padding 上：盒 [24,28,342,14]、
-     自带箭头图标 [24,28,14,14]、文字 span x=44，整条压在 FAB 盒
-     [10,12,38,38]（右缘 48）里 —— 图标 14px 全遮、文字首字压 4px；
-     elementFromPoint 在图标中心与文字首字处都命中 FAB，点「返回插件列表」
-     实际触发的是 FAB 的 exit-panel（2026-09-25 报障截图同形）。
-     直子三条在 0.2.2 永不命中（详情根的首子恒为 DetailTop 的 div），已于 2026-11-05 删除，只留按
-     crumb 自己的哈希片段写的三条后代选择器。片段取「_crumb」：同前缀的 svg.crumbIcon 不是 button 天然排除，
-     本子树里也没有别的 crumb 家族（文件面板 ZuhsRW_crumb* 在另一棵树）。
-     实测让位后 crumb 变 [56,28,310,14] —— flex 拉伸项自己收窄 32px，无横向
-     溢出（面板 scrollWidth 恒 390），点文字可正常返回列表。 */
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] button[class*="_crumb"],
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
-  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
-    margin-left: var(--dsh-web-mobile-panel-clearance) !important;
   }
   /* 自动化任务面板（@deepseek-ai/dsh-client-ui-schedule，0.2.0-rc.2 随实验性
      bundle 提供）不是 section[data-plugin-panel]：该 bundle 里
