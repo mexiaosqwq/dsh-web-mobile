@@ -67,9 +67,11 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 - `session-menu.ts` — touch 门控注入「删除会话」菜单项（自 fork wzxmt-zhc v2.7.0 移植）。
   守卫 = TOUCH_QUERY（每个宽度都算，横屏大平板也算）+ 行/菜单/标签选择器在场。删除当前会话后
   `toggleDrawer` 只在 mobile query 下跑。
-- `composer-keyboard-guard.ts` / `composer-keyboard-lift.ts` / `session-focus-guard.ts` /
-  `shortcut-modal-keyboard-guard.ts` — 四个键盘守卫，共享 `core/prototype-focus-shadow.ts`
-  （#84）的 focus 影子；最后一个守卫卸载时才还原真实方法，同装互不覆盖。
+- `composer-keyboard-guard.ts` / `composer-keyboard-lift.ts` /
+  `shortcut-modal-keyboard-guard.ts` — 键盘守卫，共享 `core/prototype-focus-shadow.ts`
+  （#84）的 focus 影子；最后一个守卫卸载时才还原真实方法，同装互不覆盖。（原第四个
+  `session-focus-guard.ts` 已于 2026-11-05 删除：宿主 0.2.2 的 InputBar 在移动设备上不再
+  挂载期聚焦编辑器，见 `dsh-client-ui-conversation/lib/client.js:21847-21851`；待真机验证。）
 - `composer-clearance.ts` — 键盘压矮的横屏（issue #245）：量「可见带 / 顶栏底 / 座位高」，座位被
   插件的 top-z 顶栏盖住时给 frame 打 `data-mobile-nav-composer-tight`，CSS 让座位压过顶栏并收起
   dock 行。纯核 `core/composer-clearance.ts`；不是键盘抬升（座位本来就贴底，被盖的是它的上半截）。
@@ -111,10 +113,6 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   （`core/prototype-focus-shadow.ts`，#84）给 `HTMLInputElement.prototype.focus` 注册「这个
   搜索框不聚焦」的谓词，宿主的 `focusWithoutRing` 落到影子上。影子在 MutationObserver
   （只盯 `document.body` 的 childList）里安装——微任务早于 React 被动 effect，第一帧抢焦也拦得住。
-- **`session-focus-guard.ts`** — 影子窗口时长 **800ms**（源码用常量，数值语义在此）。开窗有两个触发：
-  ①当前会话 id 变化；②面板退场（`panel-exit` 同步广播 `dsh-mobile-panel-exit`，帧上的
-  `data-mobile-panel-exit` 只是兜底）——面板占住主区时会话被卸载，退场后 InputBar 重挂载
-  又聚焦一次，键盘跟着弹。窗口必须在 commit 前打开，所以走事件而不是属性观察。
 - **`composer-keyboard-lift.ts`** — 抬升量语义：`translateY(−overlap)`，`overlap` = seat 的
   `getBoundingClientRect().bottom` 减**可见带底** `visualViewport.offsetTop + height`（同一套
   布局坐标；只减 height 等于假定 offsetTop=0，页面一被 iOS 平移就会把座位留在键盘后面，

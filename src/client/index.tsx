@@ -25,7 +25,6 @@ import { installModelMenuKeyboardGuard } from './effects/model-menu-keyboard-gua
 import { installPluginCardTap } from './effects/plugin-card-tap.ts'
 import { installInstalledListRows } from './effects/installed-list.ts'
 import { installTabletQuickSettings } from './effects/tablet-quick-settings.ts'
-import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
 import { installComposerFilePicker } from './effects/composer-file-picker.ts'
@@ -270,12 +269,6 @@ export function apply(ctx: ClientContext): void {
   // armed from the capture-phase tap that precedes the pane switch.
   installModelMenuKeyboardGuard(ctx)
   installPluginCardTap(ctx)
-  // Entering a session (issue #140): the host's InputBar focuses the editor
-  // from a [locked, sessionId, editor] passive effect on every switch, which
-  // raises the soft keyboard over the history the user wanted to read. A short
-  // shadow-focus window per observed session switch swallows that one
-  // autofocus; real taps are unaffected.
-  installSessionFocusGuard(ctx)
 
   // Multi-line paste after an IME commit keeps only the first line (host
   // Lexical routes Android's insertText paste through the text-insertion

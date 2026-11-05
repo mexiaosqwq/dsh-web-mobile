@@ -28,7 +28,7 @@ const DEBT = {
     // 实例 / 任务注册面）→ 147（第五块 viewport-meta 取走 viewport meta 所有权 / 稳定视口高度 /
     // iOS 标记）后回落进 400 行预算，条目按「只许收紧」删除（同 index.tsx 那条先例）。
     'src/client/effects/session-menu.ts': 522, // P1 搬运 import 拆行 +1（getFrame 落 platform/frame，toggleDrawer 留 phone-chrome）；2026-11-05 删低代际分支（0.1.5 直排菜单项 / sessions.clear）538 → 522
-    'src/client/effects/panel-exit.ts': 651, // P1 搬运 import 拆行 +1（getFrame 与 installMobileEffect 分属 platform 两个模块）
+    'src/client/effects/panel-exit.ts': 642, // P1 搬运 import 拆行 +1（getFrame 与 installMobileEffect 分属 platform 两个模块）；2026-11-05 删 session-focus-guard：退场事件常量 + 广播与理由注释 −9（651 → 642）
     // 2026-10-20 +110（485 → 595）：面板子页「返回上一级」。宿主把 列表/更多/详情 做成
     // 同一个面板里的 view 状态（无 history、无叠层、无服务面），一次 pop 只能整层退出。
     // 新增行 = PANEL_SUBPAGE_BACK 四条锚点 + 为什么只能点宿主控件（不许跨包拿 store action）
@@ -165,8 +165,8 @@ function cycles() {
 //   effects/session-menu.ts → drawer-close(toggleDrawer)·session-row-fiber        (2)
 //   effects/sidebar-swipe.ts → gesture-guard·overlay-backdrop-fab                 (2)
 //   effects/overlay-backdrop-fab.ts → panel-exit(类型)                            (1)
-//   effects/session-focus-guard.ts → composer-keyboard-guard                      (1)
-//                                                                   合计 21 条（实测）
+//                                                                   合计 20 条（实测；
+//   2026-11-05 删 session-focus-guard 去掉其 → composer-keyboard-guard 那 1 条）
 //
 // 清法就是架构标准 P1 的第 ③ 步「跨特性工厂由组装根注入」：把 toggleDrawer /
 // fadeOverlayOut / 共享类型提到 platform/，或由 index.tsx 注入；清完再把本门收紧成

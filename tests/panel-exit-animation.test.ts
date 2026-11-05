@@ -303,8 +303,7 @@ function installHarness(): Harness {
     createElement: (tagName: string) => new FakeElement(tagName),
     querySelector: find,
     querySelectorAll: findAll,
-    // panel-exit 退场时同步广播 'dsh-mobile-panel-exit'（composer focus guard 靠它
-    // 在会话重挂载前开窗）；夹具只做有事件目标的广播，不参与断言。
+    // 夹具保留一个事件目标；panel-exit 现已不再广播任何 document 事件。
     dispatchEvent: (event: Event) => { documentEvents.push(event); return true },
   }
   globals.HTMLElement = FakeElement
@@ -475,25 +474,11 @@ test('subpage levels are pre-armed before a back press, never after one', () => 
   assert.match(EXIT, /if \(pushEntry\(\)\) extraArmed \+= 1/, '预推成功后必须记账')
 })
 
-test('exit() broadcasts the synchronous composer-focus-guard event', () => {
-  // 2026-10-20：退出面板会让会话重挂载、InputBar 再聚焦一次并弹键盘。焦点窗口必须
-  // 在 commit 之前打开，而 commit 里（layout-effect 阶段）的聚焦早于任何 observer
-  // 微任务——所以 exit() 在挂标记的同一步同步广播一个事件，由 session-focus-guard
-  // 收。标记本身仍保留，作为事件被改名时的兜底。
-  const source = EXIT
-  assert.match(source, /const PANEL_EXIT_EVENT = 'dsh-mobile-panel-exit'/)
-  assert.match(source, /document\.dispatchEvent\(new CustomEvent\(PANEL_EXIT_EVENT\)\)/)
-  assert.ok(
-    source.indexOf("setAttribute(PANEL_EXIT_ATTR, '')") < source.indexOf('dispatchEvent(new CustomEvent(PANEL_EXIT_EVENT))'),
-    '事件必须在挂上退场标记之后、提交 selectPanel 之前发出',
-  )
-  const h = installHarness()
-  const events = (globalThis as unknown as Record<string, Event[]>).__documentEvents
-  events.length = 0
-  const panelExit = createPanelExit(h.layout)
-  panelExit.exit()
-  assert.ok(events.some((event) => event.type === 'dsh-mobile-panel-exit'), '退场时必须广播事件')
-  panelExit.dispose()
+test('exit() no longer broadcasts the removed focus-guard event', () => {
+  // session-focus-guard 已删除（2026-11-05：0.2.2 InputBar 在移动端不再挂载期聚焦），
+  // 它是 'dsh-mobile-panel-exit' 的唯一消费者；退场标记 data-mobile-panel-exit 仍归 CSS 揭示用。
+  assert.doesNotMatch(EXIT, /PANEL_EXIT_EVENT|dsh-mobile-panel-exit/)
+  assert.match(EXIT, /setAttribute\(PANEL_EXIT_ATTR, ''\)/)
 })
 
 test('the system back climbs one subpage level and consumes the level entry', () => {
@@ -552,26 +537,5 @@ test('subpage levels are pre-armed before a back press, never after one', () => 
   )
   assert.match(levelBody, /_moreBack/, '「更多」列表算第 1 级')
   assert.match(EXIT, /if \(pushEntry\(\)\) extraArmed \+= 1/, '预推成功后必须记账')
-})
-
-test('exit() broadcasts the synchronous composer-focus-guard event', () => {
-  // 2026-10-20：退出面板会让会话重挂载、InputBar 再聚焦一次并弹键盘。焦点窗口必须
-  // 在 commit 之前打开，而 commit 里（layout-effect 阶段）的聚焦早于任何 observer
-  // 微任务——所以 exit() 在挂标记的同一步同步广播一个事件，由 session-focus-guard
-  // 收。标记本身仍保留，作为事件被改名时的兜底。
-  const source = EXIT
-  assert.match(source, /const PANEL_EXIT_EVENT = 'dsh-mobile-panel-exit'/)
-  assert.match(source, /document\.dispatchEvent\(new CustomEvent\(PANEL_EXIT_EVENT\)\)/)
-  assert.ok(
-    source.indexOf("setAttribute(PANEL_EXIT_ATTR, '')") < source.indexOf('dispatchEvent(new CustomEvent(PANEL_EXIT_EVENT))'),
-    '事件必须在挂上退场标记之后、提交 selectPanel 之前发出',
-  )
-  const h = installHarness()
-  const events = (globalThis as unknown as Record<string, Event[]>).__documentEvents
-  events.length = 0
-  const panelExit = createPanelExit(h.layout)
-  panelExit.exit()
-  assert.ok(events.some((event) => event.type === 'dsh-mobile-panel-exit'), '退场时必须广播事件')
-  panelExit.dispose()
 })
 

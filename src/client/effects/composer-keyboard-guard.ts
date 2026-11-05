@@ -63,8 +63,9 @@ const COMPOSER_CONTROL_SELECTOR =
   'button, [role="button"], [role="option"], [role="menuitem"], [role="combobox"], [aria-haspopup], select, a[href], label, input'
 
 /** Re-arm marker kept on the editor element while its focus is shadowed.
- *  Exported: session-focus-guard.ts shares the same shadow slot (one marker,
- *  one own-property recipe) so both guards stay interoperable. */
+ *  Exported for its source-contract test. (Its former second user,
+ *  session-focus-guard.ts, was removed 2026-11-05: host 0.2.2's InputBar skips
+ *  the mount-time editor focus on mobile devices.) */
 export const SHADOW_MARKER = 'data-mobile-nav-focus-shadow'
 
 /** 键盘至少吃掉这么多像素才算「弹着」（滚动条/地址栏抖动远小于此，最矮的输入法也远大于此）。 */
