@@ -595,6 +595,7 @@ test('the phone plugin panel drops the host title-bar padding and aligns its hea
     b.selector.includes('section[data-plugin-panel] header[data-window-drag]'))
   assert.ok(head !== undefined)
   assert.match(head.body, /padding-top: 12px !important/)
-  assert.match(head.body, /padding-left: 56px !important/)
+  assert.match(head.body, /padding-left: 8px !important/)
+  assert.match(head.body, /background: var\(--dsw-alias-bg-layer-1, #fff\) !important/, '滚动时页首要有实底')
   assert.match(head.body, /flex-wrap: nowrap !important/)
 })

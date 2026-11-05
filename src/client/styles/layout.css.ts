@@ -2522,11 +2522,24 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
   section[data-plugin-panel] header[data-window-drag] {
     padding-top: 12px !important;
-    padding-left: 56px !important;
+    /* 左让位只补差额：上面那条老的手机档规则已经给了
+       calc(60px - clamp(24px,4vw,48px)) = 36px 的 margin-left，再叠 56 会把标题推到
+       离返回键 69px 远（2026-11-05 真机：「再往左边挪点」）。8 + 36 ≈ 44，标题左缘距
+       返回键右缘约 16px。 */
+    padding-left: 8px !important;
     box-sizing: border-box !important;
-    /* 页首是 flex-wrap 容器：加了 56px 左内边距后若允许换行，工具栏会被挤到第二行
-       （2026-11-05 第三版就这么翻车）。 */
+    /* 页首是 flex-wrap 容器：若允许换行，工具栏会被挤到第二行（第三版翻车点）。 */
     flex-wrap: nowrap !important;
+    /* 滚动时页首是 sticky 覆盖层，宿主不给底色 → 正文从它底下透出来，看起来像
+       「另一图层浮在上面」。给它和页面同一张底，滚动就是普通应用栏。 */
+    background: var(--dsw-alias-bg-layer-1, #fff) !important;
+  }
+  /* 二级页的返回 crumb 不再需要给返回键让位（悬浮键在二级页已去掉），居左对齐正文。
+     覆盖上面手机档那条带 panel-clearance 的 margin-left。 */
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-detail] button[class*="_crumb"],
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-item-detail] button[class*="_crumb"],
+  [data-mobile-nav="frame"] section[data-plugin-panel] [data-plugin-row-detail] button[class*="_crumb"] {
+    margin-left: 0 !important;
   }
   /* 自动化任务面板（@deepseek-ai/dsh-client-ui-schedule，0.2.0-rc.2 随实验性
      bundle 提供）不是 section[data-plugin-panel]：该 bundle 里
