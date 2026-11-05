@@ -3,6 +3,7 @@ import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { NS } from '../i18n/locales.ts'
 import type { PanelExit } from './panel-exit.ts'
 import { getFrame } from '../platform/frame.ts'
+import { onDrawerOpening } from '../platform/drawer-open.ts'
 
 /** Fade the CURRENT backdrop out (pointer-events off + opacity 0). Called by
  * the gesture layer when a close commit starts animating, so the dimming
@@ -18,7 +19,11 @@ let fadeHook: (() => void) | null = null
 /** Removal is deferred by one fade so the dimming eases out instead of
  * snapping (user request 2026-08-29 「背景黑色遮罩进行渐变动画」; the fade-IN
  * already existed as a mount animation). */
-const BACKDROP_FADE_MS = 200
+const BACKDROP_FADE_MS = 280
+
+/** How long an optimistically mounted backdrop (see showNow) waits for the
+ * host's open commit before the closed-state fade is allowed to take it back. */
+const OPEN_CONFIRM_MS = 120
 
 /** The FAB's second face: an arrow, shown while a sidebar panel owns the main
  * area — both the subpage 「返回」 and the panel-root 「返回会话」 modes. */
@@ -53,6 +58,11 @@ export function createOverlayTask(
    * restore branch: while a late close commit is animating, the marker is
    * STILL open, so a plain open-branch restore would undo the pre-fade. */
   let faded = false
+  /** Pending confirm of an optimistic mount (showNow); while armed the
+   * closed branch leaves the backdrop alone — the host commit may simply not
+   * have landed yet. Cleared when the open state is seen or the timer fires. */
+  let openConfirmTimer: number | null = null
+  let removeOpeningHook: (() => void) | null = null
   const drawerOpen = (): boolean => {
     const frame = getFrame()
     if (frame === null) return false
@@ -107,75 +117,114 @@ export function createOverlayTask(
     fab.title = label
     fab.innerHTML = onPanel ? FAB_BACK_ICON : FAB_DRAWER_ICON
   }
+  const mountBackdrop = (frame: HTMLElement): void => {
+    if (backdrop === null) {
+      backdrop = document.createElement('div')
+      backdrop.dataset.mobileNav = 'backdrop'
+      backdrop.setAttribute('role', 'button')
+      backdrop.setAttribute('aria-label', t('backdrop'))
+      // No element-level click listener: phone-chrome's capture-phase click
+      // handler owns the backdrop tap. The third-party mobile shim stops
+      // click propagation at the frame for anything outside the drawer, so
+      // a listener down here never sees the tap (2026-09-14).
+      frame.appendChild(backdrop)
+      faded = false
+    } else if (faded && backdropRemoveTimer !== null) {
+      // Quick close→reopen inside the fade window: cancel the pending
+      // removal and let the CSS transition ease the dimming back in.
+      window.clearTimeout(backdropRemoveTimer)
+      backdropRemoveTimer = null
+      faded = false
+      backdrop.style.removeProperty('pointer-events')
+      backdrop.style.removeProperty('opacity')
+    }
+  }
+  /**
+   * Opening hook (platform/drawer-open.ts, drawer-jank R3): every opener calls
+   * it right before flipping the host, so the backdrop is appended in the same
+   * task as the open commit — one mutation batch, one reconciler flush, and the
+   * dim starts on the drawer's first frame instead of one rAF later. The next
+   * ensure() stays the source of truth: it keeps the backdrop once the frame
+   * reads open, and fades it (after OPEN_CONFIRM_MS) if the open never landed.
+   */
+  const showNow = (): void => {
+    const frame = getFrame()
+    if (frame === null || !frame.hasAttribute('data-sidebar-collapsed')) return
+    mountBackdrop(frame)
+    if (openConfirmTimer !== null) window.clearTimeout(openConfirmTimer)
+    openConfirmTimer = window.setTimeout(() => {
+      openConfirmTimer = null
+      sync()
+    }, OPEN_CONFIRM_MS)
+  }
+  const sync = (): void => {
+    // Re-armed on every ensure, not once in the factory: core.deactivate()
+    // runs dispose() on every MOBILE_QUERY flip (reconciler-core.ts), and
+    // reactivation only re-runs ensure() - a hook assigned in the factory
+    // body stayed null from the first breakpoint flip onwards, silently
+    // killing the backdrop fade.
+    fadeHook = (): void => {
+      if (backdrop === null) return
+      faded = true
+      backdrop.style.pointerEvents = 'none'
+      backdrop.style.opacity = '0'
+    }
+    removeOpeningHook ??= onDrawerOpening(showNow)
+    const frame = getFrame()
+    if (frame === null) return
+    if (drawerOpen()) {
+      if (openConfirmTimer !== null) {
+        window.clearTimeout(openConfirmTimer)
+        openConfirmTimer = null
+      }
+      mountBackdrop(frame)
+    } else if (backdrop !== null && openConfirmTimer === null) {
+      backdrop.style.pointerEvents = 'none'
+      backdrop.style.opacity = '0'
+      faded = true
+      if (backdropRemoveTimer === null) {
+        backdropRemoveTimer = window.setTimeout(() => {
+          backdropRemoveTimer = null
+          backdrop?.remove()
+          backdrop = null
+        }, BACKDROP_FADE_MS + 60)
+      }
+    }
+    /**
+     * 插件二级页（面板子页）不挂悬浮键（owner 2026-11-05：真机上它压在最上面，
+     * 与宿主自己的「‹ 插件」返回条重复，要求去掉）。一级面板仍留着它当「返回会话」，
+     * 会话页则是抽屉入口。
+     */
+    const onSubpage = panelExit !== null && panelExit.subpageOpen()
+    if (heroPhase() && !drawerOpen() && !onSubpage && fab === null) {
+      fab = document.createElement('button')
+      fab.type = 'button'
+      fab.dataset.mobileNav = 'fab'
+      fab.setAttribute('aria-label', t('open'))
+      fab.title = t('open')
+      fab.addEventListener('click', onFabClick)
+      frame.appendChild(fab)
+    } else if ((!heroPhase() || drawerOpen() || onSubpage) && fab !== null) {
+      fab.remove()
+      fab = null
+    }
+    syncFab()
+  }
   return {
     name: 'overlay-backdrop-fab',
     scopes: ['*', 'data-sidebar-collapsed', 'data-phase'],
-    ensure: () => {
-      // Re-armed on every ensure, not once in the factory: core.deactivate()
-      // runs dispose() on every MOBILE_QUERY flip (reconciler-core.ts), and
-      // reactivation only re-runs ensure() - a hook assigned in the factory
-      // body stayed null from the first breakpoint flip onwards, silently
-      // killing the backdrop fade.
-      fadeHook = (): void => {
-        if (backdrop === null) return
-        faded = true
-        backdrop.style.pointerEvents = 'none'
-        backdrop.style.opacity = '0'
-      }
-      const frame = getFrame()
-      if (frame === null) return
-      if (drawerOpen()) {
-        if (backdrop === null) {
-          backdrop = document.createElement('div')
-          backdrop.dataset.mobileNav = 'backdrop'
-          backdrop.setAttribute('role', 'button')
-          backdrop.setAttribute('aria-label', t('backdrop'))
-          // No element-level click listener: phone-chrome's capture-phase click
-          // handler owns the backdrop tap. The third-party mobile shim stops
-          // click propagation at the frame for anything outside the drawer, so
-          // a listener down here never sees the tap (2026-09-14).
-          frame.appendChild(backdrop)
-          faded = false
-        } else if (faded && backdropRemoveTimer !== null) {
-          // Quick close→reopen inside the fade window: cancel the pending
-          // removal and let the CSS transition ease the dimming back in.
-          window.clearTimeout(backdropRemoveTimer)
-          backdropRemoveTimer = null
-          faded = false
-          backdrop.style.removeProperty('pointer-events')
-          backdrop.style.removeProperty('opacity')
-        }
-      } else if (backdrop !== null) {
-        backdrop.style.pointerEvents = 'none'
-        backdrop.style.opacity = '0'
-        faded = true
-        if (backdropRemoveTimer === null) {
-          backdropRemoveTimer = window.setTimeout(() => {
-            backdropRemoveTimer = null
-            backdrop?.remove()
-            backdrop = null
-          }, BACKDROP_FADE_MS + 60)
-        }
-      }
-      if (heroPhase() && !drawerOpen() && fab === null) {
-        fab = document.createElement('button')
-        fab.type = 'button'
-        fab.dataset.mobileNav = 'fab'
-        fab.setAttribute('aria-label', t('open'))
-        fab.title = t('open')
-        fab.addEventListener('click', onFabClick)
-        frame.appendChild(fab)
-      } else if ((!heroPhase() || drawerOpen()) && fab !== null) {
-        fab.remove()
-        fab = null
-      }
-      syncFab()
-    },
+    ensure: sync,
     dispose: () => {
       if (backdropRemoveTimer !== null) {
         window.clearTimeout(backdropRemoveTimer)
         backdropRemoveTimer = null
       }
+      if (openConfirmTimer !== null) {
+        window.clearTimeout(openConfirmTimer)
+        openConfirmTimer = null
+      }
+      removeOpeningHook?.()
+      removeOpeningHook = null
       fadeHook = null
       backdrop?.remove()
       backdrop = null

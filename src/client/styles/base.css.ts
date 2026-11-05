@@ -156,8 +156,30 @@ export const BASE_CSS = `
     background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
   }
 }
-[data-mobile-nav="quick-settings"]:active {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+/* 2026-11-05 真机：齿轮点下去没有任何反馈。它是一颗 30px 的透明图标按钮，
+   通用按压位（:active 的 inset 高亮 + scale .96）在它身上太淡；这里给足：
+   用 active 级底色 + 缩到 .94，并把整颗抬到行内最上层，免得被账户 launcher
+   的层盖住。 */
+[data-mobile-nav="quick-settings-wrap"] {
+  position: relative;
+  z-index: 1;
+}
+/* 按下态用显式属性（effects/drawer-quick-settings.ts 在 pointerdown 挂、松开后
+   再留 140ms）。:active 保留作键盘 / 桌面兜底：真机上这颗 30px 透明按钮的
+   :active 一点都画不出来（2026-11-05）。 */
+/* 账户行的按下态：同样用显式属性（effects/drawer-quick-settings.ts 在 pointerdown
+   挂、松开后再留 140ms）。宿主那颗 launcher 的 :active 在「菜单同拍挂载」时会被
+   浏览器收掉，淡入一帧都没画出来（2026-11-05 真机：点开没反馈、关掉才有灰）。
+   形状镜像通用按压位：inset 高亮填满整颗按钮。 */
+[class*="sidebarCol"] [class*="triggerRow"][data-mobile-nav-row-pressed] > button,
+[class*="sidebarCol"] [class*="triggerRow"][data-mobile-nav-row-pressed] > * > button:not([data-mobile-nav="quick-settings"]) {
+  box-shadow: inset 0 0 0 100vmax var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 8%, transparent));
+}
+
+[data-mobile-nav="quick-settings"]:active,
+[data-mobile-nav="quick-settings"][data-mobile-nav-quick-pressed] {
+  background: var(--dsw-alias-interactive-bg-active, rgba(0, 0, 0, .1));
+  transform: scale(.94);
 }
 [data-mobile-nav="quick-settings"]:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
@@ -182,6 +204,12 @@ export const BASE_CSS = `
    until: 宿主给 settings.launcher 提供独立动作位，或账户菜单自己把设置项拆出去——届时删本块
    test: tests/drawer-quick-settings.test.ts
 */
+/* 2026-11-05 真机：自己点账户行打开菜单时，卡片先按「3 项」画出来，等 reconciler
+   下一拍打上标记再收起第一项 —— 高度变化让整张卡蹦一下。改成在**点下那一刻**就把
+   html 标记挂上（drawer-quick-settings.ts 的 pointerdown 捕获），菜单从出生就没有
+   那一项：没有任何一帧画过它，也就没有跳动。标记在菜单被打上正式标记后摘掉，
+   另有超时兜底。 */
+html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :first-child > [role="menuitem"],
 [data-mobile-nav-quick-menu] > [role="presentation"] > :first-child > [role="menuitem"] {
   display: none !important;
 }
@@ -276,8 +304,8 @@ export const BASE_CSS = `
   box-shadow: rgba(0, 0, 0, .04) 0 0 0 .5px, rgba(0, 0, 0, .04) 0 3px 8px 0, rgba(0, 0, 0, .05) 0 0 20px 0;
 }
 @media (prefers-reduced-motion: reduce) {
+  /* （2026-11-06 审计 C7）delete-dialog 自身没有动画，animation:none 是空操作，已移除。 */
   [data-mobile-nav="delete-dialog-backdrop"],
-  [data-mobile-nav="delete-dialog"],
   [data-mobile-nav="file-picker-backdrop"],
   [data-mobile-nav="file-picker"] {
     animation: none !important;
@@ -388,7 +416,7 @@ export const BASE_CSS = `
      Raise the portal root, not the dialog.
      GATE (2026-09-25, real device): the gate is OUR BACKDROP'S PRESENCE, not
      the drawer-open marker. Marker and paint disagree for the whole close
-     transition — the backdrop fades over .2s and is removed 260ms after the
+     transition — the backdrop fades over .28s (with the column) and is removed after the
      marker flips (overlay-backdrop-fab.ts), the column transitions .28s
      (layout.css.ts) and React swaps the pane subtree ~200ms late — so a
      marker-gated raise went dark inside that window and the drawer band
@@ -498,11 +526,16 @@ export const BASE_CSS = `
       transition: box-shadow .12s var(--ds-ease-in-out, ease-in-out), transform .12s var(--ds-ease-in-out, ease-in-out);
     }
     :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]):where(:active):where(:not(:disabled, [aria-disabled="true"], [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])) {
+      /* 按下当帧就到位（2026-11-05 真机：点账户行开菜单时「开启没有反馈、再点关掉
+         才有灰色」——0.12s 的淡入还没画出来，菜单就把指针状态打断了；下面那条基态
+         transition 只负责松开后的淡出）。 */
+      transition: none;
       box-shadow: inset 0 0 0 100vmax var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 8%, transparent));
     }
     /* Icon-only buttons (a lone svg child, or a button that carries only an
        aria-label) also shrink a touch. */
     :where(button:has(> svg:only-child), button[aria-label]:not(:has(> span, > div))):where(:active):where(:not(:disabled, [aria-disabled="true"])) {
+      transition: none;
       transform: scale(.96);
     }
     /* 例外（2026-10-20，店主）：头部那两颗芯片不要按压反馈。
@@ -580,12 +613,15 @@ export const BASE_CSS = `
   z-index: 1250;
   background: rgba(0, 0, 0, .45);
   cursor: pointer;
-  animation: dsh-web-mobile-fade .2s var(--ds-ease-in-out, ease-in-out);
+  /* 时长与缓动同抽屉列（layout.css.ts 的 sidebarCol「transition: transform .28s
+     var(--ds-ease-in-out, ease-in-out)」，手机与平板同一条；手势提交 COMMIT_ANIM_MS 280 也是它）：
+     遮罩与抽屉同起同落，不再先暗完、抽屉还在滑（2026-11-05 对齐，原为 .2s）。 */
+  animation: dsh-web-mobile-fade .28s var(--ds-ease-in-out, ease-in-out);
   /* Fade-out twin of the mount animation: the task eases the dimming away
      (inline opacity 0 + pointer-events none) and removes the element after
      the fade. Also used by the gesture layer so the backdrop fades in step
      with a close-follow commit's slide-out. */
-  transition: opacity .2s var(--ds-ease-in-out, ease-in-out);
+  transition: opacity .28s var(--ds-ease-in-out, ease-in-out);
   -webkit-tap-highlight-color: transparent;
 }
 @keyframes dsh-web-mobile-fade {

@@ -54,8 +54,7 @@ function sessionFixture() {
   const frame = { hasAttribute: () => !open }
   const drawer = { contains: () => true, querySelector: () => null }
   const doc = {
-    querySelector: (selector: string) => selector.includes('aria-modal') ? (modal ? {} : null)
-      : selector.endsWith('> :first-child') ? drawer : frame,
+    querySelector: (selector: string) => selector.includes('aria-modal') ? (modal ? {} : null) : frame,
     addEventListener: (type: string, fn: Function) => listeners.set(type, fn),
     removeEventListener: (type: string, fn: Function) => {
       if (listeners.get(type) === fn) listeners.delete(type)
@@ -85,6 +84,7 @@ function sessionFixture() {
     performance: { now: () => now }, Element, MouseEvent, exports: {},
     TAP_CLOSE_NAV_SELECTOR: '[class*="sessionRow"]', TAP_NAV_SLOP_PX: 12,
     getFrame: () => frame,
+    getDrawer: () => drawer,
     installMobileEffect: (_ctx, _label, install) => { cleanup = install() },
     toggleDrawer: () => { open = !open; closes += 1 },
     isStrokeLocked: () => locked,
@@ -250,12 +250,12 @@ test('phone panel chrome ignores split eligibility and preserves collapse', () =
   assert.doesNotMatch(phone, /data-sidebar-right-toggle/)
   assert.doesNotMatch(phone, /data-sidebar-right-mode="fullscreen"/)
 })
-test('subagent hash correction retains both selector families', () => {
+test('subagent hover subtree targets the 0.2.2 hash family only', () => {
   const text = readFileSync(join(ROOT, 'src/client/effects/subagent-chip-touch.ts'), 'utf8')
-  assert.match(text, /Defensive dual hash/)
-  for (const selector of ['ZKlsPq_root', 'ZKlsPq_menu', 'h8S2Va_root', 'h8S2Va_menu']) {
+  for (const selector of ['ZKlsPq_root', 'ZKlsPq_menu']) {
     assert.ok(text.includes(`[class*="${selector}"]`))
   }
+  assert.ok(!text.includes('[class*="h8S2Va_'))
 })
 
 // 流式期间每个 `*` 任务每帧都会重新解析 frame；缓存必须命中，但节点断开或
@@ -305,4 +305,47 @@ test('getFrame memoizes the frame marker but re-queries once it is stale', () =>
   const before = queries
   assert.equal(getFrame(), null)
   assert.ok(queries > before, 'a node that lost the marker must be re-resolved')
+})
+
+// 0.2.2 在 frame 里插了原生 drawerMask，并且排在 sidebar 之前；抽屉/手势不能再按
+// 「首个子元素」找侧栏，否则拿到的是遮罩。
+test('getDrawer resolves the sidebar column instead of the 0.2.2 drawer mask', () => {
+  const cacheDecl = frameTree.statements.find(node => ts.isVariableStatement(node)
+    && node.declarationList.declarations.some(d => d.name.getText(frameTree) === 'frameCache'))
+  const findFrameFn = frameTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'findFrame')
+  const getFrameFn = frameTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'getFrame')
+  const getDrawerFn = frameTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'getDrawer')
+  assert.ok(cacheDecl && findFrameFn && getFrameFn && getDrawerFn, 'frame/drawer lookups must live in platform/frame.ts')
+
+  const js = compile([
+    cacheDecl.getText(frameTree).replace('export ', ''),
+    findFrameFn.getText(frameTree).replace('export ', ''),
+    getFrameFn.getText(frameTree).replace('export ', ''),
+    getDrawerFn.getText(frameTree).replace('export ', ''),
+    'exports.getDrawer = getDrawer',
+  ].join('\n'))
+
+  class HTMLElement {}
+  class Column extends HTMLElement {
+    id = 'sidebar'
+    isConnected = true
+    getAttribute() { return null }
+  }
+  const sidebar = new Column()
+  const mask = new HTMLElement()
+  let column: unknown = sidebar
+  const frame = {
+    isConnected: true,
+    getAttribute: (key: string) => (key === 'data-mobile-nav' ? 'frame' : null),
+    firstElementChild: mask,
+    querySelector: (selector: string) => (selector.includes('_sidebarCol') ? column : null),
+  }
+  const doc = { querySelector: (selector: string) => (selector.includes('data-mobile-nav="frame"') ? frame : null) }
+  const module = { exports: {} as Record<string, () => unknown> }
+  vm.runInNewContext(js, { module, exports: module.exports, document: doc, HTMLElement })
+  const getDrawer = module.exports.getDrawer as () => unknown
+
+  assert.equal(getDrawer(), sidebar, 'the column wins even though the mask is first')
+  column = null
+  assert.equal(getDrawer(), null, 'no first-child fallback: the mask must never be taken for the drawer')
 })

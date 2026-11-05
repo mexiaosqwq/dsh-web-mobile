@@ -80,9 +80,6 @@ function panelViewOpen(): boolean {
 /** Marker set on the frame while the incoming conversation fades in. */
 const PANEL_EXIT_ATTR = 'data-mobile-panel-exit'
 
-/** Synchronous companion of the marker, for the composer focus guard. */
-const PANEL_EXIT_EVENT = 'dsh-mobile-panel-exit'
-
 /** Safety net: clears the marker if the reveal animation never fires. */
 const PANEL_EXIT_FALLBACK_MS = 2000
 
@@ -367,12 +364,6 @@ export function createPanelExit(layout: unknown): PanelExit {
     // reveal from its first style resolution (no full-opacity frame).
     const frame = getFrame()
     if (frame !== null) frame.setAttribute(PANEL_EXIT_ATTR, '')
-    // Synchronous heads-up for the composer focus guard
-    // (effects/session-focus-guard.ts): leaving a panel remounts the InputBar,
-    // and the host's mount-time focus runs inside the commit's synchronous
-    // layout-effect phase — earlier than any MutationObserver microtask. A
-    // custom event is the only decoupled way to open that window in time.
-    document.dispatchEvent(new CustomEvent(PANEL_EXIT_EVENT))
     const panel = panelElement()
     ghost = panel === null ? null : freezePanel(panel)
     // Commit on this very tick — the whole point of the snapshot is that the

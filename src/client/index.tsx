@@ -7,7 +7,7 @@ import { MOBILE_CSS } from './styles/index.ts'
 import { installFrameController, installPhoneChrome } from './effects/phone-chrome.ts'
 import { installReconciler, registerReconcileTasks } from './effects/reconciler-adapter.ts'
 import { installSelectionChromeYield } from './effects/selection-chrome.ts'
-import { installOverlayInteractions } from './effects/drawer-close.ts'
+import { installOverlayInteractions, toggleDrawer } from './effects/drawer-close.ts'
 import { installSidebarSwipe } from './effects/sidebar-swipe.ts'
 import { installSubagentChipTouch } from './effects/subagent-chip-touch.ts'
 import { installSessionMenuDelete } from './effects/session-menu.ts'
@@ -25,9 +25,10 @@ import { installModelMenuKeyboardGuard } from './effects/model-menu-keyboard-gua
 import { installPluginCardTap } from './effects/plugin-card-tap.ts'
 import { installInstalledListRows } from './effects/installed-list.ts'
 import { installTabletQuickSettings } from './effects/tablet-quick-settings.ts'
-import { installSessionFocusGuard } from './effects/session-focus-guard.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
+import { installComposerEnterNewline } from './effects/composer-enter-newline.ts'
+import { installFocusGestureGuard } from './effects/focus-gesture-guard.ts'
 import { installComposerFilePicker } from './effects/composer-file-picker.ts'
 import { installAttachmentMention } from './effects/attachment-mention.ts'
 import { installFileShare } from './effects/file-share.ts'
@@ -270,17 +271,22 @@ export function apply(ctx: ClientContext): void {
   // armed from the capture-phase tap that precedes the pane switch.
   installModelMenuKeyboardGuard(ctx)
   installPluginCardTap(ctx)
-  // Entering a session (issue #140): the host's InputBar focuses the editor
-  // from a [locked, sessionId, editor] passive effect on every switch, which
-  // raises the soft keyboard over the history the user wanted to read. A short
-  // shadow-focus window per observed session switch swallows that one
-  // autofocus; real taps are unaffected.
-  installSessionFocusGuard(ctx)
 
   // Multi-line paste after an IME commit keeps only the first line (host
   // Lexical routes Android's insertText paste through the text-insertion
   // command). Re-dispatch those as a paste event; mobile-only.
   installComposerPasteGuard(ctx)
+
+  // Soft-keyboard Enter inserts a newline instead of sending (owner 2026-11-05):
+  // phone keyboards have no Shift, so the host's Enter-to-send left no way to
+  // break a line. Send stays on the button; Ctrl/Cmd+Enter still sends.
+  installComposerEnterNewline(ctx)
+
+  // Only a real tap on a text field may raise the soft keyboard (owner
+  // 2026-11-05): every host flow that focuses a field programmatically (mount
+  // autoFocus, returning from a subpage, switching tabs) otherwise pops the IME
+  // over the page.
+  installFocusGestureGuard(ctx)
 
   // Composer paperclip (owner report 2026-10-06): the system file picker is the
   // wrong shape and cannot pick "images only", so the tap opens the plugin's own
@@ -309,7 +315,7 @@ export function apply(ctx: ClientContext): void {
     order: 10,
     locale: NS,
     inject: () => ({
-      toggleSidebar: () => ctx.layout.toggleSidebar(),
+      toggleSidebar: () => toggleDrawer(ctx),
     }),
   }, MobileNavToggle))
 
@@ -330,6 +336,7 @@ export function apply(ctx: ClientContext): void {
     order: 10,
     locale: NS,
     inject: () => ({}),
+
   }, ComposerFileButton))
 }
 
@@ -339,6 +346,4 @@ export function apply(ctx: ClientContext): void {
 // effects/drawer-session-log.ts, which reads that service).
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'

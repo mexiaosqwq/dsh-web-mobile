@@ -74,61 +74,85 @@ function sharedRule(rules: ScopedRule[], selNeedle: string): string | null {
   return rules.find((r) => inSharedMobile(r) && r.sel.includes(selNeedle))?.body ?? null
 }
 
-// The 0.1.6-alpha.2 header adaptation block must be inert on pre-alpha.2
-// hosts: only _headerLeading/_crumbCurrent/_crumbSeg/_headerCorner are
-// alpha.2-only classes, so every cross-generation anchor in the block
-// (_titleCluster/_crumbs/_headerActions/_headerUtilities/tablist/QsffPG_/
-// ZKlsPq_/:first-child chains) has to sit behind a header:has existence gate.
-test('every selector in the alpha.2 header block carries the _headerLeading generation gate', () => {
+// Host floor is DSH >=0.2.2-rc.1 (owner 2026-11-05): the three stacked header
+// generations (0.1.5 / 0.1.6-alpha.2 / 0.2.0-rc) were merged into ONE block.
+// header:has([class*="_headerLeading"]) is no longer a generation gate but the
+// structural anchor that tells the session header apart from the ask-question
+// card's Mbwy4a_header (pitfalls 「提问卡顶栏误伤」). The only rules allowed to
+// stay unanchored are the header:has(> *) row floors, which also govern the
+// question card's header.
+function headerBlock(): string[] {
   const source = layoutSource()
-  const start = source.indexOf('0.1.6-alpha.2 session-header adaptation')
-  assert.ok(start > 0, 'alpha.2 header section marker not found')
+  const start = source.indexOf('/* --- Session header on mobile')
+  assert.ok(start > 0, 'session header section marker not found')
   const end = source.indexOf('/* --- Settings dialog on mobile ---', start)
   assert.ok(end > start, 'settings section marker not found after the header block')
-  const lines = source.slice(start, end).split('\n')
+  return source.slice(start, end).split('\n')
+}
+
+test('every session-header selector carries the _headerLeading structural anchor', () => {
+  const lines = headerBlock()
   const offenders = lines
     .filter((line) => line.includes('[data-phase] header'))
     .filter((line) => !line.includes('header:has([class*="_headerLeading"])'))
-  assert.deepEqual(offenders, [], 'ungated cross-generation selectors in the alpha.2 block')
-  const gates = lines.filter((line) => line.includes('header:has([class*="_headerLeading"])')).length
-  assert.ok(gates >= 30, `expected the full gated block, found only ${gates} gates`)
+    .filter((line) => !line.includes('[data-phase] header:has(> *)'))
+    .filter((line) => !line.includes('[data-phase] header[class*="headerBlank"]'))
+  assert.deepEqual(offenders, [], 'unanchored session-header selectors would also hit the ask-question card header')
+  const anchors = lines.filter((line) => line.includes('header:has([class*="_headerLeading"])')).length
+  assert.ok(anchors >= 30, `expected the full anchored block, found only ${anchors}`)
 })
 
-// 0.2.0-rc.x moved the leading seat out of the title row and made it the
-// header's own first grid column (grid-template-columns: auto minmax(0,1fr),
-// seat grid-area 1/1, title row grid-column 2). The 32px seat that keeps the
-// title clear of the toggle used to be titleRow's own content-box offset; on
-// that generation it degrades into "grid column 1 happens to be 32px", so any
-// rule that collapses the seat takes the title with it — measured on
-// 0.2.0-rc.2: crumbs x=8 under the toggle at (8,6,28x28), i.e. the same failure
-// the 2026-09-22 real-device run recorded on 0.1.6. The seat must therefore be
-// carried by the title row itself. Behaviour is pinned at runtime by scene 4 of
-// scripts/probes/header-files-pin-probe.mjs.
-test('the 0.2.0 grid header carries its seat on the title row, not on the seat box', () => {
+test('no pre-0.2.2 header generation branch survives', () => {
   const source = layoutSource()
-  const grid = '[data-phase] header:has([class*="_headerLeading"]):has(> [data-conversation-header-leading])'
-  assert.ok(source.includes(grid), 'the 0.2.0 grid-header gate is missing')
-  const titleRule = source.slice(source.indexOf(`${grid} [class*="_titleRow"] {`))
-  assert.ok(titleRule.startsWith(grid), 'title-row seat rule not found')
-  const declarations = titleRule.slice(0, 240)
-  assert.ok(declarations.includes('padding-left: 22px !important'), 'title row must carry the toggle seat (32 → 22px, owner 2026-11-03)')
+  for (const dead of [
+    '0.1.6-alpha.2 session-header adaptation',
+    'header:not(:has([class*="_headerLeading"]))',
+    ':has(> [data-conversation-header-leading])',
+    'header:has([class*="_headerLeading"]) > :first-child',
+    '[class*="_crumbs"] [class*="_separator"]',
+    '[data-phase] header [class*="_menu"]',
+    '[data-team-action] [class*="_panel"]',
+  ]) {
+    assert.ok(!source.includes(dead), `dead pre-0.2.2 header rule is back: ${dead}`)
+  }
+})
+
+// The seat that keeps the title clear of the toggle lives on the title row
+// itself (pitfalls 「header 座位归属」): collapsing the seat box must never take
+// the title with it (0.2.0-rc.2: crumbs x=8 under the toggle at (8,6,28x28)).
+// Since 0.2.2 the value is read from the host's own --dsh-frame-leading-clearance
+// with the host's own formula; the plugin publishes 42px on the session header so
+// the title row keeps exactly 22px (owner 2026-11-03).
+test('the title row carries its seat through the host clearance variable', () => {
+  const source = layoutSource()
+  const anchor = '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])'
+  // 行首锚定：html[data-mobile-nav-selecting] 等更长的选择器也以同一串结尾。
+  const header = source.slice(source.indexOf(`\n  ${anchor} {`) + 3)
+  assert.ok(header.startsWith(anchor), 'session header rule not found')
+  assert.match(header.slice(0, header.indexOf('}')), /--dsh-frame-leading-clearance: 42px;/)
+  const titleRule = source.slice(source.indexOf(`${anchor} [class*="_titleRow"] {`))
+  assert.ok(titleRule.startsWith(anchor), 'title-row seat rule not found')
+  const declarations = titleRule.slice(0, titleRule.indexOf('}'))
+  assert.ok(
+    declarations.includes('padding-left: max(0px, calc(var(--dsh-frame-leading-clearance, 42px) - 20px)) !important'),
+    'title row must read the host clearance with the host formula (42 - 20 = 22px)',
+  )
   assert.ok(declarations.includes('box-sizing: border-box !important'), 'border-box keeps the seat inside column 2')
-  assert.ok(source.includes(`${grid} > [data-conversation-header-leading] {`), 'the seat box itself must be zeroed')
+  assert.ok(source.includes(`${anchor} > [data-conversation-header-leading] {`), 'the seat box itself must be zeroed')
   assert.ok(
     source.includes('[data-slot="conversation.header.leading"] {'),
     'the leading slot must be hidden by slot name, not by a :last-child chain',
   )
 })
 
-// The old position:static containment has higher specificity than the new
-// absolute chip rules; with both !important, specificity decides (not source
-// order), so on alpha.2 it must be excluded or the chips never leave the row.
-test('the static containment rule is excluded on alpha.2 so absolute chips win', () => {
+// Absolute chips need their containing block pinned to the header: the
+// headerActions ancestor is forced static so another plugin's position:relative
+// cannot re-anchor them (lineage-chip-pinned).
+test('the chip containing block stays pinned to the header', () => {
   assert.ok(
     layoutSource().includes(
-      'header:not(:has([class*="_headerLeading"])) [class*="_headerActions"] [class*="_root"]',
+      'header:has([class*="_headerLeading"]) [class*="_titleCluster"] > [class*="_headerActions"] {\n    position: static !important;',
     ),
-    'static containment rule must carry the alpha.2 exclusion gate',
   )
 })
 
@@ -138,10 +162,10 @@ test('the file-upload control hides itself where the host has no file input', ()
   assert.ok(layoutSource().includes(':not(:has(input[type=file])) [data-mobile-nav="file-upload"]'))
 })
 
-// alpha.2 renamed the hero-empty marker; both hide rules must coexist.
-test('the hero empty-header hide covers both generation markers', () => {
+// 0.2.2 only renders headerBlank; the pre-0.1.6 headerHidden arm is gone.
+test('the hero empty-header hide targets the current marker only', () => {
   const source = layoutSource()
-  assert.ok(source.includes('header[class*="_headerHidden"]'))
+  assert.ok(!source.includes('header[class*="_headerHidden"]'))
   assert.ok(source.includes('header[class*="headerBlank"]'))
 })
 
@@ -273,8 +297,9 @@ test('tablet tier keeps the pre-batch geometry through the shared mobile block (
     '共用档文件夹按钮必须是本批之前的 right:8px')
   assert.equal(sharedDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'flex: 0 0 36px !important'), true,
     '共用档文件夹座位必须是本批之前的 36px')
-  assert.equal(sharedDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'top: 2px !important'), true,
-    '共用档文件夹座位必须是本批之前的 top:2px')
+  // 2026-11-05 店主定「自适应」：纵向不再写死 top:2px，改由静态位置随动作行居中（两档同步）。
+  assert.equal(sharedDecl(scoped, 'header:has([class*="_headerLeading"]) [data-mobile-nav="files"]', 'top: auto !important'), true,
+    '共用档文件夹座位纵向随动作行居中（top:auto）')
   assert.equal(sharedDecl(scoped, '_titleCluster', 'gap: 0 4px !important'), true,
     '共用档标题簇间距必须是本批之前的 0 4px')
   assert.equal(sharedDecl(scoped, '_headerActions', 'gap: 4px !important'), true,
@@ -350,4 +375,42 @@ test('the zen-remote header reflow gets the cluster yielded, not overridden', ()
   )
   assert.ok(crumbs !== undefined, 'the crumbs clip rule is missing')
   assert.ok(crumbs.body.includes('overflow: hidden !important'), 'the centered title must clip inside its column')
+})
+
+// 真机 2026-11-05：0.2.2 的 titleCluster 带 mask-image 渐隐，遮罩按簇的边框盒绘制，把座位在
+// 簇外的开关 / 文件按钮一起抹掉（overflow:visible 管不到遮罩）。撤遮罩必须在共用档，平板同受害。
+test('the title cluster drops the host fade mask in the shared mobile scope', () => {
+  const rules = scopedRules(layoutSource())
+  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', 'mask-image: none !important'))
+  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', '-webkit-mask-image: none !important'))
+})
+
+// 真机 2026-11-05：「对话轨迹」叠字。宿主 tab 的负外边距由 --dsh-tab-hit-inline 推出，
+// 手机档清零内边距时必须连变量与左右外边距一起清零。
+test('phone view tabs zero the host hit-inline margins together with their padding', () => {
+  const rules = scopedRules(layoutSource())
+  const sel = '[data-conversation-tabs] > button[class*="_tab"]'
+  assert.ok(phoneDecl(rules, sel, '--dsh-tab-hit-inline: 0px'))
+  assert.ok(phoneDecl(rules, sel, 'margin-left: 0 !important'))
+  assert.ok(phoneDecl(rules, sel, 'margin-right: 0 !important'))
+})
+
+// 真机 2026-11-05：图标比标题偏上（旧 top:6/2/5 是 14px 字号下的魔数，字号放大后不同心）。
+// 两角按钮改为 top:auto —— 静态位置即动作行的纵向居中线，任何缩放都与标题同心；手机档不得再写死 top。
+test('corner buttons centre on the title row via their static position, not a fixed top', () => {
+  const rules = scopedRules(layoutSource())
+  for (const btn of ['[data-mobile-nav="toggle"]', '[data-mobile-nav="files"]']) {
+    assert.ok(sharedDecl(rules, btn, 'top: auto !important'), btn)
+    const fixed = rules.filter((r) => r.sel.includes('header') && r.sel.includes(btn) && /(^|[;\s])top:\s*-?\d/.test(r.body))
+    assert.deepEqual(fixed.map((r) => r.sel), [], btn)
+  }
+})
+
+// 真机 2026-11-05「状态栏下隔太开」：手机档标题行按内容高——簇与动作行的地板都清零；共用档（平板）不变。
+test('phone title row hugs its content: cluster and actions floors are cleared on phones only', () => {
+  const rules = scopedRules(layoutSource())
+  assert.ok(phoneDecl(rules, '[class*="_titleCluster"] {', 'min-height: 0 !important') || phoneRule(rules, '[class*="_titleCluster"]')?.includes('min-height: 0 !important'))
+  assert.ok(phoneDecl(rules, '[class*="_titleCluster"] > [class*="_headerActions"]', 'min-height: 0 !important'))
+  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', 'min-height: 40px !important'))
+  assert.ok(sharedDecl(rules, '[class*="_headerActions"]', 'min-height: 36px !important'))
 })

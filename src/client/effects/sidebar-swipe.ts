@@ -1,6 +1,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { getFrame } from '../platform/frame.ts'
+import { getDrawer, getFrame } from '../platform/frame.ts'
 import { installMobileEffect } from '../platform/breakpoints.ts'
+import { drawerOpening, releaseTextFocus } from '../platform/drawer-open.ts'
 import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
 import { fadeOverlayOut } from './overlay-backdrop-fab.ts'
 
@@ -514,12 +515,9 @@ export function findHorizontalScroller(node: SwipeChainNode | null): SwipeChainN
   return null
 }
 
-/** The open drawer element: first child of the plugin frame. */
+/** The open drawer element: the frame's sidebar column (0.2.2 adds a mask before it). */
 function findDrawer(): HTMLElement | null {
-  const frame = getFrame()
-  return frame !== null && frame.firstElementChild instanceof HTMLElement
-    ? frame.firstElementChild
-    : null
+  return getDrawer()
 }
 
 /** True when the drawer is currently open (per the collapsed marker). */
@@ -837,6 +835,8 @@ function armOpenFollow(ctx: ClientContext): void {
   drawer.style.setProperty('content-visibility', 'hidden', 'important')
   cvDeferred = true
   openFollowArmed = true
+  releaseTextFocus() // drawer-jank R2: blur before the flip; no wait, the finger is moving
+  drawerOpening() // R3: the backdrop mounts with the flip, not one rAF later
   ctx.layout.toggleSidebar()
   // Two frames (layout flush, then reveal). Kept in module state so a dispose
   // between them cancels the chain instead of revealing a drawer that no

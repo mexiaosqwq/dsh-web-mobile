@@ -1,8 +1,8 @@
-// Dual-generation sessions shape (audit doc §10.1): rc.2 carries
-// SessionListState.current, a2 removed it (open/clear too) and moved
-// selection to per-session retainedBy counters. The helpers must read both
-// shapes so the plugin stays compile-green on rc.2 typings and runs green on
-// an a2 host.
+// Sessions shape on supported hosts (>=0.2.2-rc.1): no SessionListState.current,
+// no open/clear; selection lives in per-session retainedBy counters. The rc.2
+// `current` read and the open/clear feature probes were removed with the host
+// floor; the helper stays structural because the repo type-checks against the
+// pinned 0.1.0-rc.6 typings.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -12,8 +12,6 @@ import {
   DELETE_VERIFY_ATTEMPTS,
   DELETE_VERIFY_INTERVAL_MS,
   currentSessionIdOf,
-  sessionsCanClear,
-  sessionsCanOpen,
   verifySessionDeleted,
 } from '../src/client/core/sessions-compat.ts'
 
@@ -21,16 +19,16 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // The footer pill moved into the drawer brand-row task (issue #225).
 const LOG = readFileSync(join(ROOT, 'src/client/effects/drawer-session-log.ts'), 'utf8')
 const MENU = readFileSync(join(ROOT, 'src/client/effects/session-menu.ts'), 'utf8')
-// P1 拆分（2026-10-12）：两处 currentSessionIdOf/sessionsCanOpen 读取随
-// installOverlayInteractions 搬到 drawer-close.ts；仍读两半，负向断言保持原有覆盖面积。
+// P1 拆分（2026-10-12）：installOverlayInteractions 搬到 drawer-close.ts；仍读两半，
+// 负向断言保持原有覆盖面积。
 const CHROME = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
   + readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
 
-test('currentSessionIdOf reads the rc.2 current field first', () => {
-  assert.equal(currentSessionIdOf({ current: 's1', byId: {} }), 's1')
+test('currentSessionIdOf ignores the removed rc.2 current field', () => {
+  assert.equal(currentSessionIdOf({ current: 's1', byId: {} }), undefined)
 })
 
-test('currentSessionIdOf derives from a2 retainedBy.mainView when current is gone', () => {
+test('currentSessionIdOf derives from retainedBy.mainView', () => {
   const a2 = {
     byId: {
       a: { id: 'a', retainedBy: { mainView: 0 } },
@@ -47,14 +45,6 @@ test('currentSessionIdOf returns undefined on empty, foreign and null shapes', (
   assert.equal(currentSessionIdOf('nope'), undefined)
 })
 
-test('sessionsCanClear / sessionsCanOpen feature-detect the a2 removals', () => {
-  assert.equal(sessionsCanClear({ clear: () => {} }), true)
-  assert.equal(sessionsCanClear({}), false)
-  assert.equal(sessionsCanClear(null), false)
-  assert.equal(sessionsCanOpen({ open: (id: string) => id }), true)
-  assert.equal(sessionsCanOpen({}), false)
-})
-
 test('every current-session read goes through currentSessionIdOf', () => {
   assert.match(LOG, /currentSessionIdOf\(ctx\.sessions\.list\.getSnapshot\(\)\)/)
   assert.doesNotMatch(LOG, /getSnapshot\(\)\.current/)
@@ -63,19 +53,18 @@ test('every current-session read goes through currentSessionIdOf', () => {
   const chromeReads = CHROME.match(/currentSessionIdOf\(ctx\.sessions\.list\.getSnapshot\(\)\)/g) ?? []
   assert.ok(logReads.length >= 1, 'drawer-session-log reads via helper')
   assert.ok(snapshotReads.length >= 1, 'session-menu reads via helper')
-  assert.ok(chromeReads.length >= 2, 'phone-chrome reads via helper (tappedRowSessionId + closeOnNavigation)')
+  assert.equal(chromeReads.length, 0, 'drawer-close no longer reads the current session (sessions.open path removed)')
   assert.doesNotMatch(CHROME, /getSnapshot\(\)\.current/)
   assert.doesNotMatch(MENU, /getSnapshot\(\)\.current/)
 })
 
-test('clear and open are feature-detected, not assumed', () => {
-  assert.match(MENU, /if \(wasCurrent && sessionsCanClear\(ctx\.sessions\)\) ctx\.sessions\.clear\(\)/)
-  assert.match(CHROME, /sessionsCanOpen\(ctx\.sessions\)/)
-  // a2 degrade: no open() -> the DOM-observer closer takes the tap, and the
-  // store-subscription closer (which has no signal on a2) must NOT be armed.
-  // Anchored on the a2 comment: the bare closer pair also matches the
-  // pre-existing tap-fallback branch, which would make this assertion vacuous.
-  assert.match(CHROME, /a2 removed sessions\.open[\s\S]*?disarmCloseOnNav\(\)\n\s*armNav\(\)/)
+test('the removed sessions.open / clear calls stay gone', () => {
+  // Hosts >=0.2.2 expose neither; the unselected-row tap closes through the
+  // DOM observer only.
+  assert.doesNotMatch(MENU, /ctx\.sessions\.clear\(/)
+  assert.doesNotMatch(CHROME, /ctx\.sessions\.open\(/)
+  assert.doesNotMatch(CHROME, /closeOnNavigation|disarmCloseOnNav/)
+  assert.match(CHROME, /\} else \{\n(?:\s*\/\/.*\n)*\s*armNav\(\)\n\s*\}/)
 })
 
 // --- Aborted delete request: the list, not the fetch promise, is the judge ----

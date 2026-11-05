@@ -45,7 +45,7 @@ const CHROME = process.env.DSH_PROBE_CHROME || '/data/data/com.termux/files/usr/
 const PORT = 9355
 const URL_BASE = process.env.DSH_PROBE_URL || 'http://127.0.0.1:3080/'
 const TIMEOUT_MS = Number(process.env.DSH_PROBE_TIMEOUT_MS || 30000)
-const DRAWER = '[data-mobile-nav="frame"] > :first-child'
+const DRAWER = '[data-mobile-nav="frame"] [class*="_sidebarCol"]'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const failures = []
 const record = (ok, name, detail = '') => {

@@ -43,7 +43,7 @@ const URL = process.env.DSH_PROBE_URL || 'http://127.0.0.1:3080/'
 const CHROME = process.env.DSH_PROBE_CHROME || 'google-chrome'
 
 const FRAME_SELECTOR = '[data-mobile-nav="frame"]'
-const DRAWER_SELECTOR = '[data-mobile-nav="frame"] > :first-child'
+const DRAWER_SELECTOR = '[data-mobile-nav="frame"] [class*="_sidebarCol"]'
 const SCROLL_SELECTOR = '[data-phase] [class*="_scrollBody"]'
 
 function allocatePort() {

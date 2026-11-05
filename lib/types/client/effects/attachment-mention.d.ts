@@ -15,10 +15,10 @@ import type { AttachmentCandidate, AttachmentInsert, DraftAttachment } from '../
  *   sessions.scope(sessionId)                 → the session-scope ctx
  *   conversation.input.for(actx).state        → SnapshotStore<InputState>
  *       (frozen contract `SessionInput.state`, ui-conversation input/contract.d.ts)
- *   InputState.attachmentIds                  → ordered draft ids (rc.2;
- *       the rc.6 contract named the image-only predecessor `imageIds`)
+ *   InputState.attachmentIds                  → ordered draft ids
  *   conversation.resolveDraftAttachments(ids) → `{ kind, id, file }` descriptors
- *       (rc.2; rc.6 `draftImages(ids)` — both feature-detected)
+ *       (the rc.6 `imageIds` / `draftImages(ids)` predecessors were removed with
+ *       the host floor: 0 hits in the 0.2.2-rc.1 ui-conversation bundle)
  *   conversation.fileUploads.getSnapshot()    → `{ [id]: { status } }` (optional)
  * This is exactly what the host's own composer renders the rail from
  * (ui-conversation lib/client.js: InputBar `resolveDraftAttachments(input.attachmentIds)`).

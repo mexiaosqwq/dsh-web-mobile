@@ -62,6 +62,22 @@ const MENU_ENTRY_ATTR = 'data-mobile-nav-quick-menu'
 const MENU_ENTRY_SELECTOR = '[data-mobile-nav-quick-menu]'
 
 /**
+ * 「点下那一刻」就挂上的预标记：让账户菜单从第一帧起就没有被我们收起的那一项。
+ * 只在 pointerdown → 菜单被打上正式标记之间存在（另有 PENDING_MS 兜底），
+ * 期间任何 `[role="menu"]` 的第一项都不画——这正是「不跳」的代价，窗口只有几帧。
+ */
+const PENDING_ATTR = 'data-mobile-nav-quick-pending'
+/** 预标记最长存活时间：宿主没开菜单（长按、拖走）时不能一直挂着。 */
+const PENDING_MS = 700
+
+/** 齿轮按下态的最短可见时长：短到一次点击也要闪一下，长到能看清。 */
+const PRESS_MIN_MS = 140
+/** 齿轮按下态标记（属性值恒为空串，CSS 只看存在性）。 */
+const PRESSED_ATTR = 'data-mobile-nav-quick-pressed'
+/** 账户行按下态标记（同上，属性值恒为空串）。 */
+const ROW_PRESSED_ATTR = 'data-mobile-nav-row-pressed'
+
+/**
  * 抽屉页脚账户行右端的一键设置齿轮。
  *
  * 任务靠 `getFrame()` 只在移动分支存在时注入（桌面帧标记不存在 → 直接 no-op），
@@ -86,6 +102,89 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     if (pending === null) return
     window.clearTimeout(pending)
     pending = null
+  }
+
+  let pendingMark = 0
+  /** 齿轮按下态的计时（保证短按也看得见）。 */
+  let pressTimer = 0
+  let pressedAt = 0
+  /** 账户行按下态的计时。 */
+  let rowPressTimer = 0
+  let rowPressedAt = 0
+
+  /** 摘掉 pointerdown 预标记（幂等）。 */
+  const clearPendingMark = (): void => {
+    if (pendingMark === 0) return
+    window.clearTimeout(pendingMark)
+    pendingMark = 0
+    document.documentElement.removeAttribute(PENDING_ATTR)
+  }
+
+  /**
+   * 点账户行为菜单做准备：在宿主开菜单之前把「第一项不画」挂到 html 上。
+   *
+   * 不这么做的话，菜单会先按完整三项画出来，等 reconciler 下一拍打上标记再收起
+   * 第一项——整张卡片的高度变化就是真机上看到的「弹跳」（2026-11-05）。
+   * 只认账户行内的、不是我们齿轮的按下；预标记在菜单被打标记时摘掉，超时兜底。
+   */
+  /**
+   * 账户行的按下态也用显式属性（2026-11-05 真机：点它开菜单时看不到任何反馈，
+   * 关掉时才闪一下灰）。成因与齿轮相同——菜单在同一拍挂载，浏览器把 :active 收掉，
+   * 0.12s 的淡入一帧都没画出来。这里在 pointerdown 时给行挂 ROW_PRESSED_ATTR，
+   * 松开后再留 140ms，CSS 见 base.css 同族规则。
+   */
+  const pressRow = (on: boolean): void => {
+    const target = row()
+    if (target === null) return
+    if (on) target.setAttribute(ROW_PRESSED_ATTR, '')
+    else target.removeAttribute(ROW_PRESSED_ATTR)
+  }
+
+  const onRowPressEnd = (): void => {
+    if (rowPressedAt === 0) return
+    const remain = PRESS_MIN_MS - (performance.now() - rowPressedAt)
+    rowPressedAt = 0
+    window.clearTimeout(rowPressTimer)
+    if (remain > 0) {
+      rowPressTimer = window.setTimeout(() => pressRow(false), remain)
+      return
+    }
+    pressRow(false)
+  }
+
+  const onRowPointerDown = (event: Event): void => {
+    // 鸭子类型而不是 instanceof Element：跨 realm（iframe / 测试桩）时 instanceof 会假阴性，
+    // 而这颗监听只需要 closest/contains 两个能力（同 open-files-panel 的写法）。
+    const target = event.target as Element | null
+    if (target === null || typeof target.closest !== 'function') return
+    if (target.closest('[data-mobile-nav="quick-settings"]') !== null) return
+    const owner = row()
+    if (owner === null || typeof owner.contains !== 'function' || !owner.contains(target)) return
+    document.documentElement.setAttribute(PENDING_ATTR, '')
+    window.clearTimeout(pendingMark)
+    pendingMark = window.setTimeout(clearPendingMark, PENDING_MS)
+    window.clearTimeout(rowPressTimer)
+    rowPressedAt = performance.now()
+    pressRow(true)
+  }
+
+  /** 预标记与按下态监听只在任务首次 armed 之后挂（构造期不碰 document）。 */
+  let rowHookBound = false
+
+  const bindRowHook = (): void => {
+    if (rowHookBound) return
+    rowHookBound = true
+    document.addEventListener('pointerdown', onRowPointerDown, true)
+    document.addEventListener('pointerup', onRowPressEnd, true)
+    document.addEventListener('pointercancel', onRowPressEnd, true)
+  }
+
+  const unbindRowHook = (): void => {
+    if (!rowHookBound) return
+    rowHookBound = false
+    document.removeEventListener('pointerdown', onRowPointerDown, true)
+    document.removeEventListener('pointerup', onRowPressEnd, true)
+    document.removeEventListener('pointercancel', onRowPressEnd, true)
   }
 
   /**
@@ -136,6 +235,34 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     selectSettingsItem(trigger)
   }
 
+  /**
+   * 齿轮的按下态用显式属性，而不是只靠 `:active`（2026-11-05 真机：`:active` 在
+   * 这颗按钮上一点都画不出来——它 30px、透明底、又在一颗整行大按钮的同一行里）。
+   * pointerdown 立刻挂 `data-mobile-nav-quick-pressed`，松开后再留 PRESS_MIN_MS 才摘，
+   * 短促一点击也能看见一眼；指针取消/离开同样收尾。CSS 见 base.css 同族规则。
+   */
+  const press = (on: boolean): void => {
+    if (button === null) return
+    if (on) button.setAttribute(PRESSED_ATTR, '')
+    else button.removeAttribute(PRESSED_ATTR)
+  }
+
+  const onPressStart = (): void => {
+    window.clearTimeout(pressTimer)
+    press(true)
+    pressedAt = performance.now()
+  }
+
+  const onPressEnd = (): void => {
+    const remain = PRESS_MIN_MS - (performance.now() - pressedAt)
+    window.clearTimeout(pressTimer)
+    if (remain > 0) {
+      pressTimer = window.setTimeout(() => press(false), remain)
+      return
+    }
+    press(false)
+  }
+
   const build = (): void => {
     wrap = document.createElement('span')
     wrap.dataset.mobileNav = 'quick-settings-wrap'
@@ -147,6 +274,10 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     button.title = t('quickSettings')
     button.innerHTML = SETTINGS_SVG
     button.addEventListener('click', onClick)
+    button.addEventListener('pointerdown', onPressStart)
+    button.addEventListener('pointerup', onPressEnd)
+    button.addEventListener('pointercancel', onPressEnd)
+    button.addEventListener('pointerleave', onPressEnd)
     wrap.appendChild(button)
   }
 
@@ -188,6 +319,8 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     }
     // 幂等：写过的属性不再重写，免得自己的 mutation 把任务再唤醒一轮。
     if (!menu.hasAttribute(MENU_ENTRY_ATTR)) menu.setAttribute(MENU_ENTRY_ATTR, '')
+    // 正式标记已到位，预标记可以撤了（CSS 两条并联，撤了也不跳）。
+    clearPendingMark()
   }
 
   return {
@@ -198,10 +331,15 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
       if (target === null) return
       if (button === null || wrap === null) build()
       if (wrap !== null && wrap.parentElement !== target) target.appendChild(wrap)
+      bindRowHook()
       syncMenuEntry(target)
     },
     dispose: () => {
+      window.clearTimeout(pressTimer)
+      window.clearTimeout(rowPressTimer)
       clearPending()
+      clearPendingMark()
+      unbindRowHook()
       document.documentElement.removeAttribute('data-mobile-nav-quick')
       clearMenuEntry()
       wrap?.remove()

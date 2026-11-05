@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { findRuleBlocks, matchesSelectorText, fontSizeFor } from '../src/client/core/css-rules.ts'
@@ -258,7 +259,7 @@ test('the ask-question card title is not swallowed by the mobile header block (2
       .split('header:has([class*="_headerLeading"])').join('header')
     return /\bheader\s*>/.test(normalized)
   })
-  assert.ok(structural.length >= 3, '顶栏直系子元素规则还在（没有误删整块）')
+  assert.ok(structural.length >= 1, '顶栏直系子元素规则还在（没有误删整块）')
   for (const block of structural) {
     assert.match(
       block.selector,
@@ -266,12 +267,14 @@ test('the ask-question card title is not swallowed by the mobile header block (2
       `裸 header 的直系子元素规则会把提问卡一起命中：${block.selector}`,
     )
   }
+  // 0.2.2 起 header 第一格是座位、其最后孩子是 leading 槽：位置链改义（pitfalls「header 座位归属」），
+  // 已改为按槽名隐藏，且同样收在顶栏锚上。
   const hide = blocks.find(
     (block) =>
       block.selector
-      === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) > :first-child > :last-child',
+      === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-slot="conversation.header.leading"]',
   )
-  assert.ok(hide !== undefined, '隐藏顶栏日志胶囊的规则仍在位（只是收到顶栏类上）')
+  assert.ok(hide !== undefined, '按槽名隐藏 leading 槽的规则仍在位（收在顶栏锚上）')
   assert.match(hide.body, /display:\s*none !important/)
 })
 
@@ -433,10 +436,196 @@ test('phone stats row keeps an unfolded context ring as a bare ring at the right
   assert.ok(!LAYOUT_CSS.includes('[data-composer-stat] [class*="_pill"] > svg'))
 })
 
-test('the phone header sits 12px closer to the status bar, never past -16 (2026-11-03)', () => {
-  // -16 已实测越界（标题被 App 顶部层盖住，2026-10-25 回退）；-12 是店主 11-03 要的收窄。
-  const block = findRuleBlocks(MISC_CSS).find((b) =>
-    b.selector.trim() === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])' && /margin-top/.test(b.body))
+test('the phone header has no device-tuned negative pull: top spacing is the shell safe-area inset (2026-11-05)', () => {
+  // 店主 2026-11-05 定「自适应」：-8 / -12 / -16 与 max(-12px, -inset) 夹取都是按一台机器量的。
+  // 顶部只认外壳 padding-top: env(safe-area-inset-top)；会话顶栏上不得再出现负的 margin-top。
+  const pulls = findRuleBlocks(MISC_CSS + LAYOUT_CSS).filter((b) =>
+    b.selector.includes('header:has([class*="_headerLeading"])') && /margin-top:\s*(-|max\(-|calc\(-)/.test(b.body))
+  assert.deepEqual(pulls.map((b) => b.selector.trim()), [])
+})
+
+test('host 0.2.2: explicit shell column grid-area and native drawer mask are neutralized (2026-11-04)', () => {
+  // 0.2.2 给外壳三列补了显式 grid-area（sidebar 1/1 / center 1/2 / right 1/3），
+  // 并在 frame 里插入原生 drawerMask（且是第一个子元素）。本插件只留一条 1fr 轨道，
+  // 若主列继续吃宿主写死的 1/2 就会落在 0 宽轨道上（真机整页白屏）；遮罩还会抢占
+  // 所有 `> :first-child` 抽屉锚点。两条修复都必须留在移动块里、且不得回收成
+  // first-child 锚点。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const center = blocks.find((b) => b.selector.trim() === '[data-mobile-nav="frame"] > [class*="_centerCol"]')
+  assert.ok(center, 'center column must be re-seated on the 1fr track')
+  assert.match(center.body, /grid-area:\s*1 \/ 1 \/ 2 \/ 2 !important/)
+  const mask = blocks.find((b) => b.selector.trim() === '[data-mobile-nav="frame"] > [class*="_drawerMask"]')
+  assert.ok(mask, 'the host native drawer mask must be neutralized')
+  assert.match(mask.body, /display:\s*none !important/)
+  // The mask is the frame's first child on 0.2.2 — the drawer anchor must be the
+  // stable `_sidebarCol` suffix, never `:first-child`.
+  assert.ok(!/\[data-mobile-nav="frame"\] > :first-child/.test(LAYOUT_CSS), 'layout.css.ts 不得再用 frame 首子元素当抽屉')
+  assert.ok(!/\[data-mobile-nav="frame"\] > :first-child/.test(MISC_CSS), 'misc.css.ts 不得再用 frame 首子元素当抽屉')
+})
+
+// ---------- 手机档设置全屏（2026-11-05 owner 真机反馈：内缩卡片「像另一个界面」）----------
+// findRuleBlocks 丢掉 @media 前导；这里需要每条规则所在的媒体作用域链，自带一个小遍历器。
+function scopedRules(css: string): { media: string[]; selector: string; body: string }[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const out: { media: string[]; selector: string; body: string }[] = []
+  const stack: string[] = []
+  let buf = ''
+  for (const ch of text) {
+    if (ch === '{') {
+      const head = buf.replace(/\s+/g, ' ').trim()
+      buf = ''
+      stack.push(head)
+      continue
+    }
+    if (ch === '}') {
+      const head = stack.pop() ?? ''
+      if (!head.startsWith('@') && head !== '') {
+        out.push({ media: stack.filter((s) => s.startsWith('@')), selector: head, body: buf })
+      }
+      buf = ''
+      continue
+    }
+    buf += ch
+  }
+  return out
+}
+
+const SETTINGS_IS = '[aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])'
+
+test('settings sheet: the inset card form is tablet-only (≥768), phones get the host fullscreen form', () => {
+  const rules = scopedRules(LAYOUT_CSS)
+  const card = rules.filter((r) => r.selector === SETTINGS_IS && /border-radius:\s*14px/.test(r.body))
+  assert.equal(card.length, 1, 'exactly one inset-card rule for the settings sheet')
+  const media = card[0].media.join(' && ')
+  assert.match(media, /\(max-width: 1023px\) and \(pointer: coarse\)/, 'card rule stays in the mobile block')
+  assert.match(media, /\(min-width: 768px\)/, 'card rule must be gated to the tablet tier')
+  assert.match(card[0].body, /left:\s*8px !important/)
+  assert.match(card[0].body, /width:\s*calc\(100vw - 16px\)/)
+  // 手机档（任何不带 min-width:768 的作用域）里，设置面板不得再拿到内缩卡片几何。
+  const phoneReach = rules.filter((r) =>
+    (r.selector.includes('data-shortcut-modal="settings"'))
+    && !r.media.some((m) => m.includes('min-width: 768px')),
+  )
+  for (const r of phoneReach) {
+    assert.doesNotMatch(r.body, /border-radius:\s*14px|left:\s*8px|calc\(100vw - 16px\)|dsh-web-mobile-sheet-in/,
+      `phone tier still reaches card geometry: ${r.selector.slice(0, 120)}`)
+  }
+})
+
+test('settings sheet: phone tier keeps only the fixes the host lacks', () => {
+  const rules = scopedRules(LAYOUT_CSS)
+  const phone = rules.filter((r) => r.media.some((m) => m.includes('(max-width: 767px) and (pointer: coarse)'))
+    && r.selector.startsWith('[aria-modal="true"][data-shortcut-modal="settings"]'))
+  const by = (sel: string) => phone.find((r) => r.selector === sel)
+  const panel = by('[aria-modal="true"][data-shortcut-modal="settings"]')
+  assert.ok(panel, 'phone settings panel rule present')
+  // 导出弹层的 calc(100vw - 32px) 封顶与宿主全屏规则同特异性、书写在后，必须显式撤顶。
+  assert.match(panel.body, /max-width:\s*none !important/)
+  assert.match(panel.body, /padding-top:\s*env\(safe-area-inset-top, 0px\) !important/)
+  assert.match(panel.body, /box-sizing:\s*border-box !important/)
+  assert.doesNotMatch(panel.body, /animation/, 'no entrance animation on the fullscreen phone sheet')
+  const bar = by('[aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"]::-webkit-scrollbar')
+  assert.ok(bar, 'tab strip hairline scrollbar present')
+  assert.match(bar.body, /display:\s*block !important/)
+  assert.match(bar.body, /height:\s*2px !important/)
+})
+
+test('settings sheet: the open-config action is hidden across the mobile tier, the close keeps a 44px hit area', () => {
+  // owner 2026-11-05：手机与平板都藏「打开配置文件」（settings.action 槽），桌面不变。
+  const rules = scopedRules(LAYOUT_CSS)
+  const mobileOnly = (r: { media: string[] }) =>
+    r.media.length === 1 && r.media[0] === '@media (max-width: 1023px) and (pointer: coarse)'
+  const hide = rules.find((r) => r.selector === '[aria-modal="true"][data-shortcut-modal="settings"] [data-slot="settings.action"]')
+  assert.ok(hide, 'config action hidden by its slot wrapper inside the settings sheet')
+  assert.ok(mobileOnly(hide), `hide rule must sit in the plain mobile block (both tiers), got ${hide.media.join(' && ')}`)
+  assert.match(hide.body, /display:\s*none !important/)
+  const hit = rules.find((r) => r.selector === '[aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child::after')
+  assert.ok(hit, 'close-button hit area present')
+  assert.ok(mobileOnly(hit), 'hit area shared by phone and tablet')
+  assert.match(hit.body, /inset:\s*-8px/)
+  // 0.1.x 工具栏链在 0.2.2 永不命中（面板末子是 options），不得回来。
+  assert.ok(!LAYOUT_CSS.includes('> :last-child > [class*="_header"]'), 'dead 0.1.x settings toolbar chain is back')
+})
+
+test('settings sheet: the :is() family predicate keeps its shape (specificity contract)', () => {
+  // 特异性牵连：形态声明只改作用域，不改这条 :is() 的形状。
+  const count = LAYOUT_CSS.split(SETTINGS_IS).length - 1
+  assert.ok(count >= 10, `settings :is() predicate still used by the whole block (found ${count})`)
+})
+
+// 抽屉遮罩与抽屉列同时长、同缓动（2026-11-05）；reduced-motion 下两者都无动画。
+test('drawer backdrop fades with the drawer column: same duration, same easing, both off under reduced motion', () => {
+  const layout = scopedRules(LAYOUT_CSS)
+  const base = scopedRules(BASE_CSS)
+  const COL = '[data-mobile-nav="frame"] > [class*="_sidebarCol"]'
+  const col = layout.find((r) => r.selector === COL && /transition:\s*transform/.test(r.body) && r.media.length === 1)
+  assert.ok(col, 'drawer column transition rule present')
+  const m = /transition:\s*transform\s+([\d.]+m?s)\s+(var\([^;]+\))/.exec(col.body)
+  assert.ok(m, `drawer transition parsable: ${col.body}`)
+  const [, duration, easing] = m
+  const bd = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.length === 0)
+  assert.ok(bd, 'backdrop base rule present')
+  assert.ok(bd.body.includes(`animation: dsh-web-mobile-fade ${duration} ${easing}`), `backdrop fade-in must be ${duration} ${easing}: ${bd.body}`)
+  assert.ok(bd.body.includes(`transition: opacity ${duration} ${easing}`), `backdrop fade-out must be ${duration} ${easing}`)
+  const rmBackdrop = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
+  assert.ok(rmBackdrop && /animation:\s*none !important/.test(rmBackdrop.body) && /transition:\s*none !important/.test(rmBackdrop.body))
+  const rmCol = layout.find((r) => r.selector === COL && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
+  assert.ok(rmCol && /transition:\s*none !important/.test(rmCol.body), 'drawer column has no transition under reduced motion')
+})
+
+// 真机 2026-11-05：输入框的字很大。宿主给粗指针设备的 16px 下限是 iOS 聚焦放大
+// 保险，Android 不需要；卡片字号拉回字号轴（默认 14px），iOS 由元素级 16px 兜住。
+test('the phone composer card returns to the font-size axis (host coarse-pointer 16px floor undone)', () => {
+  const rule = findRuleBlocks(LAYOUT_CSS).find((b) =>
+    b.selector.includes('[data-composer-card]') && /font-size:\s*max\(14px, var\(--dsh-content-font-size, 14px\)\) !important/.test(b.body))
+  assert.ok(rule !== undefined, 'the composer card must carry the 14px axis floor')
+  assert.ok(rule.selector.includes('data-mobile-nav="frame"'), 'scoped to the mobile frame')
+})
+
+
+// 真机 2026-11-05（插件页）：顶部一大截空白来自宿主的
+// .pI_x6G_mainPanel[data-global-panel]{padding-top:max(0px,calc(48px - clearance))}
+// ——给桌面标题栏让的位，Android 上 clearance=0 于是整段白占。直接归零该内边距
+// （清零 clearance 变量方向是反的：max(0,48-0) 更大）。
+test('the phone plugin panel drops the host title-bar padding and puts the title below the back key', () => {
+  const panel = findRuleBlocks(LAYOUT_CSS).find((b) =>
+    b.selector.includes('[data-mobile-nav="frame"] [data-global-panel]'))
+  assert.ok(panel !== undefined, '全局面板的内边距必须被归零')
+  assert.match(panel.body, /padding-top: 0 !important/)
+  const head = findRuleBlocks(LAYOUT_CSS).find((b) =>
+    b.selector.includes('section[data-plugin-panel] header[data-window-drag]'))
+  assert.ok(head !== undefined)
+  assert.match(head.body, /padding-top: 32px !important/)
+  assert.match(head.body, /padding-top: 32px !important/, '标题落在返回键下方')
+  assert.match(head.body, /margin-left: 0 !important/, '标题与正文左缘对齐')
+  assert.match(head.body, /background: var\(--dsw-alias-bg-layer-1, #fff\) !important/, '滚动时页首要有实底')
+  assert.match(head.body, /flex-wrap: nowrap !important/)
+})
+
+// 真机 2026-11-05：插件页页首原本 position:sticky，钉在顶上、正文从底下滑过，
+// 看起来像和悬浮返回键连成一条固定栏。手机档改成 static，随正文一起滚。
+test('the phone plugin page head scrolls with the content (not sticky)', () => {
+  const rule = findRuleBlocks(LAYOUT_CSS).find((b) =>
+    b.selector.includes('[data-plugin-bar][data-natural]'))
+  assert.ok(rule !== undefined, '必须覆盖宿主 data-natural 的 sticky')
+  assert.match(rule.body, /position: static !important/)
+})
+
+// 2026-11-06：局域网在浏览器打开时，宿主的 narrow 模式可能处于「侧栏展开」，
+// 而手机版几何是按「收起=抽屉」写的 → 侧栏以桌面形态压在主区上、右边只剩一条会话。
+// 启动时补一次折叠，之后尊重用户操作。
+test('the phone branch collapses a sidebar that starts expanded', () => {
+  const src = readFileSync(new URL('../src/client/effects/phone-chrome.ts', import.meta.url), 'utf8')
+  assert.match(src, /collapseSidebarOnStartup\(ctx\)/)
+  assert.match(src, /if \(frame\.hasAttribute\('data-sidebar-collapsed'\)\) return/)
+  assert.match(src, /ctx\.layout\.toggleSidebar\(\)/)
+})
+
+// 2026-11-06：App 内嵌浏览器把 WebView 放在自己的顶栏下面时，env(safe-area-inset-top)
+// 仍报 38px（它是屏幕级的值），于是 frame 让一次位、页头下面多一条空白。
+// 优先读 App 自己发布的 --dsha-safe-area-inset-top，没有再回退 env()。
+test('the frame prefers the app-provided safe-area inset over env()', () => {
+  const block = findRuleBlocks(LAYOUT_CSS).find((b) => b.selector.includes('html [data-mobile-nav="frame"]'))
   assert.ok(block !== undefined)
-  assert.match(block.body, /margin-top:\s*-12px !important/)
+  assert.match(block.body, /padding-top: var\(--dsha-safe-area-inset-top, env\(safe-area-inset-top, 0px\)\) !important/)
 })

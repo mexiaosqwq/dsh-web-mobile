@@ -1,7 +1,7 @@
 # effects/ · 效果模块背景
 
 改动 `src/client/effects/` 下任意文件时本文件会自动进入上下文；改别的目录时它不出现。
-每个模块的背景与根因写在**该文件自己的文档块**里（35/37 有，位置在 imports 之后的导出上方），
+每个模块的背景与根因写在**该文件自己的文档块**里（37/39 有，位置在 imports 之后的导出上方），
 这里补的是跨模块共享的形状约束与源码里没写下的细节。
 
 ## 分层与依赖
@@ -40,7 +40,9 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   任务注册面 `addReconcilerTask` + 本插件全部 reconciler 任务。改全树观察逻辑找这里，
   **不是** phone-chrome.ts。
 - `drawer-close.ts` — 抽屉关闭三条监听路（Escape / 遮罩与导航目标的捕获 click / DSHA
-  `dsha-session-open`）与共用的那一个 `toggleDrawer`（晚提交关闭）。
+  `dsha-session-open`）与共用的那一个 `toggleDrawer`（晚提交关闭）。打开分支（头部开关 / FAB）与手势
+  arm 共用 `platform/drawer-open.ts`：先失焦文本输入（点按还等键盘收起），翻状态前调 `drawerOpening()`
+  让 overlay-backdrop-fab 同任务挂遮罩（2026-11-05 drawer-jank R2/R3）。新开抽屉入口必须走它。
 - `drawer-session-log.ts` — 抽屉品牌行右端的会话日志导出图标（issue #225，替代页脚胶囊）：往
   `[class*="sidebarCol"] [class*="logoRow"]` 注入 `data-mobile-nav="session-log"` 按钮，
   `scopes:['*']` 处理宿主重建，`dispose` 退订 + 移除；无当前会话置灰。
@@ -67,9 +69,11 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 - `session-menu.ts` — touch 门控注入「删除会话」菜单项（自 fork wzxmt-zhc v2.7.0 移植）。
   守卫 = TOUCH_QUERY（每个宽度都算，横屏大平板也算）+ 行/菜单/标签选择器在场。删除当前会话后
   `toggleDrawer` 只在 mobile query 下跑。
-- `composer-keyboard-guard.ts` / `composer-keyboard-lift.ts` / `session-focus-guard.ts` /
-  `shortcut-modal-keyboard-guard.ts` — 四个键盘守卫，共享 `core/prototype-focus-shadow.ts`
-  （#84）的 focus 影子；最后一个守卫卸载时才还原真实方法，同装互不覆盖。
+- `composer-keyboard-guard.ts` / `composer-keyboard-lift.ts` /
+  `shortcut-modal-keyboard-guard.ts` — 键盘守卫，共享 `core/prototype-focus-shadow.ts`
+  （#84）的 focus 影子；最后一个守卫卸载时才还原真实方法，同装互不覆盖。（原第四个
+  `session-focus-guard.ts` 已于 2026-11-05 删除：宿主 0.2.2 的 InputBar 在移动设备上不再
+  挂载期聚焦编辑器，见 `dsh-client-ui-conversation/lib/client.js:21847-21851`；待真机验证。）
 - `composer-clearance.ts` — 键盘压矮的横屏（issue #245）：量「可见带 / 顶栏底 / 座位高」，座位被
   插件的 top-z 顶栏盖住时给 frame 打 `data-mobile-nav-composer-tight`，CSS 让座位压过顶栏并收起
   dock 行。纯核 `core/composer-clearance.ts`；不是键盘抬升（座位本来就贴底，被盖的是它的上半截）。
@@ -88,13 +92,20 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   `model-menu-anchor.ts` / `plugin-card-tap.ts` / `session-row-fiber.ts` /
   `subagent-chip-touch.ts` / `overlay-backdrop-fab.ts`
   — 兼容与定位类，背景见各文件自己的文档块。
-- `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 35 个的
+- `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 37 个的
   背景都在文件内 JSDoc 里）：前者是已安装列表的触摸/布局修补；后者是预览全屏切换按钮的
   reconciler 任务（`preview-fullscreen-toggle`）。
 - `composer-paste-guard.ts` — 手机档多行粘贴只剩首行（2026-10 报障）：输入法上屏后的
   `beforeinput`/`insertText` 落进 Lexical 的 CONTROLLED_TEXT_INSERTION_COMMAND，只写第一段；真 `paste`
   事件走 PASTE_COMMAND 不吞段。本效果在捕获期把「可信 insertText + 多行 + 落在 composer 编辑面」改派成
   携带同一文本的合成 `paste`。上游讨论 #8823。
+- `focus-gesture-guard.ts` — 触屏：只有手指点中文本输入面才允许 `focus()`（2026-11-05 owner
+  「随便一个返回就唤起输入法」）。在移动档包 `HTMLElement/HTMLInputElement/HTMLTextAreaElement`
+  的 `focus`：最近 1.2s 内真实手势落在该元素（或其祖先/后代）才放行，否则吞掉；非文本目标
+  （菜单、对话框、按钮）一律不拦。与 composer-keyboard-guard 的 iOS 影子叠乘时先命中者返回。
+- `composer-enter-newline.ts` — 触屏软键盘回车 = 换行（2026-11-05 owner）：宿主 KEY_ENTER_COMMAND 的
+  CRITICAL 处理器把无修饰回车当发送，手机没有 Shift。本效果按 type 找回命令单例，以 addFront 优先级在宿主之前
+  注册，普通回车改派 INSERT_LINE_BREAK_COMMAND；Ctrl/Cmd/Alt/Shift、组字中、候选菜单打开时放行给宿主。
 - `model-menu-keyboard-guard.ts` — 手机档：开「模型 / 推理等级」菜单不该弹软键盘（面板在 passive effect
   里 `searchRef.current?.focus()`）。用共享 focus 影子在**捕获期 pointerdown** 就位——观察者路线赶不上
   那个时机。
@@ -111,10 +122,6 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   （`core/prototype-focus-shadow.ts`，#84）给 `HTMLInputElement.prototype.focus` 注册「这个
   搜索框不聚焦」的谓词，宿主的 `focusWithoutRing` 落到影子上。影子在 MutationObserver
   （只盯 `document.body` 的 childList）里安装——微任务早于 React 被动 effect，第一帧抢焦也拦得住。
-- **`session-focus-guard.ts`** — 影子窗口时长 **800ms**（源码用常量，数值语义在此）。开窗有两个触发：
-  ①当前会话 id 变化；②面板退场（`panel-exit` 同步广播 `dsh-mobile-panel-exit`，帧上的
-  `data-mobile-panel-exit` 只是兜底）——面板占住主区时会话被卸载，退场后 InputBar 重挂载
-  又聚焦一次，键盘跟着弹。窗口必须在 commit 前打开，所以走事件而不是属性观察。
 - **`composer-keyboard-lift.ts`** — 抬升量语义：`translateY(−overlap)`，`overlap` = seat 的
   `getBoundingClientRect().bottom` 减**可见带底** `visualViewport.offsetTop + height`（同一套
   布局坐标；只减 height 等于假定 offsetTop=0，页面一被 iOS 平移就会把座位留在键盘后面，

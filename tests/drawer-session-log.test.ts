@@ -191,7 +191,10 @@ function makeContext() {
     locale: { bind: () => (key: string) => key },
     sessions: {
       list: {
-        getSnapshot: () => (state.id === undefined ? {} : { current: state.id }),
+        // 0.2.2 形状：当前会话 = retainedBy.mainView > 0 的那条（没有 `current` 字段）。
+        getSnapshot: () => (state.id === undefined
+          ? { byId: {} }
+          : { byId: { [state.id]: { id: state.id, retainedBy: { mainView: 1 } } } }),
         subscribe: (fn: () => void) => {
           listeners.add(fn)
           return () => { listeners.delete(fn) }

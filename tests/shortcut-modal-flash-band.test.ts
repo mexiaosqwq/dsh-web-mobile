@@ -4,7 +4,7 @@
 // （`body > div { position: fixed; z-index: 1000 }` 包住
 // `[role="dialog"][aria-modal="true"]`）。popover band 里那条把根抬到 1400 的
 // 兜底规则原本以「抽屉开着」为门，但 marker 与绘制在整个关闭过渡里是不一致的：
-// 遮罩淡出 .2s、marker 翻转后 260ms 才移除，列 transform .28s，React 还要
+// 遮罩淡出 .28s、marker 翻转后 340ms 才移除，列 transform .28s，React 还要
 // ~200ms 才换 pane 子树。于是那一整个窗口里抬升失效、抽屉带盖住弹层。
 //
 // 真机实测（Android 16 WebView，快捷键弹层开着）：人为加上
@@ -63,7 +63,7 @@ test('modal-root raise is gated on OUR BACKDROP, not on the drawer marker', () =
     'backdrop gate must belong to the modal-root rule itself',
   )
   // The old marker gate is the regression: it goes dark for the whole close
-  // transition (fade .2s + removal 260ms / column .28s / subtree swap ~200ms).
+  // transition (fade .28s + removal 340ms / column .28s / subtree swap ~200ms).
   assert.equal(
     band.lastIndexOf(DRAWER_GATE, at) > band.lastIndexOf(BACKDROP_GATE, at),
     false,
@@ -76,11 +76,12 @@ test('every non-gesture closer shares the one late-commit toggle', () => {
   // must keep the late-commit shape.
   const helperAt = DRAWER_CLOSE.indexOf('export function toggleDrawer(')
   assert.notEqual(helperAt, -1, 'toggleDrawer helper missing from drawer-close.ts')
-  assert.match(
-    DRAWER_CLOSE.slice(helperAt, DRAWER_CLOSE.indexOf('\n}', helperAt)),
-    /if \(!closeDrawerAnimated\(ctx\)\) ctx\.layout\.toggleSidebar\(\)/,
-    'toggleDrawer must animate the close and only fall back to a plain toggle',
-  )
+  const helper = DRAWER_CLOSE.slice(helperAt, DRAWER_CLOSE.indexOf('\n}', helperAt))
+  // Close first (animated, late commit); only when that declines does it open
+  // (via the shared keyboard-release entry, drawer-jank R2) or plain-toggle.
+  assert.match(helper, /^[^]*?if \(closeDrawerAnimated\(ctx\)\) return/, 'toggleDrawer must try the animated close first')
+  assert.match(helper, /openDrawerAfterKeyboard\(\(\) => \{[^}]*ctx\.layout\.toggleSidebar\(\)/, 'the open branch must go through openDrawerAfterKeyboard')
+  assert.ok(helper.indexOf('closeDrawerAnimated(ctx)') < helper.indexOf('openDrawerAfterKeyboard'), 'close decision precedes the open branch')
   // The FAB's opener callback (createOverlayTask) is a closer once the drawer
   // is open: it must not bypass the helper.
   const overlayAt = ADAPTER.indexOf('createOverlayTask(t,')

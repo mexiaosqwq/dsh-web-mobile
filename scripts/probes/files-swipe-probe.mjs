@@ -254,7 +254,7 @@ async function main() {
     await waitFor(async () => await evaluate(`document.querySelector('${FRAME}')?.hasAttribute('data-sidebar-collapsed') === false`), 'drawer over panel', 8000)
     await sleep(400)
     const over = JSON.parse(await evaluate(`(() => {
-      const drawer = document.querySelector('${FRAME}')?.firstElementChild
+      const drawer = document.querySelector('${FRAME} [class*="_sidebarCol"]')
       if (!(drawer instanceof HTMLElement)) return JSON.stringify({ drawer: false, inDrawer: false, panel: false })
       const r = drawer.getBoundingClientRect()
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
