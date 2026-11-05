@@ -586,7 +586,7 @@ test('the phone composer card returns to the font-size axis (host coarse-pointer
 // .pI_x6G_mainPanel[data-global-panel]{padding-top:max(0px,calc(48px - clearance))}
 // ——给桌面标题栏让的位，Android 上 clearance=0 于是整段白占。直接归零该内边距
 // （清零 clearance 变量方向是反的：max(0,48-0) 更大）。
-test('the phone plugin panel drops the host title-bar padding and aligns its head with the FAB', () => {
+test('the phone plugin panel drops the host title-bar padding and puts the title below the back key', () => {
   const panel = findRuleBlocks(LAYOUT_CSS).find((b) =>
     b.selector.includes('[data-mobile-nav="frame"] [data-global-panel]'))
   assert.ok(panel !== undefined, '全局面板的内边距必须被归零')
@@ -594,8 +594,9 @@ test('the phone plugin panel drops the host title-bar padding and aligns its hea
   const head = findRuleBlocks(LAYOUT_CSS).find((b) =>
     b.selector.includes('section[data-plugin-panel] header[data-window-drag]'))
   assert.ok(head !== undefined)
-  assert.match(head.body, /padding-top: 12px !important/)
-  assert.match(head.body, /padding-left: 8px !important/)
+  assert.match(head.body, /padding-top: 32px !important/)
+  assert.match(head.body, /padding-top: 32px !important/, '标题落在返回键下方')
+  assert.match(head.body, /margin-left: 0 !important/, '标题与正文左缘对齐')
   assert.match(head.body, /background: var\(--dsw-alias-bg-layer-1, #fff\) !important/, '滚动时页首要有实底')
   assert.match(head.body, /flex-wrap: nowrap !important/)
 })

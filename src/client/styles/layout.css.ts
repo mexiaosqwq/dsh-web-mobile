@@ -2528,18 +2528,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   [data-mobile-nav="frame"] [data-plugin-bar][data-natural] {
     position: static !important;
   }
-  section[data-plugin-panel] header[data-window-drag] {
-    padding-top: 12px !important;
-    /* 左让位只补差额：上面那条老的手机档规则已经给了
-       calc(60px - clamp(24px,4vw,48px)) = 36px 的 margin-left，再叠 56 会把标题推到
-       离返回键 69px 远（2026-11-05 真机：「再往左边挪点」）。8 + 36 ≈ 44，标题左缘距
-       返回键右缘约 16px。 */
-    padding-left: 8px !important;
+  /* 2026-11-05 店主定稿方向：标题回到返回键**下方**、与页面对齐（不再右侧并排）。
+     垂直让 32px：悬浮键占 top 12 + 38 高，标题从它下沿开始；水平把早先那条
+     panel-clearance 的 margin-left 一并清零，标题与正文左缘对齐。选择器带上
+     [data-mobile-nav="frame"] 前缀，特异性与那条老规则相同、写在后面，压得住它。 */
+  [data-mobile-nav="frame"] section[data-plugin-panel] header[data-window-drag] {
+    padding-top: 32px !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
     box-sizing: border-box !important;
     /* 页首是 flex-wrap 容器：若允许换行，工具栏会被挤到第二行（第三版翻车点）。 */
     flex-wrap: nowrap !important;
-    /* 滚动时页首是 sticky 覆盖层，宿主不给底色 → 正文从它底下透出来，看起来像
-       「另一图层浮在上面」。给它和页面同一张底，滚动就是普通应用栏。 */
+    /* 滚动时页首要有实底，正文从它底下滑过时不至于透出来像浮层。 */
     background: var(--dsw-alias-bg-layer-1, #fff) !important;
   }
   /* 二级页的返回 crumb 不再需要给返回键让位（悬浮键在二级页已去掉），居左对齐正文。

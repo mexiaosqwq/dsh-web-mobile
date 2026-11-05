@@ -50,7 +50,7 @@
 
 | 模块 | `!important` | 哈希子串选择器 | `:has(` |
 | --- | --- | --- | --- |
-| `src/client/styles/layout.css.ts` | 527 | 612 | 297 |
+| `src/client/styles/layout.css.ts` | 528 | 612 | 297 |
 | `src/client/styles/compat.css.ts` | 388 | 112 | 23 |
 | `src/client/styles/misc.css.ts` | 102 | 68 | 43 |
 | `src/client/styles/base.css.ts` | 18 | 8 | 12 |
@@ -77,6 +77,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1044** | **887** | **379** |
+| **合计** | **1045** | **887** | **379** |
 
 <!-- END:inventory -->
