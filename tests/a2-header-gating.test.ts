@@ -393,3 +393,14 @@ test('phone view tabs zero the host hit-inline margins together with their paddi
   assert.ok(phoneDecl(rules, sel, 'margin-left: 0 !important'))
   assert.ok(phoneDecl(rules, sel, 'margin-right: 0 !important'))
 })
+
+// 真机 2026-11-05：状态栏与标题行隔太开。header 已贴视口顶（inset 0 时不再负 margin），手机档
+// 只收标题行地板 40 → 32，并把 toggle / files 一起上移 4px，三心对齐。平板档不动。
+test('phone title row floor is 32px and both corner buttons move up with it', () => {
+  const rules = scopedRules(layoutSource())
+  assert.ok(phoneDecl(rules, '[class*="_titleCluster"]', 'min-height: 32px !important'))
+  assert.ok(phoneDecl(rules, '[data-mobile-nav="toggle"]', 'top: 2px !important'))
+  assert.ok(phoneDecl(rules, '[data-mobile-nav="files"]', 'top: 1px !important'))
+  assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', 'min-height: 40px !important'))
+  assert.ok(sharedDecl(rules, '[data-mobile-nav="toggle"]', 'top: 6px !important'))
+})
