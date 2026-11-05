@@ -258,7 +258,7 @@ test('the ask-question card title is not swallowed by the mobile header block (2
       .split('header:has([class*="_headerLeading"])').join('header')
     return /\bheader\s*>/.test(normalized)
   })
-  assert.ok(structural.length >= 3, '顶栏直系子元素规则还在（没有误删整块）')
+  assert.ok(structural.length >= 1, '顶栏直系子元素规则还在（没有误删整块）')
   for (const block of structural) {
     assert.match(
       block.selector,
@@ -266,12 +266,14 @@ test('the ask-question card title is not swallowed by the mobile header block (2
       `裸 header 的直系子元素规则会把提问卡一起命中：${block.selector}`,
     )
   }
+  // 0.2.2 起 header 第一格是座位、其最后孩子是 leading 槽：位置链改义（pitfalls「header 座位归属」），
+  // 已改为按槽名隐藏，且同样收在顶栏锚上。
   const hide = blocks.find(
     (block) =>
       block.selector
-      === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) > :first-child > :last-child',
+      === '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-slot="conversation.header.leading"]',
   )
-  assert.ok(hide !== undefined, '隐藏顶栏日志胶囊的规则仍在位（只是收到顶栏类上）')
+  assert.ok(hide !== undefined, '按槽名隐藏 leading 槽的规则仍在位（收在顶栏锚上）')
   assert.match(hide.body, /display:\s*none !important/)
 })
 
