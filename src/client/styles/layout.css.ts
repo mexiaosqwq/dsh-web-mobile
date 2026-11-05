@@ -2460,39 +2460,16 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      一律只锚 section[data-plugin-panel]（宿主稳定 data-*），前缀交给外层的移动档 @media。
      同时把宿主的 --dsh-frame-top-clearance（默认 48px，给桌面标题栏留的）在面板内清零：
      手机上它没有任何对照物，只会把页首整体压下一大截。 */
-  /* 插件页（列表 + 详情）：2026-11-05 真机两轮都没生效 —— 按哈希类名写的规则
-     （[class*="_pageHead"] / [data-plugin-detail] [class*="_detailHead"]）在这个宿主上
-     一条都没命中：标题左缘仍 ~59（没有 56px 让位）、上缘仍在返回键下方一截。
-     改用宿主**稳定的 data-* 结构属性**重写，不再碰哈希类名：
-       section[data-plugin-panel] > … > div[data-plugin-body]（滚动体）
-       div[data-plugin-bar]（页首条）> header（页首）
-       data-plugin-detail / data-plugin-item-detail / data-plugin-row-detail（详情根）
-     ① 宿主的 --dsh-frame-top-clearance（默认 48px，给桌面标题栏留的）在面板内清零：
-        手机上没有任何东西占那条，只会把页首整体压下去。
-     ② 页首压到 12px 并与左上返回键（~38px 盒、top 12）同一行；左缘让位 56px。
-     ③ 滚动体上内边距 32 → 12；④ 详情：crumb 让位 + 详情头/正文上边距收到 12。 */
-  [data-plugin-body],
-  [data-plugin-bar] {
-    --dsh-frame-top-clearance: 0px;
-  }
-  [data-plugin-bar] > header {
-    padding-top: 12px !important;
-    margin-left: 56px !important;
-    width: calc(100% - 56px) !important;
-    box-sizing: border-box !important;
-  }
+  /* 插件页（列表 + 详情）：只做一件事 —— 清掉宿主给页首留的
+     --dsh-frame-top-clearance（默认 48px，给桌面标题栏的空位）。手机上没有任何东西
+     占那条，它纯粹把整页压下去一大截（2026-11-05 真机：标题离屏幕顶 ~111px）。
+     为什么只动这一个变量：宿主的页首是 sticky 覆盖层，页首高度、滚动内边距都由它用
+     JS 量出来写进 --plugin-header-* 变量；直接改它的 padding-top 或滚动体的
+     padding-top 会让内容从页首底下穿出来（2026-11-05 第一版就这么踩了，标题压住正文）。
+     锚宿主稳定的 data-* 结构属性（data-plugin-bar / data-plugin-body），不碰哈希类名。 */
+  [data-plugin-bar],
   [data-plugin-body] {
-    padding-top: 12px !important;
-  }
-  [data-plugin-detail] > :first-child > button,
-  [data-plugin-item-detail] > :first-child > button,
-  [data-plugin-row-detail] > :first-child > button {
-    margin-left: 56px !important;
-  }
-  [data-plugin-detail] > :first-child + *,
-  [data-plugin-item-detail] > :first-child + *,
-  [data-plugin-row-detail] > :first-child + * {
-    margin-top: 12px !important;
+    --dsh-frame-top-clearance: 0px;
   }
   /* 自动化任务面板（@deepseek-ai/dsh-client-ui-schedule，0.2.0-rc.2 随实验性
      bundle 提供）不是 section[data-plugin-panel]：该 bundle 里

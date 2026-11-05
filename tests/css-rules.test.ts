@@ -581,16 +581,14 @@ test('the phone composer card returns to the font-size axis (host coarse-pointer
   assert.ok(rule.selector.includes('data-mobile-nav="frame"'), 'scoped to the mobile frame')
 })
 
-// 真机 2026-11-05（插件页）：按哈希类名写的规则两轮都没命中（标题左缘仍 ~59、没有让位），
-// 改用宿主稳定的 data-* 结构属性：清零 48px 标题栏净空、页首与左上返回键同行、滚动体上移。
-test('the phone plugin page is anchored on host data attributes, not hashed classes', () => {
-  const has = (sel: string, body: RegExp) =>
-    findRuleBlocks(LAYOUT_CSS).some((b) => b.selector.includes(sel) && body.test(b.body))
-  assert.ok(has('[data-plugin-bar] > header', /padding-top: 12px !important/), '页首压到 12px')
-  assert.ok(has('[data-plugin-bar] > header', /margin-left: 56px !important/), '页首给返回键让位')
-  assert.ok(has('[data-plugin-body]', /--dsh-frame-top-clearance: 0px/), '面板内清零标题栏净空')
-  assert.ok(has('[data-plugin-body]', /padding-top: 12px !important/), '滚动体上移')
-  const classes = findRuleBlocks(LAYOUT_CSS).filter((b) =>
-    b.selector.includes('_pageHead') && /padding-top: 12px/.test(b.body))
-  assert.deepEqual(classes, [], '未命中的哈希类规则不再保留，免得下一个人以为它在生效')
+// 真机 2026-11-05（插件页）：宿主给页首留了 48px 的标题栏净空（--dsh-frame-top-clearance），
+// 手机上没人占那条，整页被压下一大截。只清这个变量——页首是 sticky 覆盖层，它的高度与滚动
+// 内边距由宿主 JS 量出来，改 padding 会让内容从页首底下穿出来（第一版就这么踩了）。
+test('the phone plugin page only zeroes the host title-bar clearance', () => {
+  const blocks = findRuleBlocks(LAYOUT_CSS).filter((b) => b.selector.includes('[data-plugin-bar]'))
+  assert.ok(blocks.some((b) => /--dsh-frame-top-clearance: 0px/.test(b.body)), '面板内清零标题栏净空')
+  const paddings = findRuleBlocks(LAYOUT_CSS).filter((b) =>
+    (b.selector.includes('[data-plugin-bar]') || b.selector.includes('[data-plugin-body]'))
+    && /(^|;)\s*padding-top:/.test(b.body))
+  assert.deepEqual(paddings.map((b) => b.selector), [], '不得改宿主的页首/滚动体内边距')
 })
