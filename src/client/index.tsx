@@ -27,6 +27,7 @@ import { installInstalledListRows } from './effects/installed-list.ts'
 import { installTabletQuickSettings } from './effects/tablet-quick-settings.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
+import { installComposerEnterNewline } from './effects/composer-enter-newline.ts'
 import { installComposerFilePicker } from './effects/composer-file-picker.ts'
 import { installAttachmentMention } from './effects/attachment-mention.ts'
 import { installFileShare } from './effects/file-share.ts'
@@ -274,6 +275,11 @@ export function apply(ctx: ClientContext): void {
   // Lexical routes Android's insertText paste through the text-insertion
   // command). Re-dispatch those as a paste event; mobile-only.
   installComposerPasteGuard(ctx)
+
+  // Soft-keyboard Enter inserts a newline instead of sending (owner 2026-11-05):
+  // phone keyboards have no Shift, so the host's Enter-to-send left no way to
+  // break a line. Send stays on the button; Ctrl/Cmd+Enter still sends.
+  installComposerEnterNewline(ctx)
 
   // Composer paperclip (owner report 2026-10-06): the system file picker is the
   // wrong shape and cannot pick "images only", so the tap opens the plugin's own
