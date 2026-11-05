@@ -99,6 +99,10 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   `beforeinput`/`insertText` 落进 Lexical 的 CONTROLLED_TEXT_INSERTION_COMMAND，只写第一段；真 `paste`
   事件走 PASTE_COMMAND 不吞段。本效果在捕获期把「可信 insertText + 多行 + 落在 composer 编辑面」改派成
   携带同一文本的合成 `paste`。上游讨论 #8823。
+- `focus-gesture-guard.ts` — 触屏：只有手指点中文本输入面才允许 `focus()`（2026-11-05 owner
+  「随便一个返回就唤起输入法」）。在移动档包 `HTMLElement/HTMLInputElement/HTMLTextAreaElement`
+  的 `focus`：最近 1.2s 内真实手势落在该元素（或其祖先/后代）才放行，否则吞掉；非文本目标
+  （菜单、对话框、按钮）一律不拦。与 composer-keyboard-guard 的 iOS 影子叠乘时先命中者返回。
 - `composer-enter-newline.ts` — 触屏软键盘回车 = 换行（2026-11-05 owner）：宿主 KEY_ENTER_COMMAND 的
   CRITICAL 处理器把无修饰回车当发送，手机没有 Shift。本效果按 type 找回命令单例，以 addFront 优先级在宿主之前
   注册，普通回车改派 INSERT_LINE_BREAK_COMMAND；Ctrl/Cmd/Alt/Shift、组字中、候选菜单打开时放行给宿主。

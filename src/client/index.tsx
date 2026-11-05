@@ -28,6 +28,7 @@ import { installTabletQuickSettings } from './effects/tablet-quick-settings.ts'
 import { installAionuiCompat } from './effects/aionui-compat.ts'
 import { installComposerPasteGuard } from './effects/composer-paste-guard.ts'
 import { installComposerEnterNewline } from './effects/composer-enter-newline.ts'
+import { installFocusGestureGuard } from './effects/focus-gesture-guard.ts'
 import { installComposerFilePicker } from './effects/composer-file-picker.ts'
 import { installAttachmentMention } from './effects/attachment-mention.ts'
 import { installFileShare } from './effects/file-share.ts'
@@ -280,6 +281,12 @@ export function apply(ctx: ClientContext): void {
   // phone keyboards have no Shift, so the host's Enter-to-send left no way to
   // break a line. Send stays on the button; Ctrl/Cmd+Enter still sends.
   installComposerEnterNewline(ctx)
+
+  // Only a real tap on a text field may raise the soft keyboard (owner
+  // 2026-11-05): every host flow that focuses a field programmatically (mount
+  // autoFocus, returning from a subpage, switching tabs) otherwise pops the IME
+  // over the page.
+  installFocusGestureGuard(ctx)
 
   // Composer paperclip (owner report 2026-10-06): the system file picker is the
   // wrong shape and cannot pick "images only", so the tap opens the plugin's own

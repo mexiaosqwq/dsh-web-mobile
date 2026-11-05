@@ -1,0 +1,138 @@
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { installMobileEffect } from '../platform/breakpoints.ts'
+
+/**
+ * 触屏：只有「手指点在输入框上」才允许唤起软键盘（owner 2026-11-05）。
+ *
+ * 报障：「随便一个返回就会唤起输入法，真的好烦」——宿主大量流程会在挂载、
+ * 返回、切换页签时代码里 `el.focus()`（或给输入框挂 `autoFocus`），桌面上这是
+ * 体贴，手机上每一次都等于把键盘顶到屏幕下半张。
+ *
+ * 做法：在移动档内包一层 `focus`，对**文本输入面**（input 的文本类 type、
+ * textarea、contenteditable）加一个手势门：
+ *   - 最近 GESTURE_WINDOW_MS 内，用户真的在该元素（或它的祖先/后代）上按下过 →
+ *     放行，走原生 focus（键盘正常弹出）；
+ *   - 否则吞掉这次 focus（元素不获得焦点，键盘不弹）。
+ * 非文本目标（按钮、菜单容器、对话框、`tabindex=-1` 的壳）一律不受影响 ——
+ * 宿主靠它们做焦点管理，压掉会破坏键盘/读屏导航。
+ *
+ * 为什么改原型而不是逐个改调用方：宿主自己有几十处 `ref.current?.focus()` /
+ * `autoFocus`（见 docs 里的清点），插件不可能逐一改写；原型层是唯一能把
+ * 「有没有真实手势」统一判定的位置。
+ *
+ * 作用域：MOBILE_QUERY（<1024 且粗指针）。桌面保留宿主原有的自动聚焦。
+ * 与 composer-keyboard-guard（iOS 的 keepFocus 影子）互不影响：两者都只是
+ * 「让某次 focus 不生效」，叠加时先命中者返回即可。
+ */
+
+/** 用户手指在输入面上的记录有效时长：轻点后 React 的回调链通常 <100ms。 */
+const GESTURE_WINDOW_MS = 1200
+
+/** 会唤起软键盘的 input type（file/checkbox/button 等不算）。 */
+const TEXT_INPUT_TYPES = new Set([
+  '', 'text', 'search', 'email', 'url', 'tel', 'password', 'number',
+  'date', 'time', 'datetime-local', 'month', 'week',
+])
+
+/**
+ * 这个元素是不是「文本输入面」——即聚焦它就会弹出软键盘。
+ * @param element - 待判定元素。
+ * @returns 是文本输入面时为 true。
+ */
+export function isTextEntry(element: Element | null): boolean {
+  if (element === null) return false
+  const tag = element.tagName
+  if (tag === 'TEXTAREA') return true
+  if (tag === 'INPUT') {
+    const type = (element as HTMLInputElement).type ?? ''
+    return TEXT_INPUT_TYPES.has(type.toLowerCase())
+  }
+  const editable = element.getAttribute('contenteditable')
+  return editable !== null && editable !== 'false'
+}
+
+/**
+ * 这次 focus 该不该被吞掉。
+ * @param element - 收到 focus() 的元素。
+ * @param gestureTarget - 最近一次真实手势落在的元素（无手势为 null）。
+ * @param sinceGestureMs - 距那次手势的毫秒数。
+ * @returns 需要拦截时为 true。
+ */
+export function shouldBlockProgrammaticFocus(
+  element: Element,
+  gestureTarget: Element | null,
+  sinceGestureMs: number,
+): boolean {
+  if (!isTextEntry(element)) return false
+  if (gestureTarget === null) return true
+  if (sinceGestureMs > GESTURE_WINDOW_MS) return true
+  // 手势落在输入面上、或落在这颗输入框包着的子节点里 → 放行。
+  return !(element === gestureTarget || element.contains(gestureTarget) || gestureTarget.contains(element))
+}
+
+type Focusable = { focus: (options?: FocusOptions) => void }
+
+export function installFocusGestureGuard(ctx: ClientContext): void {
+  installMobileEffect(ctx, 'dsh-web-mobile: focus requires a real tap', () => {
+    let gestureTarget: Element | null = null
+    let gestureAt = 0
+
+    const record = (event: Event): void => {
+      const target = event.target
+      if (target instanceof Element) {
+        gestureTarget = target
+        gestureAt = performance.now()
+      }
+    }
+
+    const isAllowed = (element: Element): boolean =>
+      !shouldBlockProgrammaticFocus(
+        element,
+        gestureTarget,
+        gestureTarget === null ? Number.POSITIVE_INFINITY : performance.now() - gestureAt,
+      )
+
+    /** 包一层 focus：只拦文本输入面的「非手势」聚焦。 */
+    const patch = (owner: { focus?: unknown } | undefined): (() => void) => {
+      if (owner === undefined) return () => {}
+      const original = owner.focus
+      if (typeof original !== 'function') return () => {}
+      const wrapper = function focus(this: Element, options?: FocusOptions): void {
+        if (isAllowed(this)) (original as Focusable['focus']).call(this, options)
+      }
+      try {
+        Object.defineProperty(owner, 'focus', {
+          configurable: true, writable: true,
+          enumerable: Object.getOwnPropertyDescriptor(owner, 'focus')?.enumerable ?? false,
+          value: wrapper,
+        })
+      } catch {
+        return () => {}
+      }
+      return () => {
+        if (Object.getOwnPropertyDescriptor(owner, 'focus')?.value !== wrapper) return
+        try {
+          Object.defineProperty(owner, 'focus', { configurable: true, writable: true, value: original })
+        } catch {
+          // 被外部改写：规则已移除，保持现状即可。
+        }
+      }
+    }
+
+    const disposers: Array<() => void> = []
+    disposers.push(patch(globalThis.HTMLElement?.prototype))
+    if (typeof HTMLInputElement !== 'undefined') disposers.push(patch(HTMLInputElement.prototype))
+    if (typeof HTMLTextAreaElement !== 'undefined') disposers.push(patch(HTMLTextAreaElement.prototype))
+
+    document.addEventListener('pointerdown', record, true)
+    document.addEventListener('touchstart', record, true)
+    document.addEventListener('mousedown', record, true)
+
+    return () => {
+      document.removeEventListener('pointerdown', record, true)
+      document.removeEventListener('touchstart', record, true)
+      document.removeEventListener('mousedown', record, true)
+      for (const dispose of disposers) dispose()
+    }
+  })
+}
