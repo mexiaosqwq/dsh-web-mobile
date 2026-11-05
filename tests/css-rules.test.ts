@@ -461,3 +461,79 @@ test('host 0.2.2: explicit shell column grid-area and native drawer mask are neu
   assert.ok(!/\[data-mobile-nav="frame"\] > :first-child/.test(LAYOUT_CSS), 'layout.css.ts 不得再用 frame 首子元素当抽屉')
   assert.ok(!/\[data-mobile-nav="frame"\] > :first-child/.test(MISC_CSS), 'misc.css.ts 不得再用 frame 首子元素当抽屉')
 })
+
+// ---------- 手机档设置全屏（2026-11-05 owner 真机反馈：内缩卡片「像另一个界面」）----------
+// findRuleBlocks 丢掉 @media 前导；这里需要每条规则所在的媒体作用域链，自带一个小遍历器。
+function scopedRules(css: string): { media: string[]; selector: string; body: string }[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const out: { media: string[]; selector: string; body: string }[] = []
+  const stack: string[] = []
+  let buf = ''
+  for (const ch of text) {
+    if (ch === '{') {
+      const head = buf.replace(/\s+/g, ' ').trim()
+      buf = ''
+      stack.push(head)
+      continue
+    }
+    if (ch === '}') {
+      const head = stack.pop() ?? ''
+      if (!head.startsWith('@') && head !== '') {
+        out.push({ media: stack.filter((s) => s.startsWith('@')), selector: head, body: buf })
+      }
+      buf = ''
+      continue
+    }
+    buf += ch
+  }
+  return out
+}
+
+const SETTINGS_IS = '[aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"])'
+
+test('settings sheet: the inset card form is tablet-only (≥768), phones get the host fullscreen form', () => {
+  const rules = scopedRules(LAYOUT_CSS)
+  const card = rules.filter((r) => r.selector === SETTINGS_IS && /border-radius:\s*14px/.test(r.body))
+  assert.equal(card.length, 1, 'exactly one inset-card rule for the settings sheet')
+  const media = card[0].media.join(' && ')
+  assert.match(media, /\(max-width: 1023px\) and \(pointer: coarse\)/, 'card rule stays in the mobile block')
+  assert.match(media, /\(min-width: 768px\)/, 'card rule must be gated to the tablet tier')
+  assert.match(card[0].body, /left:\s*8px !important/)
+  assert.match(card[0].body, /width:\s*calc\(100vw - 16px\)/)
+  // 手机档（任何不带 min-width:768 的作用域）里，设置面板不得再拿到内缩卡片几何。
+  const phoneReach = rules.filter((r) =>
+    (r.selector.includes('data-shortcut-modal="settings"'))
+    && !r.media.some((m) => m.includes('min-width: 768px')),
+  )
+  for (const r of phoneReach) {
+    assert.doesNotMatch(r.body, /border-radius:\s*14px|left:\s*8px|calc\(100vw - 16px\)|dsh-web-mobile-sheet-in/,
+      `phone tier still reaches card geometry: ${r.selector.slice(0, 120)}`)
+  }
+})
+
+test('settings sheet: phone tier keeps only the fixes the host lacks', () => {
+  const rules = scopedRules(LAYOUT_CSS)
+  const phone = rules.filter((r) => r.media.some((m) => m.includes('(max-width: 767px) and (pointer: coarse)'))
+    && r.selector.startsWith('[aria-modal="true"][data-shortcut-modal="settings"]'))
+  const by = (sel: string) => phone.find((r) => r.selector === sel)
+  const panel = by('[aria-modal="true"][data-shortcut-modal="settings"]')
+  assert.ok(panel, 'phone settings panel rule present')
+  // 导出弹层的 calc(100vw - 32px) 封顶与宿主全屏规则同特异性、书写在后，必须显式撤顶。
+  assert.match(panel.body, /max-width:\s*none !important/)
+  assert.match(panel.body, /padding-top:\s*env\(safe-area-inset-top, 0px\) !important/)
+  assert.match(panel.body, /box-sizing:\s*border-box !important/)
+  assert.doesNotMatch(panel.body, /animation/, 'no entrance animation on the fullscreen phone sheet')
+  const hit = by('[aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child::after')
+  assert.ok(hit, 'close-button hit area present')
+  assert.match(hit.body, /inset:\s*-8px/)
+  const bar = by('[aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"]::-webkit-scrollbar')
+  assert.ok(bar, 'tab strip hairline scrollbar present')
+  assert.match(bar.body, /display:\s*block !important/)
+  assert.match(bar.body, /height:\s*2px !important/)
+})
+
+test('settings sheet: the :is() family predicate keeps its shape (specificity contract)', () => {
+  // 特异性牵连：形态声明只改作用域，不改这条 :is() 的形状。
+  const count = LAYOUT_CSS.split(SETTINGS_IS).length - 1
+  assert.ok(count >= 15, `settings :is() predicate still used by the whole block (found ${count})`)
+})

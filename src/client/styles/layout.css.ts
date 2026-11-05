@@ -2155,34 +2155,86 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      settings nav list is a row of tab buttons), which a consent dialog's
      single confirm button never satisfies. No third-party class name is
      named anywhere in this block. */
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) {
-    position: absolute !important;
-    left: 8px !important;
-    /* Fixed top (no translateY): a transform on the panel combined with the
-       panel overflowing the max-content drawer shifts the fixed overlay's
-       coordinate frame, dragging the whole sidebar content off-screen. The
-       safe-area inset keeps the sheet below the status bar / notch. */
-    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
-    width: calc(100vw - 16px);
-    max-width: calc(100vw - 16px);
-    /* Height follows the content (no dead space under a short page); it
-       caps at the KEYBOARD-LESS viewport height minus 24 (less the safe-area
-       top) and the options area scrolls only then. STABLE_VIEWPORT_VAR, not
-       100dvh: measured 2026-09-25 on Android 16 WebView (adjustResize), the
-       soft keyboard takes the layout viewport 754 -> 471 and vh / svh / lvh /
-       dvh all follow it, so a dvh-sized sheet collapses a step the moment the
-       shortcut modal's search field raises the keyboard — the reporter's
-       「又闪一下」. The variable never moves for the keyboard, so the sheet
-       keeps its size and the keyboard covers its lower half instead. */
-    height: auto;
-    max-height: min(800px, calc(100vh - 24px - env(safe-area-inset-top, 0px)));
-    max-height: min(800px, calc(var(--dsh-web-mobile-vh, 100dvh) - 24px - env(safe-area-inset-top, 0px)));
-    /* Only a real viewport change (rotation / window resize) reaches this now,
-       so the short transition reads as a slide instead of a jump. */
-    transition: max-height .2s var(--ds-ease-out, ease-in-out);
-    flex-direction: column !important;
-    border-radius: 14px !important;
-    animation: dsh-web-mobile-sheet-in .22s var(--ds-ease-out, ease-in-out);
+  /* 卡片形态只给平板档（768–1023）：手机档（≤767）回到宿主官方全屏，见下方「手机档设置全屏」。 */
+  @media (min-width: 768px) {
+    [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) {
+      position: absolute !important;
+      left: 8px !important;
+      /* Fixed top (no translateY): a transform on the panel combined with the
+         panel overflowing the max-content drawer shifts the fixed overlay's
+         coordinate frame, dragging the whole sidebar content off-screen. The
+         safe-area inset keeps the sheet below the status bar / notch. */
+      top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+      width: calc(100vw - 16px);
+      max-width: calc(100vw - 16px);
+      /* Height follows the content (no dead space under a short page); it
+         caps at the KEYBOARD-LESS viewport height minus 24 (less the safe-area
+         top) and the options area scrolls only then. STABLE_VIEWPORT_VAR, not
+         100dvh: measured 2026-09-25 on Android 16 WebView (adjustResize), the
+         soft keyboard takes the layout viewport 754 -> 471 and vh / svh / lvh /
+         dvh all follow it, so a dvh-sized sheet collapses a step the moment the
+         shortcut modal's search field raises the keyboard — the reporter's
+         「又闪一下」. The variable never moves for the keyboard, so the sheet
+         keeps its size and the keyboard covers its lower half instead. */
+      height: auto;
+      max-height: min(800px, calc(100vh - 24px - env(safe-area-inset-top, 0px)));
+      max-height: min(800px, calc(var(--dsh-web-mobile-vh, 100dvh) - 24px - env(safe-area-inset-top, 0px)));
+      /* Only a real viewport change (rotation / window resize) reaches this now,
+         so the short transition reads as a slide instead of a jump. */
+      transition: max-height .2s var(--ds-ease-out, ease-in-out);
+      flex-direction: column !important;
+      border-radius: 14px !important;
+      animation: dsh-web-mobile-sheet-in .22s var(--ds-ease-out, ease-in-out);
+    }
+  }
+  /* --- 手机档设置全屏（≤767 + coarse，2026-11-05 owner 真机反馈「像另一个界面、不好看」）---
+     宿主 dsh-client-ui-settings-general（css$7）在 (width<=767px) 下自带全屏形态：overlay
+     position:absolute + height:100%、panel width/height 100% + radius 0、navList 横滚。上面的
+     内缩卡片（left 8 / radius 14 / height auto + 灰遮罩露出下半屏）已门控到 min-width:768，
+     手机档不再改形态，这里只补宿主没有的四件事：
+     ① max-width 撤顶：上方「导出弹层」那条 calc(100vw - 32px) 封顶与宿主全屏规则同特异性
+        (0,3,1)、书写在后，会把全屏面板右侧收窄 32px；
+     ② 顶部安全区：overlay 从 y=0 起铺，刘海 / 状态栏下的标题与 ✕ 需要让位（border-box，
+        不撑高 100%）；
+     ③ 关闭键热区：宿主 ✕ 只有 28px，::after 四向外扩 8px 到 44px 触控下限；左侧恰好吃满与
+        配置文件按钮之间的 8px 间隙，不压到它；
+     ④ 页签条细滚动条：宿主把横滚条的滚动条整个藏掉（display:none），手机上没有「还能往右滑」
+        的提示；恢复成 2px 细条（与平板档同一套颜色）。
+     配置文件按钮（settings.action 槽）留在宿主官方位置——标题行右侧、✕ 左边；旧的「藏掉
+     _actions」规则锚的是 0.1.x 的 > :last-child > _header 结构，0.2.2 本就不命中。
+     入场动画：手机档不加。全屏面板上 translateY(14px) 会在底边露出一条底层内容、读起来像
+     整页跳动；淡入在 #124 里被证实会把还开着的抽屉叠印出来。宿主官方形态本身也无动画。
+     选择器只锚宿主自己的 data-shortcut-modal="settings"，不动上面那条 :is() 的形状。 */
+  @media (max-width: 767px) and (pointer: coarse) {
+    [aria-modal="true"][data-shortcut-modal="settings"] {
+      max-width: none !important;
+      box-sizing: border-box !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+    }
+    [aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child {
+      position: relative;
+    }
+    [aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+    }
+    [aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"] {
+      scrollbar-width: thin !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    [aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"]::-webkit-scrollbar {
+      display: block !important;
+      height: 2px !important;
+    }
+    [aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"]::-webkit-scrollbar-thumb {
+      background: var(--dsw-alias-border-l2, rgba(0, 0, 0, .22)) !important;
+      border-radius: 1px !important;
+    }
+    [aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"]::-webkit-scrollbar-track {
+      background: transparent !important;
+    }
   }
   /* The settings sheet's dimmed mask fades in with the panel: the mask is the
      overlay's first child, so it is reached as a direct child of the overlay
@@ -2246,18 +2298,20 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     margin-right: 0 !important;
     touch-action: none !important;
   }
-  /* Nav bar: hide the "Settings" caption (redundant on a full-width sheet)
-     and wrap the tab list so every tab is visible — a horizontal scroll cut
-     the last tab ("Plugins") off with no affordance to scroll. */
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child {
-    width: 100%;
-    flex-direction: row !important;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 12px 8px;
-  }
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child > :first-child {
-    display: none !important;
+  @media (min-width: 768px) {
+    /* Nav bar: hide the "Settings" caption (redundant on a full-width sheet)
+       and wrap the tab list so every tab is visible — a horizontal scroll cut
+       the last tab ("Plugins") off with no affordance to scroll. */
+    [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child {
+      width: 100%;
+      flex-direction: row !important;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px 8px;
+    }
+    [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :first-child > :first-child {
+      display: none !important;
+    }
   }
   /* The tab strip stays clear of the toolbar: the toolbar (the close ✕ on
      this host — the config-file button is hidden below) is absolutely
