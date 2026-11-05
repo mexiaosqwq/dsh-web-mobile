@@ -316,6 +316,7 @@ const ADAPTER = join(CLIENT_SRC, 'effects', 'reconciler-adapter.ts')
 
 /** The declared coverage table: task name -> the dirty keys it declares. */
 const EXPECTED_SCOPES: Record<string, string[]> = {
+  'collapse-sidebar-on-startup': ['*', 'data-sidebar-collapsed'],
   'frame-marker': ['*'],
   'header-metrics': ['*'],
   'preview-fullscreen-toggle': ['data-aionui-preview-open', 'data-mobile-preview-full'],

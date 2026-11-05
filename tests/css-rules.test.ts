@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { findRuleBlocks, matchesSelectorText, fontSizeFor } from '../src/client/core/css-rules.ts'
@@ -608,4 +609,14 @@ test('the phone plugin page head scrolls with the content (not sticky)', () => {
     b.selector.includes('[data-plugin-bar][data-natural]'))
   assert.ok(rule !== undefined, '必须覆盖宿主 data-natural 的 sticky')
   assert.match(rule.body, /position: static !important/)
+})
+
+// 2026-11-06：局域网在浏览器打开时，宿主的 narrow 模式可能处于「侧栏展开」，
+// 而手机版几何是按「收起=抽屉」写的 → 侧栏以桌面形态压在主区上、右边只剩一条会话。
+// 启动时补一次折叠，之后尊重用户操作。
+test('the phone branch collapses a sidebar that starts expanded', () => {
+  const src = readFileSync(new URL('../src/client/effects/phone-chrome.ts', import.meta.url), 'utf8')
+  assert.match(src, /collapseSidebarOnStartup\(ctx\)/)
+  assert.match(src, /if \(frame\.hasAttribute\('data-sidebar-collapsed'\)\) return/)
+  assert.match(src, /ctx\.layout\.toggleSidebar\(\)/)
 })
