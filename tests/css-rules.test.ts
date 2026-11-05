@@ -581,14 +581,16 @@ test('the phone composer card returns to the font-size axis (host coarse-pointer
   assert.ok(rule.selector.includes('data-mobile-nav="frame"'), 'scoped to the mobile frame')
 })
 
-// 真机 2026-11-05（插件页）：宿主给页首留了 48px 的标题栏净空（--dsh-frame-top-clearance），
-// 手机上没人占那条，整页被压下一大截。只清这个变量——页首是 sticky 覆盖层，它的高度与滚动
-// 内边距由宿主 JS 量出来，改 padding 会让内容从页首底下穿出来（第一版就这么踩了）。
-test('the phone plugin page only zeroes the host title-bar clearance', () => {
-  const blocks = findRuleBlocks(LAYOUT_CSS).filter((b) => b.selector.includes('[data-plugin-bar]'))
-  assert.ok(blocks.some((b) => /--dsh-frame-top-clearance: 0px/.test(b.body)), '面板内清零标题栏净空')
-  const paddings = findRuleBlocks(LAYOUT_CSS).filter((b) =>
-    (b.selector.includes('[data-plugin-bar]') || b.selector.includes('[data-plugin-body]'))
-    && /(^|;)\s*padding-top:/.test(b.body))
-  assert.deepEqual(paddings.map((b) => b.selector), [], '不得改宿主的页首/滚动体内边距')
+// 真机 2026-11-05（插件页）：左上那颗「‹」是本插件的悬浮键。页首要与它同高（padding-top 12，
+// 与悬浮键 top:12 对齐）并让出 56px，锚宿主写在页首上的 data-window-drag。
+test('the phone plugin page head aligns with the plugin FAB', () => {
+  const rule = findRuleBlocks(LAYOUT_CSS).find((b) =>
+    b.selector.includes('section[data-plugin-panel] header[data-window-drag]'))
+  assert.ok(rule !== undefined, '页首要按 data-window-drag 锚定')
+  assert.match(rule.body, /padding-top: 12px !important/)
+  assert.match(rule.body, /margin-left: 56px !important/)
+  assert.match(rule.body, /width: calc\(100% - 56px\) !important/)
+  const bodyPadding = findRuleBlocks(LAYOUT_CSS).filter((b) =>
+    b.selector.includes('[data-plugin-body]') && /padding-top:/.test(b.body))
+  assert.deepEqual(bodyPadding.map((b) => b.selector), [], '不得再动滚动体内边距（会穿出页首）')
 })

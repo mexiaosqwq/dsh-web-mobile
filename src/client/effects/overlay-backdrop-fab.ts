@@ -190,7 +190,13 @@ export function createOverlayTask(
         }, BACKDROP_FADE_MS + 60)
       }
     }
-    if (heroPhase() && !drawerOpen() && fab === null) {
+    /**
+     * 插件二级页（面板子页）不挂悬浮键（owner 2026-11-05：真机上它压在最上面，
+     * 与宿主自己的「‹ 插件」返回条重复，要求去掉）。一级面板仍留着它当「返回会话」，
+     * 会话页则是抽屉入口。
+     */
+    const onSubpage = panelExit !== null && panelExit.subpageOpen()
+    if (heroPhase() && !drawerOpen() && !onSubpage && fab === null) {
       fab = document.createElement('button')
       fab.type = 'button'
       fab.dataset.mobileNav = 'fab'
@@ -198,7 +204,7 @@ export function createOverlayTask(
       fab.title = t('open')
       fab.addEventListener('click', onFabClick)
       frame.appendChild(fab)
-    } else if ((!heroPhase() || drawerOpen()) && fab !== null) {
+    } else if ((!heroPhase() || drawerOpen() || onSubpage) && fab !== null) {
       fab.remove()
       fab = null
     }

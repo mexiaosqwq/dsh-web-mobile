@@ -2460,16 +2460,19 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      一律只锚 section[data-plugin-panel]（宿主稳定 data-*），前缀交给外层的移动档 @media。
      同时把宿主的 --dsh-frame-top-clearance（默认 48px，给桌面标题栏留的）在面板内清零：
      手机上它没有任何对照物，只会把页首整体压下一大截。 */
-  /* 插件页（列表 + 详情）：只做一件事 —— 清掉宿主给页首留的
-     --dsh-frame-top-clearance（默认 48px，给桌面标题栏的空位）。手机上没有任何东西
-     占那条，它纯粹把整页压下去一大截（2026-11-05 真机：标题离屏幕顶 ~111px）。
-     为什么只动这一个变量：宿主的页首是 sticky 覆盖层，页首高度、滚动内边距都由它用
-     JS 量出来写进 --plugin-header-* 变量；直接改它的 padding-top 或滚动体的
-     padding-top 会让内容从页首底下穿出来（2026-11-05 第一版就这么踩了，标题压住正文）。
-     锚宿主稳定的 data-* 结构属性（data-plugin-bar / data-plugin-body），不碰哈希类名。 */
-  [data-plugin-bar],
-  [data-plugin-body] {
-    --dsh-frame-top-clearance: 0px;
+  /* 插件页页首（2026-11-05 真机，第三版）：
+     左上那颗圆角方形「‹」是**本插件的悬浮键**（overlay-backdrop-fab 在面板里换成返回
+     图标），不是宿主控件——所以按像素对齐它就行。
+     锚点用宿主写在标签上的 data-window-drag（页首 header 自带），外层仍受移动档 @media
+     约束；不再依赖 [data-mobile-nav="frame"] 前缀（插件页不在 frame 内，整族曾无效），
+     也不再改滚动体 padding（第一版那么干，内容从 sticky 页首底下穿出来）。
+     ① 左缘让 56px：标题与悬浮键同一行时不压它；
+     ② 上内边距压到 12px：与悬浮键的 top:12 同高，页首整体上移。 */
+  section[data-plugin-panel] header[data-window-drag] {
+    padding-top: 12px !important;
+    margin-left: 56px !important;
+    width: calc(100% - 56px) !important;
+    box-sizing: border-box !important;
   }
   /* 自动化任务面板（@deepseek-ai/dsh-client-ui-schedule，0.2.0-rc.2 随实验性
      bundle 提供）不是 section[data-plugin-panel]：该 bundle 里
