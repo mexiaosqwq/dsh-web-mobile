@@ -138,10 +138,10 @@ test('the file-upload control hides itself where the host has no file input', ()
   assert.ok(layoutSource().includes(':not(:has(input[type=file])) [data-mobile-nav="file-upload"]'))
 })
 
-// alpha.2 renamed the hero-empty marker; both hide rules must coexist.
-test('the hero empty-header hide covers both generation markers', () => {
+// 0.2.2 only renders headerBlank; the pre-0.1.6 headerHidden arm is gone.
+test('the hero empty-header hide targets the current marker only', () => {
   const source = layoutSource()
-  assert.ok(source.includes('header[class*="_headerHidden"]'))
+  assert.ok(!source.includes('header[class*="_headerHidden"]'))
   assert.ok(source.includes('header[class*="headerBlank"]'))
 })
 

@@ -250,12 +250,12 @@ test('phone panel chrome ignores split eligibility and preserves collapse', () =
   assert.doesNotMatch(phone, /data-sidebar-right-toggle/)
   assert.doesNotMatch(phone, /data-sidebar-right-mode="fullscreen"/)
 })
-test('subagent hash correction retains both selector families', () => {
+test('subagent hover subtree targets the 0.2.2 hash family only', () => {
   const text = readFileSync(join(ROOT, 'src/client/effects/subagent-chip-touch.ts'), 'utf8')
-  assert.match(text, /Defensive dual hash/)
-  for (const selector of ['ZKlsPq_root', 'ZKlsPq_menu', 'h8S2Va_root', 'h8S2Va_menu']) {
+  for (const selector of ['ZKlsPq_root', 'ZKlsPq_menu']) {
     assert.ok(text.includes(`[class*="${selector}"]`))
   }
+  assert.ok(!text.includes('[class*="h8S2Va_'))
 })
 
 // 流式期间每个 `*` 任务每帧都会重新解析 frame；缓存必须命中，但节点断开或

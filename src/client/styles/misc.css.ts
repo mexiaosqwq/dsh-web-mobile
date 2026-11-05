@@ -154,9 +154,9 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
       <textarea> computes font-size < 16px, and only reverts on blur. The ask
       dialog is a modal composer takeover, so taps outside never blur the
       field and the magnification persists until the field loses focus
-      (e.g. the dialog is dismissed). The ask
-      composer's custom-answer <input> (.customInput) and optionless free-form
-      <textarea> (.customTextarea) both ship at 14px (ui-user-questions
+      (e.g. the dialog is dismissed). On 0.2.2 the ask composer's answer
+      field is a single .fieldInput (it replaced the older .customInput /
+      .customTextarea pair) and inherits the card's 14px (ui-user-questions
       QuestionComposer.module.css). Raise them to 16px on iOS only, where the
       zoom can actually happen: on Android and desktop there is nothing to
       suppress, so they keep the compact size they were designed with
@@ -168,8 +168,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
       class-name suffix match follows the plugin's established harness
       CSS-module convention (verified against the live app: generated names
       end with the original local name, e.g. uV2eYG_input / bhn1Oq_searchInput). */
-  html[data-mobile-nav-ios] [data-question-key] [class*="_customInput"],
-  html[data-mobile-nav-ios] [data-question-key] [class*="_customTextarea"] {
+  html[data-mobile-nav-ios] [data-question-key] [class*="Mbwy4a_fieldInput"] {
     font-size: 16px !important;
   }
 

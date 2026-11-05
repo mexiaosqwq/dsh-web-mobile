@@ -541,23 +541,15 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     white-space: nowrap !important;
   }
 
-  /* Message tooltip bubbles (copy / feedback labels, message-row hover
-     bubbles) are redundant on touch: the icon already flips to a checkmark.
-     Suppress only inside the actions row — the fork's original scope. On
-     this host (0.1.1-rc.2) NO tooltip renders as a visible bubble: the copy
-     label is a visuallyHidden span and no client-ui package emits
-     role="tooltip". The user message bubble (Sixlwa_bubble since the host moved
-     it to dsh-client-ui-chat) and the goal
-     bubble (oRe1gG_bubble) live in _userStack/_row, NOT in _actions — the
-     previously unscoped selector hid every user message on touch devices
-     (2026-09-06 live regression). role="tooltip" stays globally suppressed:
-     genuine ARIA tooltips are exactly what the sticky-residue fix targets,
-     and nothing legitimate carries the role today. The actions-row arm
-     re-activates by itself when a host version renders tooltip labels
-     inline in the actions row (DSH 0.1.2 shape). */
+  /* Message tooltips are redundant on touch: the icon already flips to a
+     checkmark. role="tooltip" stays globally suppressed: genuine ARIA
+     tooltips are exactly what the sticky-residue fix targets. The old
+     actions-row "_bubble" arm (DSH 0.1.2 inline tooltip shape) was removed
+     with the low-generation branches. Never widen this to
+     [data-message-bubble]: that is the user message itself (2026-09-06
+     regression hid every user message on touch devices). */
   @media (hover: none), (pointer: coarse) {
-    [data-phase] [role="tooltip"],
-    [data-phase] [class*="_actions"] [class*="_bubble"] {
+    [data-phase] [role="tooltip"] {
       display: none !important;
       visibility: hidden !important;
       opacity: 0 !important;
@@ -630,7 +622,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      On mobile let the user message fill the same full width as assistant
      messages (the bubble background then spans the whole message column). */
   [data-phase] [class*="_userStack"],
-  [data-phase] [class*="_userStack"] [class*="_bubble"] {
+  [data-phase] [class*="_userStack"] [data-message-bubble] {
     box-sizing: border-box;
     width: fit-content;
     max-width: 100%;
@@ -1476,7 +1468,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     }
   }
   /* The hero phase's empty header must stay hidden on phones. The host hides
-     it via the headerHidden class at (0,1,0), but its own session-controller
+     it via the headerBlank class at (0,1,0), but its own session-controller
      sheet re-shows the conversation header as a grid at <=768px —
      [data-dsh-frame] [data-dsh-responsive-part="conversation-header"] with
      display grid at (0,2,0) — and that beats the hide on the very element
@@ -1486,14 +1478,9 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      rgb(224,224,224)); desktop keeps display none and no line. Our (0,3,1)
      re-hide needs no !important: the grid rule's display is a normal
      declaration and our style tag loads last. The header carries no children in
-     hero (drawer entry is the FAB), so hiding it frees the dead 85px too. */
-  [data-mobile-nav="frame"] [data-phase] header[class*="_headerHidden"] {
-    display: none;
-  }
-  /* 0.1.6-alpha.2 renamed the hero-empty marker: headerHidden -> headerBlank
-     (audit §1 row 3), so the rule above is a dead needle on alpha.2 and this
-     one is dead on rc hosts — together they cover both generations. Same
-     (0,3,1) shape, same no-!important reasoning as above. */
+     hero (drawer entry is the FAB), so hiding it frees the dead 85px too.
+     (The pre-0.1.6 headerHidden marker arm was removed with the
+     low-generation branches.) */
   [data-mobile-nav="frame"] [data-phase] header[class*="headerBlank"] {
     display: none;
   }
@@ -2131,7 +2118,7 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       主导行高。QsffPG/ZKlsPq 两个状态 chip 用 :not 明确豁免：它们的
       25px 下限由后面 min-height:25px !important 专条供给，特异性 (0,4,1)
       低于本条 (0,7,1)，不豁免会被顺手压掉，不靠书写顺序。 */
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] :is(button, [role="button"]):not([class*="QsffPG_root"] button):not([class*="ZKlsPq_root"] button) {
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleCluster"] :is(button, [role="button"]):not([class*="QsffPG_trigger"]):not([class*="ZKlsPq_root"] button) {
     min-width: 0 !important;
     min-height: 0 !important;
   }

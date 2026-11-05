@@ -213,9 +213,9 @@ async function main() {
       const ask = document.createElement('div')
       ask.setAttribute('data-question-key', 'probe')
       const customInput = document.createElement('input')
-      customInput.className = 'probe_customInput'
+      customInput.className = 'Mbwy4a_fieldInput'
       const customTextarea = document.createElement('textarea')
-      customTextarea.className = 'probe_customTextarea'
+      customTextarea.className = 'Mbwy4a_fieldInput'
       ask.append(customInput, customTextarea)
       const viewer = document.createElement('input')
       viewer.className = 'probe-dsfv-search-input'

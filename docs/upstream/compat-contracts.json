@@ -36,15 +36,6 @@
       "note": "hover 代：count 触摸兼容/lineage 钉宽/尾随空格坑"
     },
     {
-      "id": "subagent-onclick-gen",
-      "kind": "hash",
-      "needle": "h8S2Va_",
-      "owner": "dsh-client-ui-subagent",
-      "lazy": true,
-      "state": "两代互斥，另一代在场时 miss 属正常",
-      "note": "0.1.0-rc.6~8 onClick 代"
-    },
-    {
       "id": "contextmeter",
       "kind": "hash",
       "needle": "JObwrW_",

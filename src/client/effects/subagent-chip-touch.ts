@@ -49,13 +49,11 @@ const CHIP_TRIGGER_SELECTOR =
   '[data-mobile-nav="frame"] button[class*="_trigger"][aria-haspopup="tree"][aria-expanded]:not([class*="_switcherTrigger"])'
 
 /**
- * Lineage root plus its menu. Defensive dual hash: ZKlsPq is present in
- * the current host; h8S2Va is retained as a historical fallback.
- * Hash presence does not identify the hover/click interaction era.
- * Audit these selectors when the host package upgrades.
+ * Lineage root plus its menu (dsh-client-ui-subagent 0.2.2: ZKlsPq_).
+ * The pre-0.2 h8S2Va_ fallback was removed with the low-generation
+ * branches. Audit these selectors when the host package upgrades.
  */
-const HOVER_SUBTREE_SELECTOR =
-  '[class*="ZKlsPq_root"], [class*="ZKlsPq_menu"], [class*="h8S2Va_root"], [class*="h8S2Va_menu"]'
+const HOVER_SUBTREE_SELECTOR = '[class*="ZKlsPq_root"], [class*="ZKlsPq_menu"]'
 
 /** How long after touch activity synthesized hover events stay suppressed. */
 const SWALLOW_WINDOW_MS = 800
