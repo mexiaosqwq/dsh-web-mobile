@@ -387,7 +387,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      test: tests/fullscreen-panel-sheet.test.ts
   */
   [data-sidebar-right-open][data-sidebar-right-panel="fullscreen"] {
-    z-index: 10 !important;
+    /* 11：高过会话顶栏（10）——两者都从视口顶边起画，顶栏不透明且此前是 30，
+       把面板顶部的标签条整条盖掉了；仍低于宿主 AppFrame 的 overlayLayer（20），
+       设置等弹层照旧盖在面板之上。 */
+    z-index: 11 !important;
   }
   /* @patch
      id: wallpaper-panel-fill
@@ -1411,10 +1414,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        会画到顶栏上面（2026-10-07 三张 headless 截图：透明→标题行透出内容；不透明但不抬层
        →与透明逐字节相同；不透明+抬层→与原样逐像素一致）。滚动盒从下面穿过是因为上方
        「selection-drag autoscroll ramp」把它上提了 --mobile-nav-header-h。
-       z 30 高于消息流自己的层（横幅 6-7、marks 槽 / composer 座位 7），低于本插件的
-       overlay 层（遮罩/面板 55+、抽屉/菜单 1000+）。 */
+       层序（0.2.2 实测值）：消息流横幅 1、composer 座位 9（.wSkVaW_composerSeat）、
+       本顶栏 10、全屏右侧栏面板 11、宿主 AppFrame 的弹层通道 overlayLayer 20、
+       本插件遮罩/弹层 55+、抽屉/菜单 1000+。顶栏只须高过 composer 座位（9），
+       不能高过右侧栏面板——面板是 top:0 的整张 sheet，顶栏一压上去，面板自己的
+       标签条（文件 × + 与分屏/退出全屏/面板三个按钮）就被不透明顶栏盖住
+       （真机 2026-11-05：打开文件面板后标签条整条不见，退出文件夹才随重排露出）。 */
     background: var(--dsw-alias-bg-layer-1, #fff) !important;
-    z-index: 30 !important;
+    z-index: 10 !important;
   }
   /* hero 相位的空头部：0.2.2 的 headerBlank 只去边框与最小高、不隐藏，空头部仍占一条；
      手机 hero 的抽屉入口是 FAB，这一条整个藏掉（宿主 display 不带 !important，本表最后加载）。 */

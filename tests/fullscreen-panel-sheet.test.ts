@@ -15,17 +15,29 @@ const layout = await readFile(new URL('../src/client/styles/layout.css.ts', impo
 test('fullscreen panel restores the 0.1.5 sheet band', () => {
   assert.match(
     layout,
-    /\[data-sidebar-right-open\]\[data-sidebar-right-panel="fullscreen"\] \{\s*z-index: 10 !important;\s*\}/,
-    '全屏面板必须回到 0.1.5 的 z-index:10（高于 composerSeat 的 7，低于 overlay 层的 20）',
+    /\[data-sidebar-right-open\]\[data-sidebar-right-panel="fullscreen"\] \{\s*\/\*[\s\S]*?\*\/\s*z-index: 11 !important;\s*\}/,
+    '全屏面板必须是 11：高过会话顶栏（10）与 composerSeat（9），低于 overlay 层（20）',
   )
+})
+
+// 2026-11-05 real device: the session header sat at z 30 (above the sheet) and its
+// opaque background hid the panel's own tab strip. Header drops to 10, the sheet
+// rises to 11, so the sheet covers the header and the strip stays visible.
+test('the sheet out-ranks the session header while staying under the overlay layer', () => {
+  const header = /header:has\(\[class\*="_headerLeading"\]\) \{[\s\S]*?z-index: (\d+) !important/.exec(layout)?.[1]
+  const sheet = /\[data-sidebar-right-open\]\[data-sidebar-right-panel="fullscreen"\] \{[\s\S]*?z-index: (\d+) !important/.exec(layout)?.[1]
+  assert.equal(header, '10')
+  assert.equal(sheet, '11')
+  assert.ok(Number(sheet) > Number(header), 'the full-bleed sheet must paint over the session header')
+  assert.ok(Number(header) > 9, 'the header must still cover the sticky composer seat (z-index:9)')
 })
 
 test('the band value sits between the composer seat and the overlay layer', () => {
   const value = Number(
-    /\[data-sidebar-right-open\]\[data-sidebar-right-panel="fullscreen"\] \{\s*z-index: (\d+)/.exec(layout)?.[1],
+    /\[data-sidebar-right-open\]\[data-sidebar-right-panel="fullscreen"\] \{[\s\S]*?z-index: (\d+)/.exec(layout)?.[1],
   )
-  assert.equal(value, 10)
-  assert.ok(value > 7, 'must out-rank the active composer seat (z-index:7)')
+  assert.equal(value, 11)
+  assert.ok(value > 9, 'must out-rank the active composer seat (0.2.2: z-index:9)')
   assert.ok(value < 20, 'must stay below the AppFrame overlay layer (z-index:20) so portaled sheets still cover it')
 })
 
