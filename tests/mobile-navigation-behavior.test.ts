@@ -347,5 +347,5 @@ test('getDrawer resolves the sidebar column instead of the 0.2.2 drawer mask', (
 
   assert.equal(getDrawer(), sidebar, 'the column wins even though the mask is first')
   column = null
-  assert.equal(getDrawer(), mask, 'fallback keeps older hosts (sidebar = first child) working')
+  assert.equal(getDrawer(), null, 'no first-child fallback: the mask must never be taken for the drawer')
 })

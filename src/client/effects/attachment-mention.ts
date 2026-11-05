@@ -26,10 +26,10 @@ import type { AttachmentCandidate, AttachmentCopy, AttachmentInsert, DraftAttach
  *   sessions.scope(sessionId)                 → the session-scope ctx
  *   conversation.input.for(actx).state        → SnapshotStore<InputState>
  *       (frozen contract `SessionInput.state`, ui-conversation input/contract.d.ts)
- *   InputState.attachmentIds                  → ordered draft ids (rc.2;
- *       the rc.6 contract named the image-only predecessor `imageIds`)
+ *   InputState.attachmentIds                  → ordered draft ids
  *   conversation.resolveDraftAttachments(ids) → `{ kind, id, file }` descriptors
- *       (rc.2; rc.6 `draftImages(ids)` — both feature-detected)
+ *       (the rc.6 `imageIds` / `draftImages(ids)` predecessors were removed with
+ *       the host floor: 0 hits in the 0.2.2-rc.1 ui-conversation bundle)
  *   conversation.fileUploads.getSnapshot()    → `{ [id]: { status } }` (optional)
  * This is exactly what the host's own composer renders the rail from
  * (ui-conversation lib/client.js: InputBar `resolveDraftAttachments(input.attachmentIds)`).
@@ -85,7 +85,6 @@ interface SnapshotLike { getSnapshot(): unknown }
 interface ConversationLike {
   input?: { for?: (actx: unknown) => { state?: SnapshotLike } | undefined }
   resolveDraftAttachments?: (ids: readonly string[]) => unknown
-  draftImages?: (ids: readonly string[]) => unknown
   fileUploads?: SnapshotLike
 }
 
@@ -127,7 +126,7 @@ export function readDraftAttachments(ctx: ClientContext, sessionId: string): Dra
   if (ids.length === 0) return []
   const descriptors = typeof conversation.resolveDraftAttachments === 'function'
     ? conversation.resolveDraftAttachments(ids)
-    : typeof conversation.draftImages === 'function' ? conversation.draftImages(ids) : undefined
+    : undefined
   return normalizeDraftAttachments(descriptors, conversation.fileUploads?.getSnapshot())
 }
 

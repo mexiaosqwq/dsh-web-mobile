@@ -45,9 +45,9 @@ const RAIL: DraftAttachment[] = [
   { id: 'c', kind: 'file', name: 'notes-report.txt', bytes: 3 * 1024 * 1024, status: 'uploading' },
 ]
 
-test('ids: rc.2 attachmentIds, rc.6 imageIds fallback, junk → []', () => {
+test('ids: attachmentIds only (rc.6 imageIds no longer read), junk → []', () => {
   assert.deepEqual(draftAttachmentIdsOf({ attachmentIds: ['x', 'y'] }), ['x', 'y'])
-  assert.deepEqual(draftAttachmentIdsOf({ imageIds: ['i'] }), ['i'])
+  assert.deepEqual(draftAttachmentIdsOf({ imageIds: ['i'] }), [])
   assert.deepEqual(draftAttachmentIdsOf({ attachmentIds: ['x', 3, null] }), ['x'])
   assert.deepEqual(draftAttachmentIdsOf(undefined), [])
   assert.deepEqual(draftAttachmentIdsOf({ draft: '' }), [])

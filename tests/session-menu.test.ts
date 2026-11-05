@@ -1,8 +1,6 @@
-// Session-menu dual-generation contract: the host's per-row menu changed
-// shape in 0.1.5 (label lives directly in the menuitem button, no
-// `_itemLabel`/`_itemIcon` spans). Recognition and the injected delete item
-// must keep working on both shapes — a _itemLabel-only read silently
-// disables the whole feature on 0.1.5 (menu no longer recognized).
+// Session-menu contract against the primitives Menu item shape (>=0.2.2-rc.1):
+// `role="menuitem"` button with `_itemIcon` + `_itemLabel` spans. The 0.1.5
+// bare-text item fallback was removed with the host floor.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -10,33 +8,27 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { currentSessionIdOf, sessionsCanClear, verifySessionDeleted } from '../src/client/core/sessions-compat.ts'
+import { currentSessionIdOf, verifySessionDeleted } from '../src/client/core/sessions-compat.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SOURCE = readFileSync(join(ROOT, 'src/client/effects/session-menu.ts'), 'utf8')
 
-test('menu recognition reads labels via the label-or-item fallback, not _itemLabel alone', () => {
-  // The fallback helper exists and is documented for both generations.
+test('menu recognition reads each menuitem label through the helper', () => {
   assert.match(SOURCE, /const itemLabel = \(item: HTMLElement\): string =>/)
-  assert.match(SOURCE, /puts it directly in the button/)
-  // isSessionMenu maps over the menuitem list through the helper — the
-  // rc.2-only selector `[role="menuitem"] [class*="_itemLabel"]` must be gone
-  // from the recognition path.
+  // isSessionMenu maps over the menuitem list through the helper (one query
+  // per item), not through a flattened `[role="menuitem"] [class*="_itemLabel"]`.
   assert.doesNotMatch(SOURCE, /querySelectorAll<HTMLElement>\('\[role="menuitem"\] \[class\*="_itemLabel"\]'\)/)
   assert.match(SOURCE, /querySelectorAll<HTMLElement>\('\[role="menuitem"\]'\)/)
   assert.match(SOURCE, /\.map\(itemLabel\)/)
 })
 
-test('injected delete item covers both menu shapes', () => {
-  // rc.2: the `_itemLabel` span gets the text + danger color.
+test('injected delete item writes the label span and skips unknown shapes', () => {
   assert.match(SOURCE, /label\.textContent = navT\('deleteSession'\)/)
   assert.match(SOURCE, /label\.style\.color = DANGER_COLOR/)
-  // 0.1.5: a childless button gets its whole text replaced; a button with
-  // element children but no label span is an unknown shape and must be left
-  // alone (no text guessing).
-  assert.match(SOURCE, /else if \(button\.firstElementChild === null\) \{[\s\S]*?button\.textContent = navT\('deleteSession'\)/)
-  assert.match(SOURCE, /button\.style\.color = DANGER_COLOR/)
-  assert.match(SOURCE, /unknown future shape/)
+  // No label span = unknown shape: inject nothing instead of guessing text.
+  assert.match(SOURCE, /if \(label === null\) return/)
+  // The 0.1.5 bare-text rewrite is gone.
+  assert.doesNotMatch(SOURCE, /button\.textContent = navT\('deleteSession'\)/)
 })
 
 test('the host delete-endpoint flow is unchanged', () => {
@@ -133,9 +125,11 @@ test('完成后才核对当前会话、并在过期结果上停手（源码不�
   assert.match(SOURCE, /let deleteEpoch = 0/)
   assert.match(SOURCE, /const epoch = \+\+deleteEpoch/)
   assert.match(SOURCE, /if \(epoch !== deleteEpoch\) return/)
-  // 收尾顺序：先核对、再判过期，然后才是 closeDialog / clear。
+  // 收尾顺序：先核对、再判过期，然后才是 closeDialog。
   const finish = SOURCE.slice(SOURCE.indexOf('const wasCurrent ='), SOURCE.indexOf('const sessions = ctx.sessions as'))
-  assert.ok(finish.indexOf('if (epoch !== deleteEpoch) return') < finish.indexOf('ctx.sessions.clear()'))
+  assert.ok(finish.indexOf('if (epoch !== deleteEpoch) return') < finish.indexOf('closeDialog()'))
+  // 宿主 >=0.2.2 没有 sessions.clear()，旧代清选中态的调用必须不存在。
+  assert.doesNotMatch(SOURCE, /ctx\.sessions\.clear\(\)/)
   // refresh 失败单独 warn，不得反称删除失败、也不许漏成未处理 rejection。
   assert.match(SOURCE, /console\.warn\('\[dsh-web-mobile\] session list refresh after delete failed:', reason\)/)
   assert.match(SOURCE, /const frame = getFrame\(\)/)
@@ -296,7 +290,6 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   const warns: unknown[][] = []
   const drawerToggles: string[] = []
   const byId: Record<string, { id: string }> = { 's-old': { id: 's-old' }, 's-new': { id: 's-new' } }
-  let clears = 0
   let current = 's-old'
   let cleanup: (() => void) | undefined
 
@@ -314,9 +307,15 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   row.appendChild(make('button', { 'aria-label': 'Archive session' }))
   const viewport = make('div', { class: '_viewport_1' })
   const wrap = make('div')
-  wrap.appendChild(make('button', { role: 'menuitem' }, 'Rename'))
-  wrap.appendChild(make('button', { role: 'menuitem' }, 'Fork'))
-  wrap.appendChild(make('button', { role: 'menuitem' }, 'Archive'))
+  // primitives MenuItem 形状：button[role=menuitem] > span._itemLabel。
+  const item = (text: string): FakeNode => {
+    const button = make('button', { role: 'menuitem' })
+    button.appendChild(make('span', { class: '_itemLabel_m1' }, text))
+    return button
+  }
+  wrap.appendChild(item('Rename'))
+  wrap.appendChild(item('Fork'))
+  wrap.appendChild(item('Archive'))
   viewport.appendChild(wrap)
   const menu = make('div', { role: 'menu' })
   menu.appendChild(viewport)
@@ -341,8 +340,13 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   const context = {
     locale: { bind: () => translate },
     sessions: {
-      list: { getSnapshot: () => ({ current, byId }) },
-      clear: () => { clears += 1 },
+      // 0.2.2 形状：没有 `current` 字段，当前会话 = retainedBy.mainView > 0 的那条。
+      list: {
+        getSnapshot: () => ({
+          byId: Object.fromEntries(Object.entries(byId).map(([id, summary]) =>
+            [id, { ...summary, retainedBy: { mainView: id === current ? 1 : 0 } }])),
+        }),
+      },
       refresh: async () => { if (refreshError !== null) throw refreshError },
     },
   }
@@ -379,7 +383,7 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
       }
     }
     if (specifier.includes('sessions-compat')) {
-      return { currentSessionIdOf, sessionsCanClear, verifySessionDeleted }
+      return { currentSessionIdOf, verifySessionDeleted }
     }
     if (specifier.includes('locales')) return { NS: 'dshWebMobileNav' }
     if (specifier.includes('session-row-fiber')) {
@@ -428,7 +432,6 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   }
 
   return {
-    clearCalls: () => clears,
     posts: () => [...posts],
     warns: () => warns,
     drawerToggles: () => [...drawerToggles],
@@ -454,7 +457,7 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   }
 }
 
-test('请求期间切到别的会话：不得 clear 新当前会话（行为）', async () => {
+test('请求期间切到别的会话：不得收起新当前会话的抽屉（行为）', async () => {
   const fixture = deleteFixture()
   fixture.openMenu()
   fixture.tapDelete()
@@ -464,12 +467,11 @@ test('请求期间切到别的会话：不得 clear 新当前会话（行为）'
   await pending
 
   assert.deepEqual(fixture.posts(), ['s-old'], '删的仍是被点的那个会话')
-  assert.equal(fixture.clearCalls(), 0, '旧 wasCurrent 会把新当前会话的选中态清掉')
   assert.deepEqual(fixture.drawerToggles(), [], '新当前会话还在用，抽屉不该被收')
   fixture.dispose()
 })
 
-test('删的仍是当前会话：clear 一次并收起抽屉（行为）', async () => {
+test('删的仍是当前会话：收起抽屉（行为）', async () => {
   const fixture = deleteFixture()
   fixture.openMenu()
   fixture.tapDelete()
@@ -477,7 +479,6 @@ test('删的仍是当前会话：clear 一次并收起抽屉（行为）', async
   fixture.resolveFetch()
   await pending
 
-  assert.equal(fixture.clearCalls(), 1)
   assert.deepEqual(fixture.drawerToggles(), ['toggle'])
   assert.equal(fixture.dialogOpen(), false, '成功后卡片必须收尾')
   fixture.dispose()
@@ -491,8 +492,7 @@ test('refresh 抛错：删除仍算成功、单独 warn、不成未处理 reject
   fixture.resolveFetch()
   await assert.doesNotReject(pending)
 
-  assert.equal(fixture.clearCalls(), 1, '删除成功的结论不因刷新失败而改变')
-  assert.deepEqual(fixture.drawerToggles(), ['toggle'], '收尾照常')
+  assert.deepEqual(fixture.drawerToggles(), ['toggle'], '删除成功的结论不因刷新失败而改变，收尾照常')
   assert.equal(fixture.dialogOpen(), false)
   assert.equal(fixture.warns().length, 1, 'refresh 失败单独 warn，不反称删除失败')
   assert.match(String(fixture.warns()[0][0]), /refresh/)
@@ -507,8 +507,8 @@ test('抽屉已经关掉：不得把它重新打开（行为）', async () => {
   fixture.resolveFetch()
   await pending
 
-  assert.equal(fixture.clearCalls(), 1, '删除本身照常收尾')
   assert.deepEqual(fixture.drawerToggles(), [], '盲 toggle 会把已关的抽屉打开')
+  assert.equal(fixture.dialogOpen(), false, '删除本身照常收尾')
   fixture.dispose()
 })
 
@@ -520,8 +520,8 @@ test('桌面档（MOBILE_QUERY 未命中）：面板不得被收起（行为）'
   fixture.resolveFetch()
   await pending
 
-  assert.equal(fixture.clearCalls(), 1)
   assert.deepEqual(fixture.drawerToggles(), [], '桌面面板不得被收起')
+  assert.equal(fixture.dialogOpen(), false)
   fixture.dispose()
 })
 
@@ -535,11 +535,12 @@ test('过期响应：更晚的一次删除让在途结果失效（行为）', as
   const second = fixture.confirm()
   fixture.resolveFetch(0)
   await first
-  assert.equal(fixture.clearCalls(), 0, '过期结果不得动状态')
+  assert.deepEqual(fixture.drawerToggles(), [], '过期结果不得动状态')
+  assert.equal(fixture.dialogOpen(), true, '过期结果不得关掉新一次的确认卡')
 
   fixture.resolveFetch(1)
   await second
-  assert.equal(fixture.clearCalls(), 1, '有效的那次照常收尾')
+  assert.deepEqual(fixture.drawerToggles(), ['toggle'], '有效的那次照常收尾')
   fixture.dispose()
 })
 
@@ -553,8 +554,7 @@ test('网络未知但确实删掉了：按成功收尾，且不动切走后的�
   fixture.rejectFetch()
   await assert.doesNotReject(pending)
 
-  assert.equal(fixture.clearCalls(), 0, '期间切走 → 不得清新当前会话')
-  assert.deepEqual(fixture.drawerToggles(), [])
+  assert.deepEqual(fixture.drawerToggles(), [], '期间切走 → 不得收起新当前会话的抽屉')
   assert.equal(fixture.dialogOpen(), false, '列表证明已落地 → 必须按成功收尾，不报失败')
   fixture.dispose()
 })

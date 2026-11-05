@@ -432,27 +432,7 @@ test('uses the _no-cwd project key for a session without cwd (host parity)', asy
   }
 })
 
-// ── mainline baselines（0.1.1-rc.2 / 0.1.2-rc.1 适配，非 fork 行为）──
-
-test('accepts the flat SessionHeader[] list shape (0.1.1/0.1.2 hosts)', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-del-'))
-  try {
-    const dir = join(root, PROJECT_DIR, SESSION_ID)
-    await scaffoldSession(root, dir)
-    const deps: DeleteSessionDeps = {
-      persistence: {
-        config: { root },
-        // 0.1.2 及更早：list() 返回扁平 SessionHeader[]（无 .header 包裹）
-        list: async () => [{ id: SESSION_ID, cwd: CWD }],
-      },
-    }
-    const result = await deleteSession(deps, SESSION_ID)
-    assert.equal(result.status, 200)
-    await assert.rejects(stat(dir), { code: 'ENOENT' })
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
+// ── 宿主形状边界（>=0.2.2-rc.1，非 fork 行为）──
 
 test('refuses a live session whose agent face lacks the disposal API with 409', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-del-'))
@@ -462,7 +442,7 @@ test('refuses a live session whose agent face lacks the disposal API with 409', 
     const deps: DeleteSessionDeps = {
       persistence: { config: { root }, list: async () => [{ header: storedHeader() }] },
       sessions: { get: () => ({ id: SESSION_ID }), flush: async () => true },
-      // 0.1.1/0.1.2 的 agents.get() 返回不带 cancel/whenIdle 的 Agent face
+      // 不带 cancel/whenIdle 的 agent face（非 agent-loop 的 provider）
       agents: { get: () => ({ id: SESSION_ID }) },
     }
     const result = await deleteSession(deps, SESSION_ID)
@@ -475,18 +455,21 @@ test('refuses a live session whose agent face lacks the disposal API with 409', 
   }
 })
 
-test('skips workspaces that expose no detachSession (0.1.1/0.1.2 hosts)', async () => {
+test('ignores flat (pre-0.2.2) list entries without a header: 404, directory untouched', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-del-'))
   try {
     const dir = join(root, PROJECT_DIR, SESSION_ID)
     await scaffoldSession(root, dir)
     const deps: DeleteSessionDeps = {
-      persistence: { config: { root }, list: async () => [{ header: storedHeader() }] },
-      workspaceRegistry: { list: () => [{}, { detachSession: async (): Promise<void> => {} }] },
+      persistence: {
+        config: { root },
+        // 0.1.1/0.1.2 的扁平 SessionHeader[] 已不再支持（宿主下限 0.2.2-rc.1）。
+        list: async () => [{ id: SESSION_ID, cwd: CWD } as never],
+      },
     }
     const result = await deleteSession(deps, SESSION_ID)
-    assert.equal(result.status, 200)
-    await assert.rejects(stat(dir), { code: 'ENOENT' })
+    assert.equal(result.status, 404)
+    await assert.doesNotReject(stat(dir))
   } finally {
     await rm(root, { recursive: true, force: true })
   }
