@@ -160,3 +160,101 @@ test('openers are wired: header toggle via toggleDrawer, gesture arm blurs befor
   // Platform stays effect-free.
   assert.doesNotMatch(SOURCE, /from '\.\.\/effects\//)
 })
+
+// ── R3: the backdrop mounts in the opening task (overlay-backdrop-fab showNow) ──
+
+class FakeNode {
+  tagName: string
+  children: FakeNode[] = []
+  parentElement: FakeNode | null = null
+  dataset: Record<string, string> = {}
+  attrs = new Map<string, string>()
+  style = {
+    props: new Map<string, string>(),
+    set pointerEvents(v: string) { this.props.set('pointer-events', v) },
+    set opacity(v: string) { this.props.set('opacity', v) },
+    removeProperty(k: string) { this.props.delete(k) },
+  }
+  constructor(tag: string) { this.tagName = tag }
+  get isConnected(): boolean { return true }
+  appendChild(child: FakeNode): void { child.parentElement = this; this.children.push(child) }
+  remove(): void {
+    const p = this.parentElement
+    if (p !== null) p.children = p.children.filter((c) => c !== this)
+    this.parentElement = null
+  }
+  setAttribute(k: string, v: string): void { this.attrs.set(k, v); if (k === 'data-mobile-nav') this.dataset.mobileNav = v }
+  getAttribute(k: string): string | null { return k === 'data-mobile-nav' ? this.dataset.mobileNav ?? null : this.attrs.get(k) ?? null }
+  hasAttribute(k: string): boolean { return this.attrs.has(k) }
+  removeAttribute(k: string): void { this.attrs.delete(k) }
+  addEventListener(): void {}
+}
+
+const frames: FakeNode[] = []
+
+async function overlayHarness() {
+  const env = installEnv()
+  // platform/frame.ts memoizes the frame; retire earlier fakes so the cache re-queries.
+  for (const old of frames) delete old.dataset.mobileNav
+  const frame = new FakeNode('div')
+  frames.push(frame)
+  frame.dataset.mobileNav = 'frame'
+  frame.setAttribute('data-sidebar-collapsed', '')
+  const g = globalThis as unknown as Record<string, unknown>
+  const doc = g.document as Record<string, unknown>
+  doc.createElement = (tag: string) => new FakeNode(tag)
+  // The active session view exists, so the FAB stays out of the picture.
+  doc.querySelector = (sel: string) => (sel === '[data-mobile-nav="frame"]' ? frame : sel === '[data-phase="active"]' ? {} : null)
+  const { createOverlayTask } = await import('../src/client/effects/overlay-backdrop-fab.ts')
+  const task = createOverlayTask(((k: string) => k) as never, () => {}, null)
+  task.ensure()
+  const backdrops = (): FakeNode[] => frame.children.filter((c) => c.dataset.mobileNav === 'backdrop')
+  return { env, frame, task, backdrops }
+}
+
+test('opening hook appends the backdrop synchronously, before the host commit', async () => {
+  const { env, frame, task, backdrops } = await overlayHarness()
+  assert.equal(backdrops().length, 0)
+  mod.drawerOpening()
+  assert.equal(backdrops().length, 1, 'mounted in the same task as the opener')
+  // The host commit lands: the next ensure keeps the same node and disarms the confirm.
+  frame.removeAttribute('data-sidebar-collapsed')
+  task.ensure()
+  assert.equal(backdrops().length, 1)
+  assert.equal(env.timers.size, 0, 'confirm timer cleared once the open state is seen')
+  task.dispose()
+  assert.equal(backdrops().length, 0)
+})
+
+test('an ensure that runs before the commit lands does not fade the optimistic backdrop', async () => {
+  const { env, task, backdrops } = await overlayHarness()
+  mod.drawerOpening()
+  task.ensure() // frame still reads collapsed
+  const node = backdrops()[0]
+  assert.ok(node !== undefined)
+  assert.equal(node.style.props.get('opacity'), undefined, 'not faded inside the confirm window')
+  // The open never lands: when the confirm window ends, the closed branch fades it.
+  advance(env, 120)
+  assert.equal(node.style.props.get('opacity'), '0')
+  advance(env, 340)
+  assert.equal(backdrops().length, 0, 'removed after the .28s fade + 60ms')
+  task.dispose()
+})
+
+test('opening hook is a no-op while the drawer already reads open', async () => {
+  const { frame, task, backdrops } = await overlayHarness()
+  frame.removeAttribute('data-sidebar-collapsed')
+  mod.drawerOpening()
+  assert.equal(backdrops().length, 0)
+  task.dispose()
+  mod.drawerOpening()
+  assert.equal(backdrops().length, 0, 'dispose unregisters the hook')
+})
+
+test('both openers fire the hook right before the flip', () => {
+  const DRAWER_CLOSE = readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
+  const open = DRAWER_CLOSE.slice(DRAWER_CLOSE.indexOf('openDrawerAfterKeyboard(() => {'))
+  assert.ok(open.indexOf('drawerOpening()') < open.indexOf('ctx.layout.toggleSidebar()'))
+  const arm = SWIPE.slice(SWIPE.indexOf('function armOpenFollow('), SWIPE.indexOf('\n}', SWIPE.indexOf('function armOpenFollow(')))
+  assert.ok(arm.indexOf('drawerOpening()') !== -1 && arm.indexOf('drawerOpening()') < arm.indexOf('ctx.layout.toggleSidebar()'))
+})

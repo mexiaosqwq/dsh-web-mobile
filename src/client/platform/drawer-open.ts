@@ -2,11 +2,14 @@
 //
 // Why it lives here and not in an effect: the openers are drawer-close.ts
 // (toggleDrawer: header toggle, FAB) and sidebar-swipe.ts (the gesture's arm
-// step). Sharing it through either effect would add an effects → effects edge
-// (the architecture ledger only shrinks), so it sits on platform/.
+// step), and the thing that must run before them belongs to a third effect
+// (the backdrop in overlay-backdrop-fab.ts). Wiring them to each other would add
+// effects → effects edges (the architecture ledger only shrinks); a neutral hook
+// slot plus a focus helper keeps all three on platform/ instead. Nothing here
+// knows what the hook paints.
 //
-// Job (2026-11-05 drawer-jank report, R2):
-// Release text focus before the host opens the drawer. The host's
+// Two jobs (2026-11-05 drawer-jank report, R2 / R3):
+// 1. Release text focus before the host opens the drawer. The host's
 //    useModalLayer moves focus into the drawer from a layout effect
 //    (dsh-client-ui-primitives lib/index.js:1683). With the composer focused,
 //    that focus move closes the soft keyboard WHILE the slide runs, the visual
@@ -14,6 +17,10 @@
 //    --dsha-mobile-visible-vh and the whole shell re-lays out under the moving
 //    drawer. Tap openers blur first and open once the keyboard has gone; the
 //    gesture opener blurs at arm time without waiting (the finger is moving).
+// 2. Fire the registered opening hook synchronously right before the toggle,
+//    so the backdrop is appended in the SAME task as the host commit: its
+//    childList record joins the commit's mutation batch, i.e. one reconciler
+//    flush instead of two, and the dim starts on the drawer's first frame.
 
 /** Text-entry surfaces whose focus keeps a soft keyboard up. */
 const TEXT_ENTRY_SELECTOR =
@@ -31,12 +38,30 @@ const KEYBOARD_SETTLE_MS = 60
 const KEYBOARD_WAIT_CAP_MS = 450
 
 /**
- * The one piece of module state: the pending deferred open. A const object
- * (not a `let`), so this file adds no entry to the architecture ledger's
- * module-state table.
+ * The one piece of module state: the opening hook slot and the pending
+ * deferred open. A const object (not two `let`s), so this file adds no entry
+ * to the architecture ledger's module-state table.
  */
-const state: { cancelPending: (() => void) | null } = {
+const state: { hook: (() => void) | null; cancelPending: (() => void) | null } = {
+  hook: null,
   cancelPending: null,
+}
+
+/**
+ * Register the callback that runs right before an opening toggle.
+ * @param hook - runs synchronously, before the host state flips.
+ * @returns unregister (only clears the slot while it still holds this hook).
+ */
+export function onDrawerOpening(hook: () => void): () => void {
+  state.hook = hook
+  return () => {
+    if (state.hook === hook) state.hook = null
+  }
+}
+
+/** Run the registered opening hook (no-op when none is registered). */
+export function drawerOpening(): void {
+  state.hook?.()
 }
 
 /**
@@ -69,7 +94,7 @@ export function releaseTextFocus(): boolean {
  * viewport has been quiet for KEYBOARD_SETTLE_MS) or after KEYBOARD_WAIT_CAP_MS.
  * A second call while an open is pending cancels it (the user tapped the toggle
  * again) and does nothing else.
- * @param open - flips the host state.
+ * @param open - fires the opening hook and flips the host state.
  */
 export function openDrawerAfterKeyboard(open: () => void): void {
   if (state.cancelPending !== null) {

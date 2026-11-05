@@ -5,7 +5,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { installMobileEffect } from '../platform/breakpoints.ts'
 import { getDrawer, getFrame } from '../platform/frame.ts'
-import { openDrawerAfterKeyboard } from '../platform/drawer-open.ts'
+import { drawerOpening, openDrawerAfterKeyboard } from '../platform/drawer-open.ts'
 import { consumeIfGestured, isStrokeLocked } from './gesture-guard.ts'
 import { isTapWithinSlop } from './session-row-fiber.ts'
 import { closeDrawerAnimated } from './sidebar-swipe.ts'
@@ -60,13 +60,17 @@ export const TAP_CLOSE_NAV_SELECTOR =
  * focused composer is blurred first and the drawer opens once the soft keyboard
  * has gone, so the host's own focus move into the drawer cannot close the
  * keyboard mid-slide (2026-11-05 drawer-jank report, R2). Every tap opener —
- * the header toggle (index.tsx) and the FAB — routes through here.
+ * the header toggle (index.tsx) and the FAB — routes through here. The opening
+ * hook runs right before the flip so the backdrop joins the same commit (R3).
  */
 export function toggleDrawer(ctx: ClientContext): void {
   if (closeDrawerAnimated(ctx)) return
   const frame = getFrame()
   if (frame !== null && frame.hasAttribute('data-sidebar-collapsed')) {
-    openDrawerAfterKeyboard(() => ctx.layout.toggleSidebar())
+    openDrawerAfterKeyboard(() => {
+      drawerOpening() // backdrop lands in the same task as the host commit (R3)
+      ctx.layout.toggleSidebar()
+    })
     return
   }
   ctx.layout.toggleSidebar()
