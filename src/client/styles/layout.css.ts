@@ -2191,17 +2191,15 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      宿主 dsh-client-ui-settings-general（css$7）在 (width<=767px) 下自带全屏形态：overlay
      position:absolute + height:100%、panel width/height 100% + radius 0、navList 横滚。上面的
      内缩卡片（left 8 / radius 14 / height auto + 灰遮罩露出下半屏）已门控到 min-width:768，
-     手机档不再改形态，这里只补宿主没有的四件事：
+     手机档不再改形态，这里只补宿主没有的修补：
      ① max-width 撤顶：上方「导出弹层」那条 calc(100vw - 32px) 封顶与宿主全屏规则同特异性
         (0,3,1)、书写在后，会把全屏面板右侧收窄 32px；
      ② 顶部安全区：overlay 从 y=0 起铺，刘海 / 状态栏下的标题与 ✕ 需要让位（border-box，
         不撑高 100%）；
-     ③ 关闭键热区：宿主 ✕ 只有 28px，::after 四向外扩 8px 到 44px 触控下限；左侧恰好吃满与
-        配置文件按钮之间的 8px 间隙，不压到它；
+     ③ 关闭键热区：与平板档共用，见下方「打开配置文件」隐藏条之后的热区规则；
      ④ 页签条细滚动条：宿主把横滚条的滚动条整个藏掉（display:none），手机上没有「还能往右滑」
         的提示；恢复成 2px 细条（与平板档同一套颜色）。
-     配置文件按钮（settings.action 槽）留在宿主官方位置——标题行右侧、✕ 左边；旧的「藏掉
-     _actions」规则锚的是 0.1.x 的 > :last-child > _header 结构，0.2.2 本就不命中。
+     配置文件按钮（settings.action 槽）在整个移动档隐藏，见下方同名规则。
      入场动画：手机档不加。全屏面板上 translateY(14px) 会在底边露出一条底层内容、读起来像
      整页跳动；淡入在 #124 里被证实会把还开着的抽屉叠印出来。宿主官方形态本身也无动画。
      选择器只锚宿主自己的 data-shortcut-modal="settings"，不动上面那条 :is() 的形状。 */
@@ -2210,15 +2208,6 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       max-width: none !important;
       box-sizing: border-box !important;
       padding-top: env(safe-area-inset-top, 0px) !important;
-    }
-    [aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child {
-      position: relative;
-    }
-    [aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child::after {
-      content: "";
-      position: absolute;
-      inset: -8px;
-      border-radius: 50%;
     }
     [aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"] {
       scrollbar-width: thin !important;
@@ -2379,107 +2368,30 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     height: 14px !important;
     flex: none !important;
   }
-  /* Content toolbar (close, plus the config-file button on hosts that
-     render one): pinned over the nav row's right end, flush right.
-     #105 A' — the toolbar stays at its React home (the content column's
-     direct child) and is absolutely positioned against the dialog; the
-     dialog is position:absolute itself, so it is the containing block
-     and no new one is introduced. Constants measured 2026-09-24 (CDP,
-     393px): the reparented toolbar — whose visual this replaces — sat
-     at in-dialog dy=10 / fromRight=12, hence top 10px / right 12px.
-     Out of flow, the toolbar's own row disappears and the options area
-     starts right under the nav row; the navList's scroll viewport stops
-     short of the toolbar with margin-right = toolbar width (36: the 32px
-     round close + 4px) + 6px gap (measured). Children carry official
-     auto-margins
-     that would defeat flex-end, so neutralize them. The close button
-     gets a round tappable base so it reads as its own control, not
-     part of the outline button.
-     Anchored structurally, not by class substring: a bare [class*="_header"]
-     also matches every plugin settings card header in the options area —
-     the official Plugins config cards (YyYd_a_header) and the dsh-web-ui-all
-     group cards (Kwoi6G_header / Jh0q7G_header / rUBhvW_header; the bpnj3G_/jmhvDG_
-     siblings were renamed upstream in dsh-web-all 0.3.20, verified 2026-09-18), all sharing the upstream template text-align:left,
-     gap:12px, padding:14px 16px). The old broad anchor right-aligned their
-     text, gutted the padding and painted a 32px gray circle behind the
-     chevron (2026-09-05 sweep: 8 bleeding headers). The toolbar's one
-     structural home is the content column's direct child (the panel's
-     :last-child); the post-reparent nav-row home died with the
-     settings-toolbar-reparent task. Card headers live deeper — inside
-     the options scroll area — and match neither, so no per-plugin hash
-     guards are needed. */
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) {
-    position: absolute;
-    top: 10px;
-    right: 12px;
-    /* z-index is load-bearing since 0.1.7-rc.2 (owner report 2026-09-25):
-       the sheet is portaled to <body>, and the market page (dshmarket's
-       nUhMVa_root, position:relative, z:auto) paints AFTER this header in
-       DOM order — both are z:auto positioned, so the market head covered
-       the pinned toolbar: the close ✕ stayed visible through the head's
-       transparent right end but hit-testing returned the head, so tapping
-       the ✕ did nothing ("按了关闭没用"). z-index lifts the toolbar into
-       the painted-above layer: above the market root and its sticky list
-       heads (.stickyHead z:5), still below the market's own transient
-       layers (.opPanel z:40, .lightbox z:10000) which SHOULD cover it.
-       Settings view: the toolbar sits over the nav row's reserved right
-       end (margin-right 42px), so nothing there to cover or be covered. */
-    z-index: 10;
-    flex: 0 0 auto;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 8px;
-    padding: 0 0 0 4px;
-    /* Hug the close ✕ only: the host header box is 54px tall, and with the
-       actions hidden its empty lower half (above the market's "导出日志"
-       button, which starts ~13px under the ✕) formed a dead zone that
-       ate the export button's top-right corner once z-index lifted the
-       toolbar above it (owner report follow-up 2026-09-25). 32px = the
-       close's own height, so the toolbar's box ends where the ✕ ends. */
-    height: 32px;
-    min-height: 32px;
+  /* 设置弹层的「打开配置文件」（dsh-client-ui-settings-general 的 SettingsDocumentAction，
+     id open-document，经 settings.action 槽渲染进标题行 VOzbGW_header > VOzbGW_actions，
+     与关闭 ✕ 同排、在其左侧）在整个移动档隐藏（owner 2026-11-05）：手机上打开的是一个
+     宿主本机文件，几乎用不上，却占掉标题行约 94px。锚宿主自己的槽包装
+     div[data-slot="settings.action"]（renderer SlotOutlet，display:contents），并限定在
+     设置弹层 [data-shortcut-modal="settings"] 内；槽里目前只有这一个贡献者。✕ 是 _actions 的
+     兄弟、不在槽里，出口不受影响。桌面档不在本移动块内，保持原样。
+     旧 0.1.x 的工具栏五条（锚「面板末子里的 _header」：钉右上角、圆底 ✕、热区、藏
+     _actions）已删：0.2.2 的面板末子是 VOzbGW_options，那条链 0 命中。 */
+  [aria-modal="true"][data-shortcut-modal="settings"] [data-slot="settings.action"] {
+    display: none !important;
   }
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > * {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > :last-child {
+  /* 关闭键热区（手机与平板同一条）：宿主 ✕ 是 28px，::after 四向外扩 8px 到 44px。配置文件
+     按钮隐藏后 ✕ 是标题行唯一的控件，左侧无邻居；右侧落在面板内边距里（手机 header
+     padding-right 16、平板 14，外扩 8 不出面板），下方是导航页签条的上内边距（手机 12px，
+     平板 nav 在左列、与 header 不相邻），不压任何可点控件。 */
+  [aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child {
     position: relative;
-    width: 32px;
-    height: 32px;
-    border-radius: 50% !important;
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)) !important;
   }
-  /* 32px is under the ~44px touch minimum and this ✕ shares the corner
-     with the market's version text (above-left) and its export button
-     (below-left) — the owner's "很容易误触" report 2026-09-25. Extend the
-     HIT area only (no visual change): the pseudo-element grows up, left
-     and right by 6px — never downward, where the market's "导出日志"
-     button starts ~13px under the ✕'s bottom edge and must keep its own
-     top-right corner. Anchored to the button (position:relative above),
-     so the extension travels with the pinned toolbar. */
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) > :last-child::after {
+  [aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child::after {
     content: "";
     position: absolute;
-    inset: -6px -6px 0 -6px;
+    inset: -8px;
     border-radius: 50%;
-  }
-  /* The config-file action (a settings.action slot — dsh-version-update's
-     "打开配置文件") is hidden on phones: it is rarely needed here, and its
-     ~94px next to the 32px close made the pinned toolbar 138px wide —
-     wide enough to swallow the nav strip's first cells while the strip
-     still wrapped (2026-09-25 report, the other half of the same
-     regression as the scroller fix above). The close ✕ is the toolbar's
-     SIBLING, not its child (verified in the live DOM: header children are
-     [actions, close]), so hiding the actions never removes the way out.
-     Desktop keeps the button: this whole block sits inside the mobile
-     media wrapper. (Portal-aware replacement for the frame-scoped rule in
-     compat.css, which died with the rc.2 portal move.) */
-  [aria-modal="true"]:is([data-shortcut-modal="settings"], :has(> :first-child > :last-child > button + button)):not(:has([role="navigation"])):not(:has([class*="ZuhsRW"])):not([data-shortcut-modal="shortcuts"]) > :last-child > [class*="_header"]:not([class*="_headerActions"]) [class*="_actions"] {
-    display: none !important;
   }
   /* Appearance mode cards: the official cube row renders three tall
      vertical cards (~268px) that eat half the sheet. Turn them into a

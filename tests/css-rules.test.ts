@@ -523,17 +523,31 @@ test('settings sheet: phone tier keeps only the fixes the host lacks', () => {
   assert.match(panel.body, /padding-top:\s*env\(safe-area-inset-top, 0px\) !important/)
   assert.match(panel.body, /box-sizing:\s*border-box !important/)
   assert.doesNotMatch(panel.body, /animation/, 'no entrance animation on the fullscreen phone sheet')
-  const hit = by('[aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child::after')
-  assert.ok(hit, 'close-button hit area present')
-  assert.match(hit.body, /inset:\s*-8px/)
   const bar = by('[aria-modal="true"][data-shortcut-modal="settings"] [class*="_navList"]::-webkit-scrollbar')
   assert.ok(bar, 'tab strip hairline scrollbar present')
   assert.match(bar.body, /display:\s*block !important/)
   assert.match(bar.body, /height:\s*2px !important/)
 })
 
+test('settings sheet: the open-config action is hidden across the mobile tier, the close keeps a 44px hit area', () => {
+  // owner 2026-11-05：手机与平板都藏「打开配置文件」（settings.action 槽），桌面不变。
+  const rules = scopedRules(LAYOUT_CSS)
+  const mobileOnly = (r: { media: string[] }) =>
+    r.media.length === 1 && r.media[0] === '@media (max-width: 1023px) and (pointer: coarse)'
+  const hide = rules.find((r) => r.selector === '[aria-modal="true"][data-shortcut-modal="settings"] [data-slot="settings.action"]')
+  assert.ok(hide, 'config action hidden by its slot wrapper inside the settings sheet')
+  assert.ok(mobileOnly(hide), `hide rule must sit in the plain mobile block (both tiers), got ${hide.media.join(' && ')}`)
+  assert.match(hide.body, /display:\s*none !important/)
+  const hit = rules.find((r) => r.selector === '[aria-modal="true"][data-shortcut-modal="settings"] > [class*="_header"] > button:last-child::after')
+  assert.ok(hit, 'close-button hit area present')
+  assert.ok(mobileOnly(hit), 'hit area shared by phone and tablet')
+  assert.match(hit.body, /inset:\s*-8px/)
+  // 0.1.x 工具栏链在 0.2.2 永不命中（面板末子是 options），不得回来。
+  assert.ok(!LAYOUT_CSS.includes('> :last-child > [class*="_header"]'), 'dead 0.1.x settings toolbar chain is back')
+})
+
 test('settings sheet: the :is() family predicate keeps its shape (specificity contract)', () => {
   // 特异性牵连：形态声明只改作用域，不改这条 :is() 的形状。
   const count = LAYOUT_CSS.split(SETTINGS_IS).length - 1
-  assert.ok(count >= 15, `settings :is() predicate still used by the whole block (found ${count})`)
+  assert.ok(count >= 10, `settings :is() predicate still used by the whole block (found ${count})`)
 })
