@@ -62,6 +62,15 @@ const MENU_ENTRY_ATTR = 'data-mobile-nav-quick-menu'
 const MENU_ENTRY_SELECTOR = '[data-mobile-nav-quick-menu]'
 
 /**
+ * 「点下那一刻」就挂上的预标记：让账户菜单从第一帧起就没有被我们收起的那一项。
+ * 只在 pointerdown → 菜单被打上正式标记之间存在（另有 PENDING_MS 兜底），
+ * 期间任何 `[role="menu"]` 的第一项都不画——这正是「不跳」的代价，窗口只有几帧。
+ */
+const PENDING_ATTR = 'data-mobile-nav-quick-pending'
+/** 预标记最长存活时间：宿主没开菜单（长按、拖走）时不能一直挂着。 */
+const PENDING_MS = 700
+
+/**
  * 抽屉页脚账户行右端的一键设置齿轮。
  *
  * 任务靠 `getFrame()` 只在移动分支存在时注入（桌面帧标记不存在 → 直接 no-op），
@@ -86,6 +95,51 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     if (pending === null) return
     window.clearTimeout(pending)
     pending = null
+  }
+
+  let pendingMark = 0
+
+  /** 摘掉 pointerdown 预标记（幂等）。 */
+  const clearPendingMark = (): void => {
+    if (pendingMark === 0) return
+    window.clearTimeout(pendingMark)
+    pendingMark = 0
+    document.documentElement.removeAttribute(PENDING_ATTR)
+  }
+
+  /**
+   * 点账户行为菜单做准备：在宿主开菜单之前把「第一项不画」挂到 html 上。
+   *
+   * 不这么做的话，菜单会先按完整三项画出来，等 reconciler 下一拍打上标记再收起
+   * 第一项——整张卡片的高度变化就是真机上看到的「弹跳」（2026-11-05）。
+   * 只认账户行内的、不是我们齿轮的按下；预标记在菜单被打标记时摘掉，超时兜底。
+   */
+  const onRowPointerDown = (event: Event): void => {
+    // 鸭子类型而不是 instanceof Element：跨 realm（iframe / 测试桩）时 instanceof 会假阴性，
+    // 而这颗监听只需要 closest/contains 两个能力（同 open-files-panel 的写法）。
+    const target = event.target as Element | null
+    if (target === null || typeof target.closest !== 'function') return
+    if (target.closest('[data-mobile-nav="quick-settings"]') !== null) return
+    const owner = row()
+    if (owner === null || typeof owner.contains !== 'function' || !owner.contains(target)) return
+    document.documentElement.setAttribute(PENDING_ATTR, '')
+    window.clearTimeout(pendingMark)
+    pendingMark = window.setTimeout(clearPendingMark, PENDING_MS)
+  }
+
+  /** 预标记监听只在任务首次 armed 之后挂（测试与桌面分支都不该在构造期碰 document）。 */
+  let rowHookBound = false
+
+  const bindRowHook = (): void => {
+    if (rowHookBound) return
+    rowHookBound = true
+    document.addEventListener('pointerdown', onRowPointerDown, true)
+  }
+
+  const unbindRowHook = (): void => {
+    if (!rowHookBound) return
+    rowHookBound = false
+    document.removeEventListener('pointerdown', onRowPointerDown, true)
   }
 
   /**
@@ -188,6 +242,8 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     }
     // 幂等：写过的属性不再重写，免得自己的 mutation 把任务再唤醒一轮。
     if (!menu.hasAttribute(MENU_ENTRY_ATTR)) menu.setAttribute(MENU_ENTRY_ATTR, '')
+    // 正式标记已到位，预标记可以撤了（CSS 两条并联，撤了也不跳）。
+    clearPendingMark()
   }
 
   return {
@@ -198,10 +254,13 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
       if (target === null) return
       if (button === null || wrap === null) build()
       if (wrap !== null && wrap.parentElement !== target) target.appendChild(wrap)
+      bindRowHook()
       syncMenuEntry(target)
     },
     dispose: () => {
       clearPending()
+      clearPendingMark()
+      unbindRowHook()
       document.documentElement.removeAttribute('data-mobile-nav-quick')
       clearMenuEntry()
       wrap?.remove()

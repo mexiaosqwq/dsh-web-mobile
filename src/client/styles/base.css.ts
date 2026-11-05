@@ -156,8 +156,17 @@ export const BASE_CSS = `
     background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
   }
 }
+/* 2026-11-05 真机：齿轮点下去没有任何反馈。它是一颗 30px 的透明图标按钮，
+   通用按压位（:active 的 inset 高亮 + scale .96）在它身上太淡；这里给足：
+   用 active 级底色 + 缩到 .94，并把整颗抬到行内最上层，免得被账户 launcher
+   的层盖住。 */
+[data-mobile-nav="quick-settings-wrap"] {
+  position: relative;
+  z-index: 1;
+}
 [data-mobile-nav="quick-settings"]:active {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+  background: var(--dsw-alias-interactive-bg-active, rgba(0, 0, 0, .1));
+  transform: scale(.94);
 }
 [data-mobile-nav="quick-settings"]:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
@@ -182,6 +191,12 @@ export const BASE_CSS = `
    until: 宿主给 settings.launcher 提供独立动作位，或账户菜单自己把设置项拆出去——届时删本块
    test: tests/drawer-quick-settings.test.ts
 */
+/* 2026-11-05 真机：自己点账户行打开菜单时，卡片先按「3 项」画出来，等 reconciler
+   下一拍打上标记再收起第一项 —— 高度变化让整张卡蹦一下。改成在**点下那一刻**就把
+   html 标记挂上（drawer-quick-settings.ts 的 pointerdown 捕获），菜单从出生就没有
+   那一项：没有任何一帧画过它，也就没有跳动。标记在菜单被打上正式标记后摘掉，
+   另有超时兜底。 */
+html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :first-child > [role="menuitem"],
 [data-mobile-nav-quick-menu] > [role="presentation"] > :first-child > [role="menuitem"] {
   display: none !important;
 }
@@ -498,11 +513,16 @@ export const BASE_CSS = `
       transition: box-shadow .12s var(--ds-ease-in-out, ease-in-out), transform .12s var(--ds-ease-in-out, ease-in-out);
     }
     :where(button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"], a[href]):where(:active):where(:not(:disabled, [aria-disabled="true"], [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"])) {
+      /* 按下当帧就到位（2026-11-05 真机：点账户行开菜单时「开启没有反馈、再点关掉
+         才有灰色」——0.12s 的淡入还没画出来，菜单就把指针状态打断了；下面那条基态
+         transition 只负责松开后的淡出）。 */
+      transition: none;
       box-shadow: inset 0 0 0 100vmax var(--dsw-alias-interactive-bg-active, color-mix(in srgb, currentColor 8%, transparent));
     }
     /* Icon-only buttons (a lone svg child, or a button that carries only an
        aria-label) also shrink a touch. */
     :where(button:has(> svg:only-child), button[aria-label]:not(:has(> span, > div))):where(:active):where(:not(:disabled, [aria-disabled="true"])) {
+      transition: none;
       transform: scale(.96);
     }
     /* 例外（2026-10-20，店主）：头部那两颗芯片不要按压反馈。

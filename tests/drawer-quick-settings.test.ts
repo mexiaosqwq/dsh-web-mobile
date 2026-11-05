@@ -96,6 +96,12 @@ class FakeElement {
     this.tagName = tagName
   }
 
+  /** 真实 DOM 的 contains：自己或后代命中。效果的 pointerdown 预标记用它判「在行内」。 */
+  contains(node: unknown): boolean {
+    if (node === (this as unknown)) return true
+    return this.children.some((child) => child.contains(node))
+  }
+
   addEventListener(name: string, fn: () => void): void {
     (this.listeners[name] ??= []).push(fn)
   }
@@ -208,6 +214,7 @@ type Harness = {
   runTimer: () => void
   frames: Array<() => void>
   timers: Array<() => void>
+  fireDocument: (name: string, event: unknown) => void
 }
 
 /** Install a fake document whose frame holds `row`; timers and rAF are manual. */
@@ -244,13 +251,24 @@ function installHarness(menu: FakeMenu | null): Harness {
       const pending = harness.timers.splice(0)
       for (const fn of pending) fn()
     },
+    fireDocument: (name: string, event: unknown) => {
+      for (const fn of docListeners[name] ?? []) fn(event)
+    },
     restore: () => {
       ;(globalThis as { document?: unknown }).document = previousDocument
       ;(globalThis as { window?: unknown }).window = previousWindow
       ;(globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = previousRaf
     },
   }
+  // 真实的 document 有监听接口：效果在首次 ensure 时挂 pointerdown（预标记）。
+  const docListeners: Record<string, Array<(event: unknown) => void>> = {}
   ;(globalThis as { document?: unknown }).document = {
+    addEventListener: (name: string, fn: (event: unknown) => void) => {
+      ;(docListeners[name] ??= []).push(fn)
+    },
+    removeEventListener: (name: string, fn: (event: unknown) => void) => {
+      docListeners[name] = (docListeners[name] ?? []).filter((entry) => entry !== fn)
+    },
     documentElement: html,
     querySelector: (selector: string) => (selector === '[data-mobile-nav="frame"]' ? frame : null),
     querySelectorAll: (selector: string) => {
@@ -389,6 +407,41 @@ test('dispose removes the gear and clears the paint guard', () => {
     task.dispose()
     assert.equal(harness.row.children.includes(wrapper), false)
     assert.equal(harness.html.getAttribute('data-mobile-nav-quick'), null)
+  } finally {
+    harness.restore()
+  }
+})
+
+// 真机 2026-11-05：自己点账户行开菜单时，卡片先按完整三项画出来，等 reconciler
+// 下一拍打上标记再收起第一项，整张卡「弹跳」。预标记必须在按下那一刻就挂上。
+test('pressing the account row pre-marks the menu before the host paints it', () => {
+  const harness = installHarness(null)
+  try {
+    const task = createDrawerQuickSettingsTask({ locale: { bind: () => (key: string) => key } } as unknown as ClientContext)
+    task.ensure()
+    assert.equal(harness.html.attrs['data-mobile-nav-quick-pending'], undefined)
+    // 行内的一次按下：目标就是行自己（假 DOM 没有 contains，用行本身即可代表「在行内」）。
+    const insideRow = { closest: () => null }
+    harness.fireDocument('pointerdown', { target: Object.assign(insideRow, { }) })
+    assert.equal(harness.html.attrs['data-mobile-nav-quick-pending'], undefined,
+      '行外的按下不该挂预标记')
+    harness.fireDocument('pointerdown', { target: Object.assign(harness.row, { closest: () => null }) })
+    assert.equal(harness.html.attrs['data-mobile-nav-quick-pending'], '',
+      '按下账户行就要挂预标记')
+  } finally {
+    harness.restore()
+  }
+})
+
+test('pressing the gear itself does not arm the row pre-marker', () => {
+  const harness = installHarness(null)
+  try {
+    const task = createDrawerQuickSettingsTask({ locale: { bind: () => (key: string) => key } } as unknown as ClientContext)
+    task.ensure()
+    const gearTarget = { closest: (selector: string) => (selector.includes('quick-settings') ? {} : null) }
+    harness.fireDocument('pointerdown', { target: gearTarget })
+    assert.equal(harness.html.attrs['data-mobile-nav-quick-pending'], undefined,
+      '齿轮走自己的 flash guard，不该挂预标记')
   } finally {
     harness.restore()
   }
