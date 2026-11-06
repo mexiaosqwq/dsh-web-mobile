@@ -146,8 +146,6 @@ export interface PanelExit {
   back: () => void
   /** Whether a panel subpage currently carries the host's own back control. */
   subpageOpen: () => boolean
-  /** Whether the host can select a panel at all; false on rc.6. */
-  supported: boolean
   /**
    * Whether a panel owns the main area, IGNORING the in-flight exit window.
    * The FAB reads this one: its icon must not flip back to 「打开目录」 halfway
@@ -432,7 +430,6 @@ export function createPanelExit(layout: unknown): PanelExit {
   return {
     exit,
     back,
-    supported,
     panelOpen: panelOwnsMainArea,
     subpageOpen,
     task: createPanelBackExitTask(exit, supported, back, subpageControl),
