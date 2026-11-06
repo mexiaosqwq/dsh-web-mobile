@@ -1,5 +1,5 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { getDrawer, getFrame } from '../platform/frame.ts'
+import { foreignModalOpen, getDrawer, getFrame } from '../platform/frame.ts'
 import { installMobileEffect } from '../platform/breakpoints.ts'
 import { drawerOpening, releaseTextFocus } from '../platform/drawer-open.ts'
 import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
@@ -568,9 +568,9 @@ function chainFrom(target: Element): SwipeChainNode | null {
   return node
 }
 
-/** Whether a modal dialog owns the screen (gestures must yield to it). */
+/** A modal the drawer does not own (0.2.2 marks the drawer itself aria-modal). */
 function modalOpen(): boolean {
-  return document.querySelector('[aria-modal="true"]') !== null
+  return foreignModalOpen()
 }
 
 /** True when a full-screen takeover (taskboard / ssh) owns the frame, or any
