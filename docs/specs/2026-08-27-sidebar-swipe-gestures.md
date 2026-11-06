@@ -216,7 +216,7 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 | Android 13+ 边缘返回 | 系统手势抢占时 JS 收不到 pointerdown，天然让位无副作用；不硬阻断 |
 | reduced-motion | 判定逻辑不变（滑动开关是导航可达性）；动画降级交宿主 CSS transition（不新增自写动画） |
 | RTL | 热区用 `inset-inline-start:0` 自动镜像；几何判定取 `getComputedStyle(frame).direction`，`classifySwipe` 接收 rtl 镜像 dx 符号 |
-| aria-modal 打开 | pointerdown **和每帧**检查 `[aria-modal="true"]`，出现即取消（防误提交） |
+| aria-modal 打开 | pointerdown **和每帧**检查外来模态（`platform/frame.ts` 的 `foreignModalOpen()`：任一 `[aria-modal="true"]` 落在抽屉列**之外**才算），出现即取消（防误提交）。宿主 0.2.2 起把抽屉自身渲染成 `role=dialog` + `aria-modal`（SidebarRoot 在 `_sidebarCol` 内），裸查询会让手势让位给自己的抽屉——实测滑一半被弹回（#267①） |
 | 多指 | 仅跟踪第一指；后续 pointerdown 忽略 |
 | WebView | 与浏览器相同；Android WebView 无系统边缘返回，全功能 |
 

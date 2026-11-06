@@ -26,6 +26,7 @@ import {
   clearStrokeLocked,
   isStrokeLocked,
 } from '../src/client/effects/gesture-guard.ts'
+import { foreignModalOpen } from '../src/client/platform/frame.ts'
 
 const BASE: SwipeThresholds = {
   openDistanceRatio: 0.16,
@@ -746,4 +747,67 @@ test('findFloatingWidget: a plain frame descendant still yields nothing', () => 
     closest: (selector: string) => (selector === '[data-mobile-nav="frame"]' ? { id: 'frame' } : null),
   } as unknown as Element
   assert.equal(findFloatingWidget(target), null)
+})
+
+// #267①: host 0.2.2 renders the sidebar ITSELF as role=dialog + aria-modal when
+// the drawer is expanded (dsh-client-ui-sidebar; 0.1.0-rc.6 emits none at all),
+// living INSIDE the `_sidebarCol` column getDrawer() returns. A bare
+// `[aria-modal="true"]` probe therefore reads "a modal is up" for as long as the
+// drawer is open, and the gesture yielded to its own drawer: measured at
+// 390x844 the stroke was sprung back mid-swipe (x -296 -> -308).
+//
+// getDrawer() walks getFrame() -> `[class*="_sidebarCol"]` and type-checks with
+// `instanceof HTMLElement`, so the stub supplies both the frame lookup and a
+// stand-in constructor; `contains` is the only node method the predicate uses.
+const withDrawerAndModals = (modals: unknown[], drawer: unknown, run: () => void) => {
+  const g = globalThis as { document?: unknown; HTMLElement?: unknown }
+  const previousDocument = g.document
+  const previousElement = g.HTMLElement
+  const frame = { querySelector: () => drawer }
+  class StubElement {}
+  if (drawer !== null) Object.setPrototypeOf(drawer, StubElement.prototype)
+  g.HTMLElement = StubElement
+  g.document = {
+    querySelector: (selector: string) =>
+      selector === '[data-mobile-nav="frame"]' ? frame : null,
+    querySelectorAll: () => modals,
+  }
+  try {
+    run()
+  } finally {
+    g.document = previousDocument
+    g.HTMLElement = previousElement
+  }
+}
+
+test('foreignModalOpen: the drawer\'s own dialog is not a foreign modal (#267①)', () => {
+  const drawerChild = { id: 'sidebar-root' }
+  const drawer = { contains: (node: unknown) => node === drawerChild }
+  withDrawerAndModals([drawerChild], drawer, () => {
+    assert.equal(foreignModalOpen(), false, 'a drawer that marks itself aria-modal must not block its own gestures')
+  })
+})
+
+test('foreignModalOpen: a sheet opened on top of the expanded drawer still wins', () => {
+  // Document order puts the drawer's own dialog FIRST ("sidebar", then
+  // "settings"), so a single querySelector answered "inside the drawer" and
+  // missed the sheet sitting on top of it.
+  const drawerChild = { id: 'sidebar-root' }
+  const sheet = { id: 'settings-panel' }
+  const drawer = { contains: (node: unknown) => node === drawerChild }
+  withDrawerAndModals([drawerChild, sheet], drawer, () => {
+    assert.equal(foreignModalOpen(), true, 'every match must be checked, not just the first')
+  })
+})
+
+test('foreignModalOpen: no modal at all reads closed', () => {
+  withDrawerAndModals([], { contains: () => false }, () => {
+    assert.equal(foreignModalOpen(), false)
+  })
+})
+
+test('foreignModalOpen: without a resolvable drawer any modal counts as foreign', () => {
+  withDrawerAndModals([{ id: 'whatever' }], null, () => {
+    assert.equal(foreignModalOpen(), true)
+  })
 })
