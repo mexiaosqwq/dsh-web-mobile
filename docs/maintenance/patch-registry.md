@@ -12,8 +12,8 @@
 | `ask-question-card-phone` | src/client/styles/layout.css.ts:2983 | dsh-client-ui-user-questions 的 QuestionComposer.module.css（哈希前缀 Mbwy4a_：_frame / _card / _body / _header / _headerActions / _title 等）与其宿主 composerSeat | 宿主把 Mbwy4a_body 的 overflow-x 钉成 hidden/clip 并给五族文本补换行、或卡片自带「展开」形态与键盘感知定高 —— 届时整节删除 | `tests/question-fullscreen.test.ts` |
 | `composer-seat-above-header` | src/client/styles/layout.css.ts:1970 | dsh-client-ui-conversation 0.2.1 的 composer 座位（[class*="_composerSeat"]，position:sticky; bottom:0）+ 本插件顶栏规则（header.wSkVaW_header 的 z-index:30 与不透明底） | 宿主把 composer 做成独立浮层（座位自带高于顶栏的层叠层）或提供座位/顶栏之间的层叠契约 —— 届时整块删除 | `tests/composer-clearance.test.ts` |
 | `drawer-own-dialog-not-a-modal` | src/client/platform/frame.ts:73 | dsh-client-ui-sidebar 0.2.2-rc.1 的 SidebarRoot（抽屉态、展开时在 _sidebarCol 内渲染 role=dialog + aria-modal=true + data-shortcut-modal=sidebar） | 宿主不再把抽屉渲染成 aria-modal 对话框，或给「外来模态」提供独立标记（届时可退回单次查询） | `tests/sidebar-swipe.test.ts` |
-| `drawer-quick-settings-chip-guard` | src/client/styles/base.css.ts:189 | dsh-client-ui-primitives 的 ConnectionIndicator（connecting/disconnected 渲染 button[data-phase]，recovered 渲染 div[role="status"]）与账户 launcher 同处 settingsArea 的 triggerRow | 宿主给该行提供独立的次要动作位，或连接条不再占用行宽——届时删本块 | `tests/drawer-quick-settings.test.ts` |
-| `drawer-quick-settings-menu-entry` | src/client/styles/base.css.ts:200 | dsh-client-ui-settings-account 的 AccountMenu items 数组（settings / contact / signout|signin）与 dsh-client-ui-primitives 的 Menu 列表结构（role=menu > div[role=presentation] > div > button[role=menuitem]） | 宿主给 settings.launcher 提供独立动作位，或账户菜单自己把设置项拆出去——届时删本块 | `tests/drawer-quick-settings.test.ts` |
+| `drawer-quick-settings-chip-guard` | src/client/styles/base.css.ts:180 | dsh-client-ui-primitives 的 ConnectionIndicator（connecting/disconnected 渲染 button[data-phase]，recovered 渲染 div[role="status"]）与账户 launcher 同处 settingsArea 的 triggerRow | 宿主给该行提供独立的次要动作位，或连接条不再占用行宽——届时删本块 | `tests/drawer-quick-settings.test.ts` |
+| `drawer-quick-settings-menu-entry` | src/client/styles/base.css.ts:191 | dsh-client-ui-settings-account 的 AccountMenu items 数组（settings / contact / signout|signin）与 dsh-client-ui-primitives 的 Menu 列表结构（role=menu > div[role=presentation] > div > button[role=menuitem]） | 宿主给 settings.launcher 提供独立动作位，或账户菜单自己把设置项拆出去——届时删本块 | `tests/drawer-quick-settings.test.ts` |
 | `fullscreen-panel-sheet` | src/client/styles/layout.css.ts:387 | dsh-client-ui-sidebar-right 0.2.x 的 [data-sidebar-right-panel="fullscreen"]（0.2.0 起面板本体不再自带 z-index） | 上游把 z-index 还给面板本体，或给全屏面板一个不依赖 z 的层叠接缝——届时本块删除 | `tests/fullscreen-panel-sheet.test.ts` |
 | `header-chip-seat` | src/client/styles/layout.css.ts:1689 | 宿主 0.2.2 的 headerActions / titleCluster 槽位（子智能体谱系 chip 的座位） | 上游在标题行提供稳定的 actions/title 槽标记，或把该 chip 分到独立容器 | `tests/a2-header-gating.test.ts` |
 | `header-job-chip-collapse` | src/client/styles/layout.css.ts:1872 | dsh-client-ui-jobs 的后台任务 chip（0.2.1 起包裹 div 无类名） | 宿主给该 chip 稳定的数据标记，或在手机档自带折叠形态 | `tests/a2-header-gating.test.ts` |
@@ -33,7 +33,7 @@
 | `wallpaper-drawer-fill` | src/client/styles/layout.css.ts:280 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-specific-sidebar-fill 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-header-fill` | src/client/styles/layout.css.ts:1290 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-panel-fill` | src/client/styles/layout.css.ts:400 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent）+ 0.2.x 全屏右侧栏面板 | 上游给全屏面板提供不透明的填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
-| `wide-touch-session-shortcuts` | src/client/styles/misc.css.ts:438 | dsh-client-ui-workspace 的会话行 _rowActions 与归档 / 置顶快捷按钮 | 宿主自带触屏快捷按钮收起规则，或会话行提供独立的操作区布局契约，届时删本块 | `tests/dsha-session-interaction.test.ts` |
+| `wide-touch-session-shortcuts` | src/client/styles/misc.css.ts:437 | dsh-client-ui-workspace 的会话行 _rowActions 与归档 / 置顶快捷按钮 | 宿主自带触屏快捷按钮收起规则，或会话行提供独立的操作区布局契约，届时删本块 | `tests/dsha-session-interaction.test.ts` |
 | `zen-remote-header-yield` | src/client/styles/layout.css.ts:3200 | dsh-zen-remote 2.2.5 的手机档 header reflow（headerActions 里注入 [data-mobile-nav="header-back"]，titleRow 改成 92px/1fr/92px 三栏，titleCluster 靠 display:contents 变成直系 grid 项） | dsh-zen-remote 不再重排 header，或它改为不依赖 display:contents 的稳定槽位，届时删本块 | `tests/a2-header-gating.test.ts` |
 
 `why`（为何不能用正规写法）逐条写在源码的 @patch 块里 —— 它必须贴着代码，
@@ -53,7 +53,7 @@
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 520 | 599 | 293 |
 | `src/client/styles/compat.css.ts` | 387 | 112 | 23 |
-| `src/client/styles/misc.css.ts` | 101 | 61 | 37 |
+| `src/client/styles/misc.css.ts` | 100 | 60 | 36 |
 | `src/client/styles/base.css.ts` | 18 | 8 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
@@ -78,6 +78,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1035** | **867** | **369** |
+| **合计** | **1034** | **866** | **368** |
 
 <!-- END:inventory -->

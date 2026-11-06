@@ -214,6 +214,8 @@ type Harness = {
   runTimer: () => void
   frames: Array<() => void>
   timers: Array<() => void>
+  /** 文档级 `[role="menu"]` 查询次数：闭态付不付这次查询的回归锚。 */
+  menuQueries: () => number
   fireDocument: (name: string, event: unknown) => void
 }
 
@@ -236,6 +238,7 @@ function installHarness(menu: FakeMenu | null): Harness {
   const previousDocument = (globalThis as { document?: unknown }).document
   const previousWindow = (globalThis as { window?: unknown }).window
   const previousRaf = (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame
+  let menuQueries = 0
   const harness: Harness = {
     row,
     trigger,
@@ -243,6 +246,7 @@ function installHarness(menu: FakeMenu | null): Harness {
     menus: [],
     frames: [],
     timers: [],
+    menuQueries: () => menuQueries,
     flushFrame: () => {
       const pending = harness.frames.splice(0)
       for (const fn of pending) fn()
@@ -272,7 +276,10 @@ function installHarness(menu: FakeMenu | null): Harness {
     documentElement: html,
     querySelector: (selector: string) => (selector === '[data-mobile-nav="frame"]' ? frame : null),
     querySelectorAll: (selector: string) => {
-      if (selector === '[role="menu"]') return harness.menus
+      if (selector === '[role="menu"]') {
+        menuQueries += 1
+        return harness.menus
+      }
       if (selector === '[data-mobile-nav-quick-menu]') {
         return harness.menus.filter((menu) => menu.hasAttribute('data-mobile-nav-quick-menu'))
       }
@@ -394,6 +401,35 @@ test('the open account menu is marked so CSS can fold its Settings row away', ()
     // dispose leaves no marker behind on a still-mounted menu.
     task.dispose()
     assert.equal(menu.hasAttribute('data-mobile-nav-quick-menu'), false)
+  } finally {
+    harness.restore()
+  }
+})
+
+// 2026-11-06 性能初审 A：账户菜单关着是绝大多数手势，syncMenuEntry 原来先全文档取
+// [role="menu"] 再判开态，闭态也付这次查询；闭态摘标记又靠同一份列表。判定顺序必须
+// 反过来，且闭态清理只碰自己打过的那个节点。
+test('a closed account menu pays no document-wide menu query', () => {
+  const item = new FakeItem()
+  const menu = new FakeMenu(item)
+  const harness = installHarness(menu)
+  try {
+    const { task } = mount(harness)
+    // mount() 已经跑过一次 ensure（闭态）：菜单列表一次都不该查。
+    assert.equal(harness.menuQueries(), 0, 'closed launcher queried [role="menu"]')
+    // 宿主开菜单：这一拍才值得读文档里的菜单列表。
+    harness.trigger.attrs['aria-expanded'] = 'true'
+    harness.menus.push(menu)
+    task.ensure()
+    assert.equal(harness.menuQueries(), 1, 'opening must read the menu list')
+    assert.equal(menu.hasAttribute('data-mobile-nav-quick-menu'), true)
+    // 宿主关菜单并卸载节点：摘标记只碰自己打过的那个，不再查列表。
+    harness.trigger.attrs['aria-expanded'] = 'false'
+    harness.menus = []
+    task.ensure()
+    assert.equal(menu.hasAttribute('data-mobile-nav-quick-menu'), false, 'closing must take the mark off')
+    assert.equal(harness.menuQueries(), 1, 'closing re-queried the menu list')
+    task.dispose()
   } finally {
     harness.restore()
   }

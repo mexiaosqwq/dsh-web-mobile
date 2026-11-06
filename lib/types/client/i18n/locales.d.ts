@@ -12,7 +12,6 @@ export declare const NS = "dshWebMobileNav";
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export declare const zh: {
     readonly open: "打开目录";
-    readonly close: "收起目录";
     readonly backdrop: "点击关闭目录";
     readonly back: "返回";
     readonly backToConversation: "返回会话";

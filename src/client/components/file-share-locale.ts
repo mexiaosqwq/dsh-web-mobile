@@ -7,7 +7,6 @@ export const FILE_SHARE_NS = 'dshWebMobileNavFileShare'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const fileShareZh = {
-  'share': '分享',
   'shareFile': '分享「{name}」',
   'downloadFile': '下载「{name}」',
   'sharing': '正在准备文件…',
@@ -24,7 +23,6 @@ export type FileShareKey = keyof typeof fileShareZh
 
 /** English dictionary, key-identical to the Chinese source of truth. */
 export const fileShareEn: Record<FileShareKey, string> = {
-  'share': 'Share',
   'shareFile': 'Share "{name}"',
   'downloadFile': 'Download "{name}"',
   'sharing': 'Preparing file…',

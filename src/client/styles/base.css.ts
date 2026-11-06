@@ -5,8 +5,7 @@ export const BASE_CSS = `
 /* ---------- base control styles (rendered at any width, hidden where unused) ---------- */
 
 [data-mobile-nav="toggle"],
-[data-mobile-nav="files"],
-[data-mobile-nav="downloads"] {
+[data-mobile-nav="files"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -30,14 +29,12 @@ export const BASE_CSS = `
    触屏观感不变。 */
 @media (hover: hover) {
   [data-mobile-nav="toggle"]:hover,
-  [data-mobile-nav="files"]:hover,
-  [data-mobile-nav="downloads"]:hover {
+  [data-mobile-nav="files"]:hover {
     background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
   }
 }
 [data-mobile-nav="toggle"]:active,
-[data-mobile-nav="files"]:active,
-[data-mobile-nav="downloads"]:active {
+[data-mobile-nav="files"]:active {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
 }
 /* 顶栏两端各一颗，中间隔着标题，不与任何控件相邻，可以对称外扩。 */
@@ -48,8 +45,7 @@ export const BASE_CSS = `
   inset: -8px;
 }
 [data-mobile-nav="toggle"]:focus-visible,
-[data-mobile-nav="files"]:focus-visible,
-[data-mobile-nav="downloads"]:focus-visible {
+[data-mobile-nav="files"]:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
   outline-offset: 1px;
 }
@@ -105,11 +101,6 @@ export const BASE_CSS = `
    有反馈、关掉即撤掉，与宿主菜单触发器的既有形态一致（选中态而不是悬停态）。 */
 [data-mobile-nav="session-log"][aria-expanded="true"]:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
-}
-[data-mobile-nav="session-log"]:disabled {
-  color: var(--dsw-alias-label-dimmed, rgba(0, 0, 0, .35));
-  cursor: default;
-  background: transparent;
 }
 
 /* Drawer quick-settings icon (2026-10-20): the host merged the settings entry
@@ -306,7 +297,6 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
 @media (prefers-reduced-motion: reduce) {
   /* （2026-11-06 审计 C7）delete-dialog 自身没有动画，animation:none 是空操作，已移除。 */
   [data-mobile-nav="delete-dialog-backdrop"],
-  [data-mobile-nav="file-picker-backdrop"],
   [data-mobile-nav="file-picker"] {
     animation: none !important;
   }

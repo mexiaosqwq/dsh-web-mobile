@@ -416,8 +416,10 @@ test('wiring: the observer observes text changes and drops body records first', 
   const mapAt = adapter.indexOf('keys.add(mutationDirtyKey(record))')
   assert.ok(filterAt !== -1 && mapAt !== -1, 'the body filter and the mapping must both exist')
   assert.ok(filterAt < mapAt, 'the body filter runs first, so body records are dropped for every key')
-  assert.match(adapter, /closest\('\[data-chat-flow\]'\)\)\s*continue/,
+  assert.match(adapter, /inside = target\.closest\('\[data-chat-flow\]'\) !== null/,
     'a body record must be skipped, not merely inspected')
+  assert.match(adapter, /const inChatFlow = new Map<Element, boolean>\(\)/,
+    'the per-record flow test is cached per batch (streaming reuses one container)')
 })
 
 test('the observed attribute filter covers exactly the attribute keys tasks declare', () => {

@@ -6,7 +6,6 @@
 export declare const FILE_SHARE_NS = "dshWebMobileNavFileShare";
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export declare const fileShareZh: {
-    readonly share: "分享";
     readonly shareFile: "分享「{name}」";
     readonly downloadFile: "下载「{name}」";
     readonly sharing: "正在准备文件…";
