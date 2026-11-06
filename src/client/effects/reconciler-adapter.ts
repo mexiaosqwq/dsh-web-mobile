@@ -54,12 +54,23 @@ export function installReconciler(ctx: ClientContext): () => void {
     // task declares and the keys this observer produces cannot drift apart.
     const observer = new MutationObserver((records) => {
       const keys = new Set<string>()
+      // One batch usually touches a couple of containers (React reuses the
+      // message row for every streamed token), so the chat-flow test is cached
+      // per element instead of running `closest()` once per record. The cache
+      // lives only for this callback: membership can change between batches.
+      const inChatFlow = new Map<Element, boolean>()
       for (const record of records) {
         // DSHA: message history and streaming text do not change shell geometry.
         // This filter drops body records for EVERY key (text included), which is
         // deliberate: it is why the chat flow cannot wake shell-geometry tasks.
         const target = record.target instanceof Element ? record.target : record.target.parentElement
-        if (target?.closest('[data-chat-flow]')) continue
+        if (target === null) continue
+        let inside = inChatFlow.get(target)
+        if (inside === undefined) {
+          inside = target.closest('[data-chat-flow]') !== null
+          inChatFlow.set(target, inside)
+        }
+        if (inside) continue
         keys.add(mutationDirtyKey(record))
       }
       if (keys.size > 0) core.note(keys)

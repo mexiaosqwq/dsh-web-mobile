@@ -310,6 +310,9 @@ function installHarness(): Harness {
   globals.window = {
     setTimeout: (run: () => void) => { const id = nextTimerId++; timers.push({ id, run }); return id },
     clearTimeout: (id: number) => { timers = timers.filter((timer) => timer.id !== id) },
+    // ensure() 第一次跑会挂 popstate 监听；事件从不派发，登记即可。
+    addEventListener: () => {},
+    removeEventListener: () => {},
   }
   globals.requestAnimationFrame = (run: (time: number) => void) => {
     const id = nextFrameId++
@@ -539,3 +542,27 @@ test('subpage levels are pre-armed before a back press, never after one', () => 
   assert.match(EXIT, /if \(pushEntry\(\)\) extraArmed \+= 1/, '预推成功后必须记账')
 })
 
+// 2026-11-06 性能初审 B：ensure 先 panelViewOpen() 判一次开态，subpageControl() 里
+// 又判一次同一事实。同一次 ensure 复用刚读到的开态后，面板在场时查询 3 → 2；子页控件
+// 自己那一次仍是独立查询（它读的是另一个选择器，不是重复）。
+test('ensure reuses the panel-open read instead of querying the active row twice', () => {
+  const dom = installHarness()
+  const panelExit = createPanelExit(dom.layout)
+  const doc = (globalThis as unknown as { document: { querySelector: (selector: string) => unknown } }).document
+  const original = doc.querySelector.bind(doc)
+  let rowReads = 0
+  let controlReads = 0
+  doc.querySelector = (selector: string) => {
+    if (selector.includes('panelRow')) rowReads += 1
+    if (selector.includes('_moreBack')) controlReads += 1
+    return original(selector)
+  }
+  try {
+    panelExit.task.ensure()
+    assert.equal(rowReads, 1, 'the panel-open state must be read once per ensure')
+    assert.equal(controlReads, 1, 'the subpage control keeps its own query')
+  } finally {
+    doc.querySelector = original
+    panelExit.dispose()
+  }
+})

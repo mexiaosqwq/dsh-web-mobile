@@ -92,7 +92,7 @@ export declare function createPanelExit(layout: unknown): PanelExit;
  *   panel subpage gets no history entry of its own, so a back press there must
  *   climb the host view and RE-ARM the entry it just consumed.
  */
-export declare function createPanelBackExitTask(exitPanel: () => void, supported: boolean, backOneLevel: () => void, subpageControl: () => HTMLElement | null): ReconcilerTask;
+export declare function createPanelBackExitTask(exitPanel: () => void, supported: boolean, backOneLevel: () => void, subpageControl: (open?: boolean) => HTMLElement | null): ReconcilerTask;
 /**
  * Tapping the already-selected panel row again returns to the conversation.
  * Unselected rows are left alone — they still go through the host's own

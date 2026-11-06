@@ -319,11 +319,11 @@ export function createPanelExit(layout: unknown): PanelExit {
 
   /**
    * The host's own subpage back control, or null at the panel root. Queried
-   * live on every call: the subpage is host component state, so the control
-   * appears and disappears without any URL or marker of ours changing.
+   * live: host component state, so it appears/disappears with no URL or marker
+   * of ours changing. `open` = caller already read the panel state (ensure()).
    */
-  function subpageControl(): HTMLElement | null {
-    if (!panelOwnsMainArea()) return null
+  function subpageControl(open = false): HTMLElement | null {
+    if (!open && !panelOwnsMainArea()) return null
     const el = document.querySelector(PANEL_SUBPAGE_BACK)
     return el instanceof HTMLElement ? el : null
   }
@@ -471,7 +471,7 @@ export function createPanelBackExitTask(
   exitPanel: () => void,
   supported: boolean,
   backOneLevel: () => void,
-  subpageControl: () => HTMLElement | null,
+  subpageControl: (open?: boolean) => HTMLElement | null,
 ): ReconcilerTask {
   /** Entry for the panel itself: the press that consumes it leaves the panel. */
   let rootArmed = false
@@ -584,7 +584,7 @@ export function createPanelBackExitTask(
         return
       }
       armRoot()
-      const control = subpageControl()
+      const control = subpageControl(true) // panelViewOpen() 刚读过：同拍复用，3 次查询 → 2 次。
       const previous = levelOf(lastControl)
       const current = levelOf(control)
       if (current === previous) return

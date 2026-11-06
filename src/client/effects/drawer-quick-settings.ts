@@ -290,11 +290,20 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
     ![...target.children].some((child) =>
       child.getAttribute('data-phase') !== null || child.getAttribute('role') === 'status')
 
-  /** 摘掉所有菜单上的标记（齿轮让位或 dispose 时用）。 */
+  /**
+   * 上一次打上正式标记的那个菜单节点。闭态摘标记只碰它，不再为「文档里有没有菜单」
+   * 查一遍 `[role="menu"]`——账户菜单关着是绝大多数手势，那次查询完全白付（2026-11-06
+   * 性能初审 A）。节点被宿主换掉时这里是已脱离的旧节点，摘属性无副作用；新菜单在下一次
+   * 展开的 ensure 里重新查、重新打标记。
+   */
+  let markedMenu: HTMLElement | null = null
+
+  /** 摘掉所有菜单上的标记（dispose 时用；这里是清场，扫一次全文档是值得的）。 */
   const clearMenuEntry = (): void => {
     for (const menu of document.querySelectorAll<HTMLElement>(MENU_ENTRY_SELECTOR)) {
       menu.removeAttribute(MENU_ENTRY_ATTR)
     }
+    markedMenu = null
   }
 
   /**
@@ -306,19 +315,25 @@ export function createDrawerQuickSettingsTask(ctx: ClientContext): ReconcilerTas
    * `aria-expanded="true"` → 文档里最后一个 `[role="menu"]` 就是它。
    *
    * 齿轮让位（连接条在场）时不打标记：那段时间账户菜单是设置的唯一入口。
+   *
+   * 判定顺序按代价排：闭态先看行内 `aria-expanded` 就返回，`[role="menu"]` 只在真要
+   * 打标记时才查（2026-11-06 性能初审 A：原来先全文档取菜单、再判开态，菜单关着也付查询）。
    */
   const syncMenuEntry = (target: HTMLElement): void => {
-    const menus = document.querySelectorAll<HTMLElement>('[role="menu"]')
-    const menu = menus.length > 0 ? menus[menus.length - 1] ?? null : null
-    if (menu === null) return
     const trigger = target.querySelector<HTMLButtonElement>(ACCOUNT_TRIGGER_SELECTOR)
     const keep = trigger !== null && trigger.getAttribute('aria-expanded') === 'true' && gearAvailable(target)
     if (!keep) {
-      menu.removeAttribute(MENU_ENTRY_ATTR)
+      // 闭态/让位：只摘自己打过的那一个，保留「标记不残留」的既有语义。
+      markedMenu?.removeAttribute(MENU_ENTRY_ATTR)
+      markedMenu = null
       return
     }
+    const menus = document.querySelectorAll<HTMLElement>('[role="menu"]')
+    const menu = menus.length > 0 ? menus[menus.length - 1] ?? null : null
+    if (menu === null) return
     // 幂等：写过的属性不再重写，免得自己的 mutation 把任务再唤醒一轮。
     if (!menu.hasAttribute(MENU_ENTRY_ATTR)) menu.setAttribute(MENU_ENTRY_ATTR, '')
+    markedMenu = menu
     // 正式标记已到位，预标记可以撤了（CSS 两条并联，撤了也不跳）。
     clearPendingMark()
   }
