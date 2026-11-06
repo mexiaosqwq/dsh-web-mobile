@@ -373,7 +373,6 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
 @media (min-width: 1024px), (pointer: fine), (pointer: none) {
   [data-mobile-nav="toggle"],
   [data-mobile-nav="files"],
-  [data-mobile-nav="downloads"],
   [data-mobile-nav="file-upload"],
   [data-mobile-nav="fab"],
   [data-mobile-nav="backdrop"],
@@ -601,16 +600,6 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     left: 8px !important;
     right: auto !important;
     max-width: calc(min(88vw, 280px) - 16px) !important;
-  }
-}
-
-/* 头部「下载记录」按钮：它是 headerActions 里唯一留在文档流里的插件按钮
-   （toggle/files 都绝对定位到两角），所以会孤零零卡在标题和「标准模式」之间。
-   右侧图标簇已经没有 28px 的空位（团队 chip 的箭头与文件按钮只隔 ~39px），
-   先把它从头部撤下；要保留入口就放进抽屉品牌行或文件面板。 */
-@media (max-width: 1023px) and (pointer: coarse) {
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-mobile-nav="downloads"] {
-    display: none !important;
   }
 }
 
