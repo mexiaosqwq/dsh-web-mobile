@@ -20,7 +20,7 @@
 ### 方案定义
 
 ```
-屏幕左缘 45% 识别区右滑打开 / 抽屉打开时整个 frame 内横滑（左右均可）关闭（**起点落在抽屉体内一律归抽屉族**，右缘 files 区只管辖抽屉右缘之外，第十二轮 2026-09-17）
+整屏任意起点右滑打开抽屉 / 抽屉打开时整屏任意起点横滑（左右均可）关闭（**关态由方向定族、开态由谁开着定族**，第十四轮 #268 撤掉了 0.45 几何分区）
   → 记录起点/位移/最近窗口速度
   → 方向锁定（首段 8px 内 |dx| > |dy|，纯横向支配）
   → release 时按"位移比例 OR 速度"判定
@@ -76,9 +76,9 @@
 - **inline 必须带 `important` 优先级**：open 态由我们自己的 `transform: none !important`（layout.css.ts 的 containing-block 规则）统治，普通 inline 声明**输掉层叠**——`element.style.transform` 读回完美但 computed 恒为 `none`，抽屉一动不动。这就是 B 档第一版「跟手隐形」的根因（2026-08-29 用户报"实时拖动消失了"）：所有断言都在看 `element.style.transform`，没有一条看 computed。故 `applyFollow` 用 `style.setProperty(..., 'important')`、`releaseFollowStyles` 用 `removeProperty`；探针新增 `swipe.close-follow-visible` 断言 **computed matrix 的 m41 与 `getBoundingClientRect().left` 双双随手指移动**。教训：跟手类断言只认 computed 几何，inline 字符串不构成证据。
 - **跟手绑定必须每 stroke 重置**：`endStroke` 是先 `reset()` 后 `releaseFollowStyles()`（要留着 followDrawer 才能清样式），所以 `followDrawer` 会跨 stroke 存活——`startFollow` 首行必须先解绑，否则一次关闭跟手之后的**打开** stroke 会继承旧绑定、又跟起手来（实锤：探针 `swipe.open-stroke-no-follow` 第一次跑就抓到 `translateX(-166.703px)`）。
 
-### 探针回归（`scripts/cdp-swipe-probe.mjs` 22 → 35 项）
+### 探针回归（`scripts/cdp-swipe-probe.mjs` 22 → 34 项）
 
-`swipe.close-follow-reaches-slot`（长行程左滑的 computed 位移必须真能到 -110%×自身宽度，锁死 rail 槽位夹取那个 bug）、`swipe.close-leftward-inside`（抽屉内左滑必须真的关上）、`swipe.close-from-right-zone`（起点在抽屉右缘之外的右滑必须关上且 backdrop 归零，其合成 click 不得把抽屉翻回去；同区左滑是刻意的无动作，见 `swipe.files-zone-leftward-keeps-drawer`）、`swipe.open-follow-visible`（开方向 computed matrix/rect.left 随手指单调右移 + `transition:none`）、`swipe.open-follow-real-subtree`（跟手中的元素必须是已挂载真抽屉：collapsed=false、treeitem>0、width>260——挡住"拖出 206px rail"回归）、`swipe.open-release-transform-none`（提交后 computed=none）、`swipe.cancel-open-stroke-reverts`（armed 开方向 cancel 必须把宿主状态翻回、无 inline 残留）、`swipe.close-follow-drag-transform`（关方向 inline 单调趋槽位 + `transition:none`）、`swipe.close-follow-visible`（computed matrix m41 与 rect.left 同步移动＝inline 赢下层叠）、`swipe.follow-cancel-close-reverts`（关方向 cancel 弹回保持打开）、`swipe.drawer-band-precondition` / `swipe.drawer-band-leftward-closes`（第十二轮：起点落在抽屉右带内——同时也在 files 区内——的左滑必须收回抽屉，控制组是右缘之外仍不收）；失败场景 9 项原样全绿（B 系列 legacy 关闭与 C1 让位不受影响）。
+`swipe.close-follow-reaches-slot`（长行程左滑的 computed 位移必须真能到 -110%×自身宽度，锁死 rail 槽位夹取那个 bug）、`swipe.close-leftward-inside`（抽屉内左滑必须真的关上）、`swipe.close-leftward-beside-drawer`（第十四轮 #268：起点在抽屉右缘之外的左滑同样必须关上——该场此前是「刻意的无动作」）、`swipe.close-from-right-zone`（起点在抽屉右缘之外的右滑必须关上且 backdrop 归零，其合成 click 不得把抽屉翻回去）、`swipe.open-follow-visible`（开方向 computed matrix/rect.left 随手指单调右移 + `transition:none`）、`swipe.open-follow-real-subtree`（跟手中的元素必须是已挂载真抽屉：collapsed=false、treeitem>0、width>260——挡住"拖出 206px rail"回归）、`swipe.open-release-transform-none`（提交后 computed=none）、`swipe.cancel-open-stroke-reverts`（armed 开方向 cancel 必须把宿主状态翻回、无 inline 残留）、`swipe.close-follow-drag-transform`（关方向 inline 单调趋槽位 + `transition:none`）、`swipe.close-follow-visible`（computed matrix m41 与 rect.left 同步移动＝inline 赢下层叠）、`swipe.follow-cancel-close-reverts`（关方向 cancel 弹回保持打开）、`swipe.drawer-band-precondition` / `swipe.drawer-band-leftward-closes`（起点落在抽屉右缘窄条内的左滑必须收回抽屉；#268 后控制组变成 4b 的抽屉外左滑也收）；失败场景 9 项原样全绿（B 系列 legacy 关闭与 C1 让位不受影响）。
 
 ### 第十二轮（2026-09-17）：点击路径动画恢复 + 开态判定区收边
 
@@ -92,7 +92,7 @@
 - `layout.css.ts` 以**同特异度**重申关态槽位：`[data-mobile-nav="frame"][data-sidebar-collapsed] > :first-child { width: min(88vw, 280px) !important; transform: translateX(-110%) !important }`（-308px@390）。
 - 新增导出 `closeDrawerAnimated(ctx)`（`sidebar-swipe.ts`）：抽屉已开 → `commitWithAnimation` 滑到 `±110%`、落地 `finishPendingCommit` 才翻 marker（与手势关同构，含 cooldown 350ms 与 pendingCommit 的 marker 守卫）；已关或 `prefers-reduced-motion: reduce` → 返回 false，调用方回落普通 `toggleSidebar()`（保持「动画降级交宿主 CSS transition，不新增自写动画」）。
 - **六个点击关闭入口统一收口**：`phone-chrome.ts` 的 `installOverlayInteractions` 把唯一的 `toggleSidebar` 本地别名改为 `if (!closeDrawerAnimated(ctx)) ctx.layout.toggleSidebar()`——backdrop tap / Escape / 非行导航 tap / 已选中行 tap / `armNav` 观察者 / `closeOnNavigation` 回退全部覆盖；FAB 与 toggle 的**开**方向保持普通 toggle（宿主 `.28s` 过渡驱动）。
-- **开态判定区收边**：`beginStroke` 的 open 分支改为「起点落在抽屉矩形内 → 抽屉族」优先（纯函数 `openStateStartMode`）。390px 下 files 区从 x=214 起、抽屉到 280，这条 66px 重叠带原先按 files 族回 `'none'`（触摸抽屉本体左滑没反应）；现在归抽屉族（左滑＝收回，带跟手）。抽屉**右缘之外**不变：files 区左滑仍是刻意的无动作，右滑仍走 `commitFollowClose`。
+- **定族规则：关态看方向、开态看谁开着（第十四轮 #268，2026-11-07；取代 2026-09-17「判定区收边」与 2026-09-13「右缘左滑绝不收抽屉」）**：`beginStroke` 不再做任何几何命中判定。**关态**（两面板皆关）把定族推迟到锁轴——纯函数 `closedStateStrokeMode(rightward, panelOpen)`：右 → 抽屉族（开抽屉），左 → files 族（开面板）。**开态**看谁在最上层——纯函数 `openStateStartMode(drawerOpen, panelOpen)`：面板开着（抽屉关）整屏归 files 族（右滑关面板、左滑 `'none'`）；抽屉开着整屏归抽屉族（两个方向都收抽屉、带跟手），抽屉压在面板上时也归抽屉族（抽屉列画在面板之上，旁边 ~28% 仍要能收它）。**撤 09-13 narrowing 不需要新守卫**：互斥本来就在 `classifyFilesSwipe` 的左向格里（`drawerOpen` 时恒 `'none'`），抽屉开着时 files 族永远挂不上面板；抽屉矩形也不参与路由（面板是全屏盒，指针只可能靠过期 rect 落在抽屉上，让那条 rect 赢会把笔画交给一个还在开场动画里的族）。
 - 手势层的**关态起点**判定不读抽屉 rect（只用视口比例），故 CSS 恢复不影响既有手势判定。
 
 **回归门**：`scripts/probes/drawer-click-animation-probe.mjs`（关态槽位几何 / 开·关·Escape 三路径 16 帧采样 / 桌面零命中）、`swipe.drawer-band-*` 两条 + `tests/sidebar-swipe.test.ts` 的 `openStateStartMode` 决策表。
@@ -103,11 +103,11 @@
 
 ### 本方案参数（实装值，第三轮调优 2026-08-27）
 
-> 演进：初稿 → 第二轮（用户反馈"行程太长"：open 0.30→0.20 / close 0.24→0.16）→ 第三轮（用户反馈"识别成对话内容滚动"：起点区 24→48px、轴锁定 1.5×→首段 8px 横向主导、速度窗口 120→60ms 末尾两点、阈值 0.20/0.16→0.16/0.13、新增边缘触摸 touchmove preventDefault）→ 第四轮（2026-08-29，用户反馈"判定太靠左需贴边"+"浏览器手势没禁"，真机 Android Chrome 实证页面直接返回：起点区 48→96px、根元素 `overscroll-behavior-x: none` 抑制 Chrome 边缘历史导航、新增横向滚动容器让位守卫）→ 第五轮（2026-08-29，用户要求识别区"约占总宽 45%"且"做成自适应"：起点区改 `round(0.45×视口宽)`）→ 第六轮（2026-08-29，用户报"根本没法左滑关闭"＋"希望打开抽屉之后以外的部分可以进行左滑"：关闭判定改双向、关闭起点区放宽到整个 frame）→ 第七轮（2026-08-29，用户报"左滑会卡一下、半开不开、停在最终滑动位置才消失"：跟手槽位从关闭态观测值改为被拖抽屉自身宽度的 110%）→ **第八轮（2026-08-29，用户报"松手时抽屉样式突然消失"＋要求"背景遮罩渐变"：关闭改晚提交——动画落地后才翻宿主；遮罩补齐淡出并与滑出同步）** → **第九轮（2026-08-29，用户报"右滑开头有真空期"：arm 门槛 12→8（锁轴即 arm）、开方向基线 -102%→-101%）** → **第十轮（2026-09-11，用户报"拖动桌宠类悬浮物会误开抽屉"，探针 draggable-conflict-probe 复现：手势层让位清单没有「拖动中元素」项，起点落 45% 区内 + 向右 ≥8px 即提前提交：先落地 0.25 缩窄（A 侧）＋`data-mobile-nav-dragging` 让位信号（C 侧）＝D 方案组合；用户实测后拍板 A 侧回滚——识别区保持 0.45 手感不变，冲突由让位体系独立解决）** → **第十一轮（2026-09-11，用户真机确认悬浮件仍误触发（dsh-pet 不挂标记），补 B 侧位置启发式 `findFloatingWidget`：起点祖先链上第一个 `position:fixed|absolute` 且 ≤200px（`FLOATING_WIDGET_MAX_PX`）的自由定位浮层即让位——dsh-pet 悬浮球实测 148×160 fixed 命中；frame 子树除外，误伤面=从 ≤200px 定位元素上起手（真实页面枚举仅 dsh-pet 本体命中）；让位≠拦截，拖动照常）** → **第十二轮（2026-09-17，用户报「点 toggle 开抽屉没有弹出动画、点右侧遮罩收回也没有动画」：宿主 0.1.5 窄屏分支以 (0,3,0) 压掉抽屉关态槽位的 width 与 transform，点击路径失去可插值的量；修复＝同特异度重申关态槽位 + 六个点击关闭入口复用晚提交动画；同批把开态判定区右缘收到抽屉右缘）** → **第十三轮（2026-10-17，issue #222：iOS 左右各 45% 识别区从静止起手纵向滚动零位移——轴锁定前的 touchmove preventDefault 取消了整个 touch point 的默认动作，WebKit 在同一笔触摸内不恢复；修复＝只在 `tracking`（横向已锁）后拦，锁定前一概放行原生滚动）**。均经 CDP 探针验证（`scripts/cdp-swipe-probe.mjs` 35 项 + `scripts/cdp-swipe-failures.mjs` 18 场景 + `scripts/probes/draggable-conflict-probe.mjs` 15 断言全绿；主探针 `drawer-touch-action` 断言同步 #45 zoom 契约：含 pan-y+pinch-zoom、不含 pan-x）。
+> 演进：初稿 → 第二轮（用户反馈"行程太长"：open 0.30→0.20 / close 0.24→0.16）→ 第三轮（用户反馈"识别成对话内容滚动"：起点区 24→48px、轴锁定 1.5×→首段 8px 横向主导、速度窗口 120→60ms 末尾两点、阈值 0.20/0.16→0.16/0.13、新增边缘触摸 touchmove preventDefault）→ 第四轮（2026-08-29，用户反馈"判定太靠左需贴边"+"浏览器手势没禁"，真机 Android Chrome 实证页面直接返回：起点区 48→96px、根元素 `overscroll-behavior-x: none` 抑制 Chrome 边缘历史导航、新增横向滚动容器让位守卫）→ 第五轮（2026-08-29，用户要求识别区"约占总宽 45%"且"做成自适应"：起点区改 `round(0.45×视口宽)`）→ 第六轮（2026-08-29，用户报"根本没法左滑关闭"＋"希望打开抽屉之后以外的部分可以进行左滑"：关闭判定改双向、关闭起点区放宽到整个 frame）→ 第七轮（2026-08-29，用户报"左滑会卡一下、半开不开、停在最终滑动位置才消失"：跟手槽位从关闭态观测值改为被拖抽屉自身宽度的 110%）→ **第八轮（2026-08-29，用户报"松手时抽屉样式突然消失"＋要求"背景遮罩渐变"：关闭改晚提交——动画落地后才翻宿主；遮罩补齐淡出并与滑出同步）** → **第九轮（2026-08-29，用户报"右滑开头有真空期"：arm 门槛 12→8（锁轴即 arm）、开方向基线 -102%→-101%）** → **第十轮（2026-09-11，用户报"拖动桌宠类悬浮物会误开抽屉"，探针 draggable-conflict-probe 复现：手势层让位清单没有「拖动中元素」项，起点落 45% 区内 + 向右 ≥8px 即提前提交：先落地 0.25 缩窄（A 侧）＋`data-mobile-nav-dragging` 让位信号（C 侧）＝D 方案组合；用户实测后拍板 A 侧回滚——识别区保持 0.45 手感不变，冲突由让位体系独立解决）** → **第十一轮（2026-09-11，用户真机确认悬浮件仍误触发（dsh-pet 不挂标记），补 B 侧位置启发式 `findFloatingWidget`：起点祖先链上第一个 `position:fixed|absolute` 且 ≤200px（`FLOATING_WIDGET_MAX_PX`）的自由定位浮层即让位——dsh-pet 悬浮球实测 148×160 fixed 命中；frame 子树除外，误伤面=从 ≤200px 定位元素上起手（真实页面枚举仅 dsh-pet 本体命中）；让位≠拦截，拖动照常）** → **第十二轮（2026-09-17，用户报「点 toggle 开抽屉没有弹出动画、点右侧遮罩收回也没有动画」：宿主 0.1.5 窄屏分支以 (0,3,0) 压掉抽屉关态槽位的 width 与 transform，点击路径失去可插值的量；修复＝同特异度重申关态槽位 + 六个点击关闭入口复用晚提交动画；同批把开态判定区右缘收到抽屉右缘）** → **第十三轮（2026-10-17，issue #222：iOS 左右各 45% 识别区从静止起手纵向滚动零位移——轴锁定前的 touchmove preventDefault 取消了整个 touch point 的默认动作，WebKit 在同一笔触摸内不恢复；修复＝只在 `tracking`（横向已锁）后拦，锁定前一概放行原生滚动）** → **第十四轮（2026-11-07，issue #268：用户报「能够全屏往右滑打开左抽屉了 但是没法全局左滑打关闭」——09-13 的右缘 narrowing 已无必要：撤掉几何分区，关态全屏起手、锁轴后由方向定族，开态整屏归开着的那个面板且两个方向都判；`filesZoneHit` / `FILES_ZONE_RATIO` 与 `hitTestStart` 的起手闸门随之退役，主探针新增 `swipe.close-leftward-beside-drawer` / `swipe.start-anywhere-opens`）**。均经 CDP 探针验证（`scripts/cdp-swipe-probe.mjs` 34 项 + `scripts/cdp-swipe-failures.mjs` 18 场景 + `scripts/probes/draggable-conflict-probe.mjs` 15 断言全绿；主探针 `drawer-touch-action` 断言同步 #45 zoom 契约：含 pan-y+pinch-zoom、不含 pan-x）。
 
 | 参数 | 值 | 说明 |
 |---|---|---|
-| `startZonePx` | **`round(0.45 × 视口宽)`** | 识别起点区（`START_ZONE_RATIO = 0.45`，390px → 176px；每次 stroke 用实时视口现算，竖屏/横屏/平板无需分别调参）。演进 24 → 48 → 96 → 45%。2026-09-11 拖动冲突轮曾缩到 0.25，同日按用户拍板回滚保持 0.45——识别区手感不变，冲突改由让位体系（`data-mobile-nav-dragging` 标记 + 悬浮窗位置启发式，见下）解决。距离/速度阈值兜底，放宽起点不会误触（视觉热区元素已于 2026-08-29 删除，判定纯几何） |
+| `startZonePx` | **已退役（第十四轮 #268）** | 起手识别区不再是闸门：两面板皆关时任意 x 都能起手，锁轴后由方向定族。`START_ZONE_RATIO` / `startZonePxFor` / `hitTestStart` 已连同四个单测块整组删除（历史：`round(0.45 × 视口宽)`，390px → 176px，24→48→96→45%）。演进 24 → 48 → 96 → 45%。2026-09-11 拖动冲突轮曾缩到 0.25，同日按用户拍板回滚保持 0.45——识别区手感不变，冲突改由让位体系（`data-mobile-nav-dragging` 标记 + 悬浮窗位置启发式，见下）解决。距离/速度阈值兜底，放宽起点不会误触（视觉热区元素已于 2026-08-29 删除，判定纯几何） |
 | `lockPx` | **8** | 轴锁定：首段 8px 内 `\|dx\| > \|dy\|` 即锁横向（弃 1.5× 偏置——会拒绝 ~45° 自然斜滑）；纵向主导即放弃交还滚动 |
 | `openDistanceRatio` | **0.16** 视口宽（390px→62px） | 打开阈值（vaul 25% 之下，轻快手感） |
 | `closeDistanceRatio` | **0.13**（51px@390px） | 关闭阈值（比打开低，主动操作为主） |
@@ -160,14 +160,14 @@ export function installSidebarSwipe(ctx: ClientContext): void
 ### 状态机
 
 ```
-IDLE ──pointerdown(几何命中: closed 态＝左缘45%识别区; open 态＝frame 矩形内任意处（起点在抽屉体内一律归抽屉族；抽屉右缘之外按 45% files 区路由，第十二轮）, 非横向滚动容器/kebab, 无 aria-modal, 无 data-mobile-nav-dragging 让位标记, 无 ≤200px 自由定位浮层祖先, cooldown 外)──▶ ARMED
+IDLE ──pointerdown(frame 矩形内任意处，无几何命中判定；closed 态定族推迟到锁轴＝方向定族，open 态定族＝谁开着，第十四轮 #268, 非横向滚动容器/kebab, 无 aria-modal, 无 data-mobile-nav-dragging 让位标记, 无 ≤200px 自由定位浮层祖先, cooldown 外)──▶ ARMED
 ARMED ──位移锁定(首段8px内 |dx|>|dy|, 锁定前复查让位标记)──▶ TRACKING
 TRACKING ──每帧采样(窗口速度) + 每帧查 aria-modal(升起即取消)──▶ release
 RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ctx.layout.toggleSidebar()（记 cooldown）
                         └──▶ 'none' / pointercancel / visibilitychange(hidden) / blur → 直接 IDLE
 ```
 
-- 判定方向永远与当前 `drawerOpen()` 一致（open 要求 closed、close 要求 open），过渡期 marker 已翻转 → 同向助推天然无副作用；冷却只防动画中反向操作。**关闭判定对左右两个方向都成立**（第六轮）；打开判定仍只认右拖（左拖在关闭态没有语义）。**右缘 files 区是刻意的例外**：其左滑回 `none`——第十二轮把这条限死为「抽屉右缘之外」，抽屉本体上的左滑永远归抽屉族
+- 判定方向永远与当前 `drawerOpen()` 一致（open 要求 closed、close 要求 open），过渡期 marker 已翻转 → 同向助推天然无副作用；冷却只防动画中反向操作。**关闭判定对左右两个方向都成立**（第六轮）；打开判定仍只认右拖（左拖在关闭态没有语义）。**files 族的左向是刻意的 `none`**：抽屉开着时左向恒 `none`（互斥格），面板开着时左向亦 `none`（关闭只认右向）
 - 不主动 `setPointerCapture`（避免干扰滚动，浏览器滚动抢占走 `pointercancel` 兜底）
 - 热区 DOM **不挂任何监听**（几何判定优先），只作视觉/触控层
 

@@ -21,7 +21,19 @@ const DEBT = {
   // P2/P3 清：超过行数预算的非 CSS 模块（上限即快照：只许带理由在同一提交里
   // 上调，P2 拆分后必须大幅下降）
   bigFiles: {
-    'src/client/effects/sidebar-swipe.ts': 1593, // C01/C03 修复 +8；P1 搬运 import 拆行 +1（platform/breakpoints + platform/frame）
+    'src/client/effects/sidebar-swipe.ts': 1517, // C01/C03 修复 +8；P1 搬运 import 拆行 +1（platform/breakpoints + platform/frame）
+    // 2026-11-07 −76（1593 → 1517）：issue #268「全屏起手、方向定族」两半。
+    // 加法侧 = closedStateStrokeMode（关态方向路由）+ openStateStartMode 收
+    // (drawerOpen, panelOpen)（最上层那个面板拥有笔画）+ beginStroke 的
+    // open || panelOpen 合流 + strokeMode 的 'pending' 态 + tryLock 的 rtl 参数；
+    // 减法侧 = 起手闸门整组退役（START_ZONE_RATIO / startZonePxFor / hitTestStart
+    // 与它们的 25 行历史注释、beginStroke 的三条几何分支与两个死形参）、
+    // filesZoneHit 纯函数 + FILES_ZONE_RATIO 常量、2026-09-17 的 drawer-rect
+    // 取宽块，以及随之清掉的「45% 起手区」陈旧注释（模块头、ARM_PX、
+    // classifyFilesSwipe 的收抽屉格、findHorizontalScroller、takeover、浮层让位、
+    // endStroke 的 consume 注释）。行为由 tests/sidebar-swipe.test.ts 的
+    // openStateStartMode 面板用例 + 两条 closedStateStrokeMode 用例钉住；探针
+    // swipe.start-anywhere-opens / swipe.close-leftward-beside-drawer 守真机语义。
     // 2026-10-12：phone-chrome.ts 876 → 504（第一块 drawer-close 取走抽屉关闭三路监听与共享
     // toggleDrawer）→ 442（第二块 header-metrics 取走顶栏高度那一块）→ 393（第三块
     // selection-chrome 取走选区标记那一块）→ 279（第四块 reconciler-adapter 取走 reconciler

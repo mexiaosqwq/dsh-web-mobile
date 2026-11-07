@@ -1,6 +1,6 @@
 // 回归门：侧边抽屉手势 × 可拖动悬浮元素（桌宠/悬浮窗类）冲突。
 // 历史：2026-09-11 诊断轮复现（zone=176px@390 时按住桌宠右拖误 arm 抽屉），
-// 据此落地三层让位体系（识别区保持 45% 不缩——用户拍板）：
+// 据此落地三层让位体系（当时识别区保持 45% 不缩——用户拍板；识别区已随 #268 删除）：
 //   B. 悬浮窗位置启发式：起点祖先链上存在 position:fixed|absolute 且
 //      尺寸 ≤200px 的自由定位浮层（dsh-pet 悬浮球实测 148x160 fixed）
 //      → 手势层整笔让位。可拖动悬浮件在 DOM 上没有标准标记，位置形状
@@ -9,8 +9,9 @@
 //      （起点元素/祖先或 documentElement/body），pointerdown 与每次锁轴
 //      判定前读取，标记在场即让位。配合实现的组件不依赖形状猜测。
 // 本探针断言：
-//   组1 纯几何（zone=176 语义）：zone 内慢拖闪现（机制保留）、fling 保持
-//       打开、zone 外（x=220>176）不触发、向左拖不触发。
+//   组1 起手几何：任何起点慢拖 = 8px 锁轴即 arm（闪现）、fling 保持
+//       打开、向左拖在关闭态不触发（#268 起全屏起手、方向定族，
+//       旧的 0.45 识别区不再是闸门）。
 //   组2 悬浮窗启发式（B 侧）：注入仿 dsh-pet 真实形状（fixed 148x160 +
 //       touch-action:none + pointer 拖动实现，无任何标记）→ zone 内从球上
 //       右拖抽屉不开 + 球跟手（让位≠拦截）；zone 外左拖对照。
@@ -34,8 +35,7 @@ const CHROME = process.env.DSH_PROBE_CHROME || 'google-chrome'
 
 const FRAME_SELECTOR = '[data-mobile-nav="frame"]'
 const PET_ID = 'probe-pet'
-// 与 sidebar-swipe.ts 的 START_ZONE_RATIO / FLOATING_WIDGET_MAX_PX 同步。
-const START_ZONE_RATIO = 0.45
+// 与 sidebar-swipe.ts 的 FLOATING_WIDGET_MAX_PX 同步（起始识别区已随 #268 退役）。
 const FLOATING_WIDGET_MAX_PX = 200
 const VIEWPORT_W = 390
 
@@ -184,9 +184,6 @@ async function run(port) {
   })()`)
   await sleep(300)
 
-  const zone = await evalv(`Math.round(${VIEWPORT_W} * ${START_ZONE_RATIO})`)
-  check('zone.width-matches-0.45-ratio', zone === 176, `zone=${zone}px @${VIEWPORT_W}（识别区保持 45%）`)
-
   const state = async () => {
     return evalv(`(() => {
       const frame = document.querySelector(${JSON.stringify(FRAME_SELECTOR)})
@@ -245,9 +242,9 @@ async function run(port) {
   }
 
   // 组1 ─────────────────────────────────────────────────────────────
-  console.log('\n== 组1：纯几何（zone=176 语义）==')
+  console.log('\n== 组1：起手几何（全屏起手 + 8px 锁轴 arm）==')
 
-  // S1 机制保留：zone 内（x=60）慢拖 30px -> arm（打开）-> 释放不足 -> 关回。
+  // S1 机制保留：x=60 慢拖 30px -> arm（打开）-> 释放不足 -> 关回。
   {
     const ok = await ensureClosed('s1')
     if (ok) {
@@ -263,7 +260,7 @@ async function run(port) {
     }
   }
 
-  // S2 机制保留：zone 内 fling -> 保持打开。
+  // S2 机制保留：x=60 fling -> 保持打开。
   {
     const ok = await ensureClosed('s2')
     if (ok) {
@@ -276,19 +273,24 @@ async function run(port) {
     }
   }
 
-  // S6 区外对照：x=220（>176，0.45 区外）慢拖 -> 不触发。
+  // S6 全屏起手（#268）：x=220 慢拖同样 arm（旧的 0.45 区外不再免疫），
+  // 释放不足仍按距离阈关回。
   {
     const ok = await ensureClosed('s6')
     if (ok) {
       await slowDrag(220, 400, 3, 10)
       const during = await state()
-      check('zone.outside-no-arm', during.open === false,
-        `during drag open=${during.open}（预期 false：起点 220 > zone 176）`)
+      check('zone.outside-arms', during.open === true,
+        `during drag open=${during.open}（预期 true：#268 起任何起点都能起手，8px 锁轴即 arm）`)
+      await sleep(700)
+      const after = await state()
+      check('zone.outside-short-drag-reverts', after.open === false,
+        `after release open=${after.open}（预期 false：距离30<62px 且速度不足 -> 关回）`)
       await ensureClosed('s6.cleanup')
     }
   }
 
-  // S4 方向对照：zone 内向左拖（全程 dx<0）-> 不触发。
+  // S4 方向对照：向左拖（全程 dx<0）-> 不触发。
   {
     const ok = await ensureClosed('s4')
     if (ok) {
@@ -349,7 +351,7 @@ async function run(port) {
     }
   }
 
-  // W2 对照：球放 zone 外（left=250）从球上左拖 -> 抽屉不开 + 球跟手。
+  // W2 对照：球放远离左缘处（left=250）从球上左拖 -> 抽屉不开 + 球跟手。
   {
     await evalv(`(() => {
       const b = document.getElementById(${JSON.stringify(PET_ID)})
@@ -361,7 +363,7 @@ async function run(port) {
       await slowDrag(324, 380, -4, 25) // 起点=球中心(250+74)，向左 100px
       const during = await state()
       check('pet.zone-out.leftward-no-arm', during.open === false,
-        `during drag open=${during.open}（预期 false：起点 324 > zone 且 dx<0 双闸）`)
+        `during drag open=${during.open}（预期 false：dx<0 在关闭态无打开语义 + 悬浮球让位双闸）`)
       check('pet.zone-out.ball-follows-left', during.petLeft !== null && during.petLeft < 250,
         `petLeft=${during.petLeft}（预期 <250：球跟手左移）`)
       await ensureClosed('w2.cleanup')
