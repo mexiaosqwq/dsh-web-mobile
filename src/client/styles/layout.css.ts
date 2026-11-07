@@ -621,6 +621,56 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     max-width: 100%;
   }
 
+  /* --- Hero 工作区行上的「工作树」块（2026-11-07，店主拍板方案 E）---
+     默认布局：heroWorkspaceRow 是一条 nowrap 的 flex 行（宿主 padding 0 16 0 20、
+     gap 2px、align-items:center），里面依次是工作区 chip、directoryFlow / 预设两个
+     槽、以及 margin-left:auto 的 heroOptions。forge 插件（开源版 0.2.2-rc.1 的
+     WorktreeToggle）把自己的「分支」按钮 + 「新建工作树」复选挂进 heroOptions，并在
+     自己的 @media (width<=600px) 里把根盒改成 flex-direction:column —— 两行 28px
+     叠成 56px 高。390px 真机实测：heroOptions 126.1×56，把同一行的模式 chip 压到
+     67.3px（「标准模式」只剩两个字宽），右侧同时留下一条竖直空白。
+     店主否决了「只加高不换行」（A）与「砍文字」（其它分支），要的是**工作树块自己
+     占一行、且分支与新建工作树横向排开**。三条规则配套：
+       ① 行允许换行并给 4px 行距；
+       ② heroOptions 撑满整行（basis 100% 必折行）+ order:-1 排到工作区 chip 之上
+          + 右对齐（保留宿主本来 margin-left:auto 的观感）；
+       ③ 工作树根盒改回横排，间距 8px（比宿主 2px 松，两颗控件各自有 28px 高度，
+          贴太近容易误触）。
+     实测（390×844，触摸仿真）：行高 56→60（多出的一行被工作树块自己 56→28 抵掉），
+     工作树块 126.1×56→202.6×28，模式 chip 67.3→143.5px，doc scrollWidth 恒 390、
+     无横向溢出，composer 卡顶 425.4→427.4（+2px，挤进 hero 相位本来就富余的留白）。
+     全部规则用 :has([data-forge-worktree]) 门控：没装 forge 的 profile 上 hero 行
+     一个像素都不变，也不给空 heroOptions 留出空行。 */
+  /* @patch
+     id: hero-forge-worktree-row
+     for: @deepseek-ai/dsh-experimental-client-ui-forge 的 WorktreeToggle（heroOptions 槽内的 [data-forge-worktree]）
+     why: 插件自带的 @media (width<=600px) 把根盒改成纵向两行 56px，同一条 nowrap 的 hero 行里把模式 chip 压窄并留下竖直空白
+     until: forge 自己给出窄屏横排形态，或宿主把 heroOptions 挪出 heroWorkspaceRow，届时删本块
+     test: tests/css-rules.test.ts
+  */
+  @media (max-width: 767px) and (pointer: coarse) {
+    /* 只在手机档折行。平板（768–1023）原本就放得下：实测 768 时行宽 744、
+       工作区 chip 152.6 + 预设 chip ≈120 + 工作树块 202.6 加起来远小于可用宽，
+       forge 自己的媒体查询（视口 600px 起效）在那一档也还没把根盒改成竖直，
+       所以那里一个像素都不该动。（2026-11-07 首版写在顶层移动块里，768 上
+       实测多折出一行 60px 高——属于加料，收窄到此档。） */
+    [class*="heroWorkspaceRow"]:has([data-forge-worktree]) {
+      flex-wrap: wrap !important;
+      row-gap: 4px !important;
+    }
+    [class*="heroWorkspaceRow"]:has([data-forge-worktree]) > [class*="heroOptions"] {
+      flex: 0 0 100% !important;
+      order: -1 !important;
+      justify-content: flex-end !important;
+      margin-left: 0 !important;
+    }
+    [class*="heroWorkspaceRow"]:has([data-forge-worktree]) [data-forge-worktree] {
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+  }
+
   /* --- Composer bottom row on mobile ---
      The official row contains two lanes: tools (plus + permission/mode
      controls) and trailing (model + context + send). The previous rules made
@@ -2533,8 +2583,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding-left: 0 !important;
     margin-left: 0 !important;
     box-sizing: border-box !important;
-    /* 页首是 flex-wrap 容器：若允许换行，工具栏会被挤到第二行（第三版翻车点）。 */
-    flex-wrap: nowrap !important;
+    /* 不再禁止换行（2026-11-06）：这条曾是「一行内排」的 nowrap 落点，与手机档
+       那两条 heading/toolbar 压缩规则配套。真机改判「太密」后整组撤销，页首交还
+       宿主的 @container (width<600px) 排版 —— 见下方 plugin-panel-head-left-align
+       补丁块里的撤销记录。 */
     /* 滚动时页首要有实底，正文从它底下滑过时不至于透出来像浮层。 */
     background: var(--dsw-alias-bg-layer-1, #fff) !important;
   }
@@ -2572,7 +2624,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      同日按店主参考图再落一档：页首必须「一行内排」——标题+说明在左、刷新键与
      添加插件按钮在右。宿主 pageHead 是 flex-wrap:wrap，这一步直接禁止换行、让
      heading 可收缩（min-width:0），工具栏 flex:0 0 auto + margin-left:auto 贴右；
-     说明文字过长时在左列内换行，不再把工具栏挤到第二行。 */
+     说明文字过长时在左列内换行，不再把工具栏挤到第二行。
+     **2026-11-06 撤销该「一行内排」（店主：「感觉还是太密了」）**。撤销时复核到
+     这组规则在 0.2.2 上已经**不再按设计生效**（这是撤销的根据，不是猜测）：
+       ① 页首搬家 —— 0.2.2 把 header.pageHead 收进了 div.pageBar，所以原先那条
+          「> [class*="_pageHead"]」（子代组合器）命中数 = 0，nowrap/gap/align-items
+          全部落空；
+       ② 「_pageHeading」在本代是 display:contents（宿主 [data-natural] 规则），
+          不生成盒子 —— 挂在它身上的 flex:1 1 auto / min-width:0 是空操作。
+     也就是说剩下的只有「header 上一条 nowrap + toolbar 贴右」在起作用，而它换来
+     的是标题与说明被压到同一行的窄列里。宿主自己的 @container (width<600px)
+     本来就排好了手机版（实测 390px：标题 286px 单行、说明单行 20px 高、
+     工具栏与页签条同在第二行 y≈125）—— 交还宿主即可。 */
   /* @patch
      id: plugin-panel-head-left-align
      for: dsh-client-ui-plugin-manager 0.2.1-rc.2 的 section[data-plugin-panel] 页首（_pageHead / _pageHeading / h1 三层）
@@ -2581,27 +2644,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      test: tests/css-rules.test.ts
   */
   @media (max-width: 767px) and (pointer: coarse) {
-    /* 一行内排：标题 + 说明在左、工具栏（刷新 + 添加插件）在右（2026-10-20 店主参考图）。
-       宿主 pageHead 自己是 flex-wrap:wrap + space-between；内容宽 300 出头时
-       heading(≈154) + gap16 + toolbar(≈172) 放不下一行，就折成三行堆叠。
-       这里禁止换行、把 heading 让成可收缩的 flex 项（min-width:0 才能压到内容宽），
-       toolbar 保持自身宽度贴右；说明过长时在左列内换行，不再把工具栏挤下去。 */
-    [data-mobile-nav="frame"] section[data-plugin-panel] > [class*="_pageHead"] {
-      --dsh-web-mobile-panel-clearance: calc(60px - clamp(24px, 4vw, 48px));
-      flex-wrap: nowrap !important;
-      align-items: flex-start !important;
-      gap: 8px !important;
-    }
-    [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"] {
-      flex: 1 1 auto !important;
-      min-width: 0 !important;
-      margin-left: 0 !important;
-      width: auto !important;
-    }
-    [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_toolbar"] {
-      flex: 0 0 auto !important;
-      margin-left: auto !important;
-    }
+    /* 页首回到宿主自己的手机排版（2026-11-06 店主「还是太密了」）。
+       本块原先有三条压缩规则（nowrap + heading flex:1 1 auto + toolbar
+       flex:0 0 auto/margin-left:auto），撤销理由与失效证据见上方
+       plugin-panel-head-left-align 补丁块的注释（两条选择器在本代宿主上已落空，
+       剩下的 nowrap 只把标题和说明压窄）。
+       宿主自带 @container (width<600px)：标题+说明占满一行、工具栏与 tab 条
+       第二行，本来就是这个页面在手机上的正确形态——不再插手。
+       唯一保留：h1 的 FAB 让位归零（标题已在返回键下方，见上一条 padding-top）。 */
     [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"] > h1 {
       margin-left: 0 !important;
     }

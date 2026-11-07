@@ -178,36 +178,29 @@ test('the image lightbox backdrop takes the full phone viewport (2026-10-20)', (
   assert.ok(/^div/.test(selector), '灯箱覆盖规则必须靠 div 抬一级特异性压过 misc 的平板规则')
 })
 
-test('the plugin-manager page head is left-aligned on phones (2026-10-20)', () => {
-  // 页首容器与页首标题互为子串（_pageHead 命中 _pageHeading），两条让位规则叠加
-  // 后页首离左缘过远。手机档的三条规则：改 clearance 口径 + 归零两级 margin。
+test('the plugin-manager page head keeps the host phone layout (2026-11-06)', () => {
+  // 页首容器与页首标题互为子串（_pageHead 命中 _pageHeading）。2026-10-20 的手机档
+  // 用 nowrap + heading flex:1 1 auto + toolbar flex:0 0 auto 三件套「一行内排」。
+  // 2026-11-06 店主判「太密」，撤销；撤销前复核确认这组规则在 0.2.2 上已失效——
+  // 页首被收进 div.pageBar（`> _pageHead` 命中 0）、`_pageHeading` 是 display:contents
+  // 不生成盒子，只剩 header 上的 nowrap 在把标题和说明压窄。现在页首交还宿主
+  // @container (width<600px) 排版（实测 390px：标题 286px 单行、说明单行），插件只保留
+  // h1 的 FAB 让位归零。
   const blocks = findRuleBlocks(LAYOUT_CSS)
-  const clearance = blocks.find(
-    (block) =>
-      block.selector === '[data-mobile-nav="frame"] section[data-plugin-panel] > [class*="_pageHead"]'
-      && block.body.includes('--dsh-web-mobile-panel-clearance'),
+  const squeezed = blocks.filter((block) =>
+    /section\[data-plugin-panel\][^{]*\[class\*="_page(Head|Heading)"\][^{]*\{[^}]*flex(-wrap)?:\s*(nowrap|1 1 auto)/.test(
+      `${block.selector} {${block.body}}`,
+    ),
   )
-  assert.ok(clearance !== undefined, '页首 clearance 覆盖规则在位')
-  assert.match(
-    clearance.body,
-    /--dsh-web-mobile-panel-clearance:\s*calc\(60px - clamp\(24px, 4vw, 48px\)\);/,
-    'clearance 改吃 60px 口径',
+  assert.deepEqual(
+    squeezed.map((block) => block.selector),
+    [],
+    '不许再对插件页首做禁止换行 / 强制收缩（会把标题和说明压窄）',
   )
-  const heading = blocks.find(
-    (block) => block.selector === '[data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"]',
-  )
-  assert.ok(heading !== undefined, '_pageHeading 归零规则在位')
-  assert.match(heading.body, /margin-left:\s*0 !important/)
-  assert.match(heading.body, /width:\s*auto !important/)
-  // 2026-10-20 参考图：页首一行内排 —— 禁止换行 + heading 可收缩 + 工具栏贴右。
-  assert.match(clearance.body, /flex-wrap:\s*nowrap !important/, '页首禁止折行')
-  assert.match(heading.body, /min-width:\s*0 !important/, 'heading 必须能收缩，否则工具栏仍被挤下去')
   const toolbar = blocks.find(
     (block) => block.selector === '[data-mobile-nav="frame"] section[data-plugin-panel] [class*="_toolbar"]',
   )
-  assert.ok(toolbar !== undefined, '工具栏贴右规则在位')
-  assert.match(toolbar.body, /margin-left:\s*auto !important/, '工具栏贴右')
-  assert.match(toolbar.body, /flex:\s*0 0 auto !important/, '工具栏不被压缩')
+  assert.equal(toolbar, undefined, '工具栏贴右规则随一行内排一并删除')
   const title = blocks.find(
     (block) =>
       block.selector
@@ -215,6 +208,51 @@ test('the plugin-manager page head is left-aligned on phones (2026-10-20)', () =
   )
   assert.ok(title !== undefined, '页首 h1 归零规则在位')
   assert.match(title.body, /margin-left:\s*0 !important/)
+})
+
+test('the hero worktree block takes its own row above the workspace chip (2026-11-07)', () => {
+  // 店主报障：hero 输入框上方右侧那块「master / 新建工作树」（forge 插件的
+  // WorktreeToggle，挂在 heroOptions 槽）把左边的模式 chip 压窄。forge 自带
+  // @media (width<=600px){ .root{flex-direction:column} } 让根盒变成两行 28px，
+  // 而宿主的 heroWorkspaceRow 是 nowrap：同一行里塞不下，chip 就被挤到 67px。
+  // 店主拍板方案 E：工作树块自己占一行（排在工作区 chip 之上），块内横向排开。
+  // 三条规则缺一不可 —— 去掉 wrap 就折不了行、去掉 order 就排在下方、
+  // 去掉 flex-direction 就还是竖直两块。门控必须挂在 [data-forge-worktree] 上：
+  // 没装 forge 的 profile 上 hero 行一个像素都不许变。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const gate = '[class*="heroWorkspaceRow"]:has([data-forge-worktree])'
+  const row = blocks.find((block) => block.selector === gate)
+  assert.ok(row !== undefined, 'hero 行换行规则在位')
+  assert.match(row.body, /flex-wrap:\s*wrap !important/, '行必须允许换行')
+  assert.match(row.body, /row-gap:\s*4px !important/, '折行后要有行距')
+
+  const opts = blocks.find((block) => block.selector === `${gate} > [class*="heroOptions"]`)
+  assert.ok(opts !== undefined, 'heroOptions 独占一行的规则在位')
+  assert.match(opts.body, /flex:\s*0 0 100% !important/, 'basis 100% 是「必折行」的那一半')
+  assert.match(opts.body, /order:\s*-1 !important/, 'order:-1 才会排到工作区 chip 之上')
+  assert.match(opts.body, /justify-content:\s*flex-end !important/, '块内右对齐，保住宿主 margin-left:auto 的观感')
+  assert.match(opts.body, /margin-left:\s*0 !important/, 'auto margin 换行后会把整行推歪，必须归零')
+
+  const forge = blocks.find((block) => block.selector === `${gate} [data-forge-worktree]`)
+  assert.ok(forge !== undefined, '工作树块横排规则在位')
+  assert.match(forge.body, /flex-direction:\s*row !important/, '分支与「新建工作树」必须横向排开')
+
+  // 门控：三条都必须带 :has([data-forge-worktree])。宿主现在的 hero 行在没有
+  // forge 时不该出现任何空行、也不该被动到换行方式。
+  for (const block of [row, opts, forge]) {
+    assert.match(block.selector, /:has\(\[data-forge-worktree\]\)/, `规则丢了 forge 门控会误伤无 forge 的 profile：${block.selector}`)
+  }
+  // 位置契约：必须留在顶层的 767 手机档里（768–1023 平板档与 ≥1024 桌面档零影响）。
+  // 首版写在顶层 1023 块里，768 实测多折出一行 60px 高——平板本来就放得下，属加料。
+  const topAt = LAYOUT_CSS.indexOf('@media (max-width: 1023px) and (pointer: coarse) {')
+  const phoneAt = LAYOUT_CSS.indexOf('@media (max-width: 767px) and (pointer: coarse) {')
+  const ruleAt = LAYOUT_CSS.indexOf(gate + ' {')
+  assert.ok(phoneAt > topAt, '767 手机档必须嵌套在顶层移动块里')
+  assert.ok(ruleAt > phoneAt, '规则必须写在 767 手机档内（平板档不许折行）')
+  assert.ok(LAYOUT_CSS.includes('\n    ' + gate + ' {'), '规则必须直接挂在 767 手机档里（四空格缩进）')
+  assert.ok(!LAYOUT_CSS.includes('\n  ' + gate + ' {'), '不许退回顶层移动块（会连带平板档折行）')
+  // 锚点不许带哈希前缀（宿主换前缀会让整批规则静默变死）。
+  assert.doesNotMatch(LAYOUT_CSS, /\[class\*="wSkVaW_hero/, '锚点只写哈希前缀之后的 _suffix')
 })
 
 test('the header team / lineage chips carry no touch press tint (2026-10-20)', () => {
@@ -599,7 +637,9 @@ test('the phone plugin panel drops the host title-bar padding and puts the title
   assert.match(head.body, /padding-top: 32px !important/, '标题落在返回键下方')
   assert.match(head.body, /margin-left: 0 !important/, '标题与正文左缘对齐')
   assert.match(head.body, /background: var\(--dsw-alias-bg-layer-1, #fff\) !important/, '滚动时页首要有实底')
-  assert.match(head.body, /flex-wrap: nowrap !important/)
+  // 2026-11-06：原本这里钉 flex-wrap: nowrap（「一行内排」的落点）；该组规则已撤销，
+  // 页首交还宿主 @container (width<600px) 排版——本页不再禁止换行。
+  assert.doesNotMatch(head.body, /flex-wrap: nowrap/, '页首不许再禁止换行')
 })
 
 // 真机 2026-11-05：插件页页首原本 position:sticky，钉在顶上、正文从底下滑过，
