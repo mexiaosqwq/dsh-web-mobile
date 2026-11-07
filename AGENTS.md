@@ -129,8 +129,9 @@ dsh web
 - **宿主升级必须用户单独确认（用户要求）**：默认只做源码/静态对账，**不动宿主**；alpha 通道一律不上机。真要升级先备份 `~/.dsh/sessions`，升级后按 runbook 电池验收。
 - **发版动作必须用户单独同意（用户要求）**：版本 bump + tag + npm publish + GitHub Release 属对外发布动作，走到发版步**停下来等用户点头**；发完**三处分别核实**（Release 页 / tag / npm `latest`）。
 - **版本号不随每次改动递增（用户要求）**：补丁/小改并入当前待发版本，只有用户明确指定发版时才 bump 版本号与打 tag；禁止「改一次升一版」造成版本号膨胀。
-- **push + PR + merge 必须用户批准（用户要求，覆盖旧口径）**：本地 commit 可自主，但 **push 远端、开 PR、merge 一律先报用户等点头**——用户原话「没我批准你不许直接发PR」；网络重试自动合并的后台循环同样禁止。
+- **push + PR + merge 必须用户批准（用户要求，覆盖旧口径）**：本地 commit 可自主，但 **push 远端、开 PR、merge 一律先报用户等点头**——用户原话「没我批准你不许直接发PR」；网络重试自动合并的后台循环同样禁止。**公开文案（PR/issue 正文、对外回复）先贴草稿、等点头再发**——用户原话「文案需要我进行审批」。
 - **公开 PR/issue 文本卫生（用户要求）**：私聊验收口语、内部对话引用、自封头衔**一律不进**公开文本——只写事实（改了什么、为何这样改、门验结果）；验收状态用中性的「已在真机验证」。**合并 ≠ 可更新**：修复合进 main 后 npm/Release 可能仍是旧版，对外回复必须区分「已合并」与「已发布」，未发版前明说「等下个 release」。
+- **回复先结论后细节（用户要求）**：先给结论/结果，再给必要细节；能一行说清就别写段落。证据：2026-11-07 用户「太啰嗦了」。
 - **CI/长任务不空等（用户要求）**：push/merge 后的 CI、探针、后台任务一律不 sleep 轮询——发起后用即时命令查一次状态（如 `gh run list -L 1`）就收口；禁止 `sleep N && …` 式长等待。
 - **改动必须落在源码层，不打补丁（用户要求）**：一切修复/功能都改 `src/`（配套 `tests/`），再由 `pnpm build` 生成 `lib/`；**禁止**手改 `lib/`、禁止运行时补丁/热补丁、禁止在源码里留 `TEMP`/`TODO-DIAG` 之类一次性 hack。真机诊断走既有通道（`?mobile-nav-debug=1` + beacon），**不得**为取证把插件改成「强制开诊断面板/强制上报」的变体版本。
 - **热装载前必须过四道自检**：①`src/client` 内 `error TS1xxx`（语法类）= 0（`.css.ts` 是模板字符串，注释里一律用「」不用反引号）；②`node scripts/client-bundle-smoke.mjs` 过（桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory）；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0**；④`node --test tests/client-inject-surface.test.ts`——`src/client` 里任何 `ctx.<service>` 读取都必须在 `export const inject` 名单内，跨 `inject` 取服务一律走 `ctx.get(name)`。**连续重载也要克制**：每次 hot-load 都会重载页面，别在用户正在使用或 App 在后台时连续触发。
