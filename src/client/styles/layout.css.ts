@@ -621,6 +621,56 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     max-width: 100%;
   }
 
+  /* --- Hero 工作区行上的「工作树」块（2026-11-07，店主拍板方案 E）---
+     默认布局：heroWorkspaceRow 是一条 nowrap 的 flex 行（宿主 padding 0 16 0 20、
+     gap 2px、align-items:center），里面依次是工作区 chip、directoryFlow / 预设两个
+     槽、以及 margin-left:auto 的 heroOptions。forge 插件（开源版 0.2.2-rc.1 的
+     WorktreeToggle）把自己的「分支」按钮 + 「新建工作树」复选挂进 heroOptions，并在
+     自己的 @media (width<=600px) 里把根盒改成 flex-direction:column —— 两行 28px
+     叠成 56px 高。390px 真机实测：heroOptions 126.1×56，把同一行的模式 chip 压到
+     67.3px（「标准模式」只剩两个字宽），右侧同时留下一条竖直空白。
+     店主否决了「只加高不换行」（A）与「砍文字」（其它分支），要的是**工作树块自己
+     占一行、且分支与新建工作树横向排开**。三条规则配套：
+       ① 行允许换行并给 4px 行距；
+       ② heroOptions 撑满整行（basis 100% 必折行）+ order:-1 排到工作区 chip 之上
+          + 右对齐（保留宿主本来 margin-left:auto 的观感）；
+       ③ 工作树根盒改回横排，间距 8px（比宿主 2px 松，两颗控件各自有 28px 高度，
+          贴太近容易误触）。
+     实测（390×844，触摸仿真）：行高 56→60（多出的一行被工作树块自己 56→28 抵掉），
+     工作树块 126.1×56→202.6×28，模式 chip 67.3→143.5px，doc scrollWidth 恒 390、
+     无横向溢出，composer 卡顶 425.4→427.4（+2px，挤进 hero 相位本来就富余的留白）。
+     全部规则用 :has([data-forge-worktree]) 门控：没装 forge 的 profile 上 hero 行
+     一个像素都不变，也不给空 heroOptions 留出空行。 */
+  /* @patch
+     id: hero-forge-worktree-row
+     for: @deepseek-ai/dsh-experimental-client-ui-forge 的 WorktreeToggle（heroOptions 槽内的 [data-forge-worktree]）
+     why: 插件自带的 @media (width<=600px) 把根盒改成纵向两行 56px，同一条 nowrap 的 hero 行里把模式 chip 压窄并留下竖直空白
+     until: forge 自己给出窄屏横排形态，或宿主把 heroOptions 挪出 heroWorkspaceRow，届时删本块
+     test: tests/css-rules.test.ts
+  */
+  @media (max-width: 767px) and (pointer: coarse) {
+    /* 只在手机档折行。平板（768–1023）原本就放得下：实测 768 时行宽 744、
+       工作区 chip 152.6 + 预设 chip ≈120 + 工作树块 202.6 加起来远小于可用宽，
+       forge 自己的媒体查询（视口 600px 起效）在那一档也还没把根盒改成竖直，
+       所以那里一个像素都不该动。（2026-11-07 首版写在顶层移动块里，768 上
+       实测多折出一行 60px 高——属于加料，收窄到此档。） */
+    [class*="heroWorkspaceRow"]:has([data-forge-worktree]) {
+      flex-wrap: wrap !important;
+      row-gap: 4px !important;
+    }
+    [class*="heroWorkspaceRow"]:has([data-forge-worktree]) > [class*="heroOptions"] {
+      flex: 0 0 100% !important;
+      order: -1 !important;
+      justify-content: flex-end !important;
+      margin-left: 0 !important;
+    }
+    [class*="heroWorkspaceRow"]:has([data-forge-worktree]) [data-forge-worktree] {
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+  }
+
   /* --- Composer bottom row on mobile ---
      The official row contains two lanes: tools (plus + permission/mode
      controls) and trailing (model + context + send). The previous rules made

@@ -210,6 +210,51 @@ test('the plugin-manager page head keeps the host phone layout (2026-11-06)', ()
   assert.match(title.body, /margin-left:\s*0 !important/)
 })
 
+test('the hero worktree block takes its own row above the workspace chip (2026-11-07)', () => {
+  // 店主报障：hero 输入框上方右侧那块「master / 新建工作树」（forge 插件的
+  // WorktreeToggle，挂在 heroOptions 槽）把左边的模式 chip 压窄。forge 自带
+  // @media (width<=600px){ .root{flex-direction:column} } 让根盒变成两行 28px，
+  // 而宿主的 heroWorkspaceRow 是 nowrap：同一行里塞不下，chip 就被挤到 67px。
+  // 店主拍板方案 E：工作树块自己占一行（排在工作区 chip 之上），块内横向排开。
+  // 三条规则缺一不可 —— 去掉 wrap 就折不了行、去掉 order 就排在下方、
+  // 去掉 flex-direction 就还是竖直两块。门控必须挂在 [data-forge-worktree] 上：
+  // 没装 forge 的 profile 上 hero 行一个像素都不许变。
+  const blocks = findRuleBlocks(LAYOUT_CSS)
+  const gate = '[class*="heroWorkspaceRow"]:has([data-forge-worktree])'
+  const row = blocks.find((block) => block.selector === gate)
+  assert.ok(row !== undefined, 'hero 行换行规则在位')
+  assert.match(row.body, /flex-wrap:\s*wrap !important/, '行必须允许换行')
+  assert.match(row.body, /row-gap:\s*4px !important/, '折行后要有行距')
+
+  const opts = blocks.find((block) => block.selector === `${gate} > [class*="heroOptions"]`)
+  assert.ok(opts !== undefined, 'heroOptions 独占一行的规则在位')
+  assert.match(opts.body, /flex:\s*0 0 100% !important/, 'basis 100% 是「必折行」的那一半')
+  assert.match(opts.body, /order:\s*-1 !important/, 'order:-1 才会排到工作区 chip 之上')
+  assert.match(opts.body, /justify-content:\s*flex-end !important/, '块内右对齐，保住宿主 margin-left:auto 的观感')
+  assert.match(opts.body, /margin-left:\s*0 !important/, 'auto margin 换行后会把整行推歪，必须归零')
+
+  const forge = blocks.find((block) => block.selector === `${gate} [data-forge-worktree]`)
+  assert.ok(forge !== undefined, '工作树块横排规则在位')
+  assert.match(forge.body, /flex-direction:\s*row !important/, '分支与「新建工作树」必须横向排开')
+
+  // 门控：三条都必须带 :has([data-forge-worktree])。宿主现在的 hero 行在没有
+  // forge 时不该出现任何空行、也不该被动到换行方式。
+  for (const block of [row, opts, forge]) {
+    assert.match(block.selector, /:has\(\[data-forge-worktree\]\)/, `规则丢了 forge 门控会误伤无 forge 的 profile：${block.selector}`)
+  }
+  // 位置契约：必须留在顶层的 767 手机档里（768–1023 平板档与 ≥1024 桌面档零影响）。
+  // 首版写在顶层 1023 块里，768 实测多折出一行 60px 高——平板本来就放得下，属加料。
+  const topAt = LAYOUT_CSS.indexOf('@media (max-width: 1023px) and (pointer: coarse) {')
+  const phoneAt = LAYOUT_CSS.indexOf('@media (max-width: 767px) and (pointer: coarse) {')
+  const ruleAt = LAYOUT_CSS.indexOf(gate + ' {')
+  assert.ok(phoneAt > topAt, '767 手机档必须嵌套在顶层移动块里')
+  assert.ok(ruleAt > phoneAt, '规则必须写在 767 手机档内（平板档不许折行）')
+  assert.ok(LAYOUT_CSS.includes('\n    ' + gate + ' {'), '规则必须直接挂在 767 手机档里（四空格缩进）')
+  assert.ok(!LAYOUT_CSS.includes('\n  ' + gate + ' {'), '不许退回顶层移动块（会连带平板档折行）')
+  // 锚点不许带哈希前缀（宿主换前缀会让整批规则静默变死）。
+  assert.doesNotMatch(LAYOUT_CSS, /\[class\*="wSkVaW_hero/, '锚点只写哈希前缀之后的 _suffix')
+})
+
 test('the header team / lineage chips carry no touch press tint (2026-10-20)', () => {
   // 店主报障：点头部「智能体团队」图标打开面板、再点它关闭时，图标周围会闪一块浅灰；
   // 「子智能体 / N 个子代理」芯片同样。那块灰是本文件 touch press feedback 的
