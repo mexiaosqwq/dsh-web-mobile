@@ -1953,8 +1953,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       margin-top: 0 !important;
       margin-bottom: 0 !important;
     }
+    /* 页签行恒单行：宿主在窄屏按宽度折页签（visibleViewLimit），放不下的第三方 conversation.view
+       只出现在「更多视图」⋯ 菜单里（misc 的手机档隐藏规则 2026-11-07 已删）——一旦换行（宿主
+       tabs 是 wrap 容器，tablist 满宽 + ⋯ 22px 必然超宽），⋯ 掉到第二行（行高 16 → 51）。
+       两处都关换行；tablist 保持满宽吃掉剩余（收成内容宽会让 ⋯ 悬在页签右侧、右边空一大片，
+       真机 2026-11-07 报「位置非常奇怪」），⋯ 因此落在页签行右缘，与桌面同一位置。
+       **不许给 tablist 加 overflow 裁剪**：宿主 tab 靠 margin-top:-10px 把热区撑出 16px 高的
+       tablist 盒（按钮 23..49 / 文字 30..46 / tablist 33..49），任何非 visible 的 overflow 都会
+       把标签顶部裁掉（真机 2026-11-07 实测截字）。 */
     html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_tabs"] {
       overflow: visible !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
     }
     html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-conversation-tabs][role="tablist"] {
       height: auto !important;
@@ -1962,6 +1972,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       margin-top: 0 !important;
       overflow: visible !important;
       align-items: flex-end !important;
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+    }
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="viewsMoreAnchor"] {
+      flex: 0 0 auto !important;
     }
     html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-conversation-tabs][role="tablist"] > button[role="tab"],
     html body [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-conversation-tabs] > button[class*="_tab"]:not([class*="_tabs"]) {

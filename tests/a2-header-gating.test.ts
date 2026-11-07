@@ -395,6 +395,45 @@ test('phone view tabs zero the host hit-inline margins together with their paddi
   assert.ok(phoneDecl(rules, sel, 'margin-right: 0 !important'))
 })
 
+// 2026-11-07：手机档曾把宿主的「更多视图」⋯ 整块 display:none，而宿主在窄屏按宽度折页签
+// （visibleViewLimit = floor((tabs 行宽 - 48) / 120)），放不下的第三方 conversation.view
+// 只会出现在这个 ⋯ 菜单里 —— 任何第三方视图在手机上因此没有入口。约定：手机档不藏，
+// 页签行保持单行（⋯ 落在行右缘，与桌面同位置）；隐藏只留在宽屏触屏那一档。
+test('the phone tab row keeps the host "more views" launcher reachable', () => {
+  const rules = scopedRules(layoutSource())
+  const misc = scopedRules(readFileSync(join(root, 'src/client/styles/misc.css.ts'), 'utf8'))
+
+  // 单行：共用档把 tablist 写成 width:100%（#41 横滚），与 ⋯ 锚点抢同一行；宿主 tabs 是
+  // wrap 容器，⋯ 会被挤到第二行（实测行高 16 → 51）。
+  assert.ok(phoneDecl(rules, '[class*="_tabs"]', 'flex-wrap: nowrap !important'))
+  assert.ok(phoneDecl(rules, '[data-conversation-tabs][role="tablist"]', 'flex: 1 1 auto !important'))
+  assert.ok(phoneDecl(rules, '[class*="viewsMoreAnchor"]', 'flex: 0 0 auto !important'))
+  // 不许把 tablist 变成裁剪容器：宿主 tab 按钮靠 margin-top:-10px 把热区撑出 16px 高的
+  // tablist 盒，overflow 一旦不是 visible 就把标签顶部裁掉（真机实测截字，2026-11-07）。
+  const clipping = (body: string) =>
+    [...body.matchAll(/overflow(?:-[xy])?:\s*([^;!]+)/g)].some((m) => m[1].trim() !== 'visible')
+  assert.deepEqual(
+    rules
+      .filter((r) => inPhone(r) && r.sel.includes('[data-conversation-tabs][role="tablist"]'))
+      .filter((r) => clipping(r.body))
+      .map((r) => r.sel),
+    [],
+    'the phone tablist must not clip: the host tab hit-area overflows it by 10px',
+  )
+
+  const hidesMore = (r: ScopedRule) =>
+    (r.sel.includes('viewsMore') || r.sel.includes('viewsMoreAnchor')) && r.body.includes('display: none !important')
+  assert.deepEqual(
+    misc.filter((r) => hidesMore(r) && r.scopes.some((s) => s.includes('1023px'))).map((r) => r.sel),
+    [],
+    'the mobile tier must not hide the ⋯ launcher (third-party views have no other entry)',
+  )
+  assert.ok(
+    misc.some((r) => hidesMore(r) && r.scopes.every((s) => s.includes('pointer: coarse') && s.includes('min-width: 1024px'))),
+    'the wide-touch tier keeps hiding the launcher (all tabs fit there)',
+  )
+})
+
 // 真机 2026-11-05：图标比标题偏上（旧 top:6/2/5 是 14px 字号下的魔数，字号放大后不同心）。
 // 两角按钮改为 top:auto —— 静态位置即动作行的纵向居中线，任何缩放都与标题同心；手机档不得再写死 top。
 test('corner buttons centre on the title row via their static position, not a fixed top', () => {
