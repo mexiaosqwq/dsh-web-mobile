@@ -574,6 +574,10 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 
 - **会话 header view tab strip 手机端横滚（#41）**：strip `overflow-x:auto` + 按钮 `flex-shrink:0; white-space:nowrap` + `touch-action: pan-x`（strip 自己认领横向 pan）+ `overscroll-behavior-x: contain` + scroll-snap；affordance=右缘被切断的 tab；起始于已溢出 strip 的边缘滑被 `findHorizontalScroller` 在 beginStroke 拒绝 → `pitfalls.md` §tab strip。
 
+### 更多视图入口
+
+- **手机档不许藏宿主的「更多视图」⋯：它是放不下的第三方 `conversation.view` 的唯一入口（2026-11-07）**。宿主 `ConversationSessionHeader` 按宽度折页签（`visibleViewLimit = max(1, floor((tabs 行宽 - 48) / 120))`），放不下的 view 只出现在 `ViewsMoreMenu`；而那个菜单由**内置** `dsh-client-ui-entry-customization` 的 `conversation.session.header.views.actions` 渲染（`EntryMenuContent` 把 `entries` 逐条列成菜单行，后面才是插件市场的浏览/创建）——不是只有市场两项。所以把手机档的 `[class*=viewsMore]` / `[class*=viewsMoreAnchor]` 设成 `display:none`，等于把任何第三个 view 的入口封死（390px 只放得下 2 个页签）。**判据（390×844 粗指针、3 个 view）**：页签行 19px 单行、⋯ 22×19 落在页签行右缘、点开菜单能看到第三个 view、点进去面板正常渲染。**修法**：手机档不藏；页签行两处关换行（`[class*="_tabs"]` 与 tablist 都 `flex-wrap:nowrap`）+ 只补 `flex:1 1 auto; min-width:0`（tablist 仍满宽），否则 ⋯ 被挤到第二行（行高 16 → 51）。**别把 tablist 收成内容宽**：⋯ 会悬在页签右侧、右边空一大片（真机 2026-11-07 报「位置非常奇怪」），而满宽时它落在行右缘，与桌面一致。**千万别顺手给它加 `overflow-x:auto` 当横滚兜底**：宿主 tab 按钮靠 `margin-top:-10px` 把点击热区撑出 16px 高的 tablist 盒（按钮盒 23..49、标签 30..46、tablist 33..49），一旦 tablist 变成滚动容器，另一轴也变 `auto`，标签顶部 3px 直接被裁（2026-11-07 真机报「对话轨迹文字被截断」）。判据：`getComputedStyle(tablist).overflowX` 必须是 `visible`；等价自检 = 标签盒 top < tablist top 时仍完整可见。横滚兜底交给宿主折页签，不要自己造。平板档（≥1024 粗指针）继续藏：页签全放得下，菜单里只剩市场两项。
+
 ### reconciler
 
 - **全树 reconciler 的 task 必须幂等且 dispose 可恢复**：`ensure` 每次移动第三方 DOM 时刷新 `origin`（React 会重建节点）；`dispose` 找回元素限定在被移动容器内，不用全局文本搜索；task 注册的 disposer 不得丢弃，否则同环境插件重载后 reconciler 失效。

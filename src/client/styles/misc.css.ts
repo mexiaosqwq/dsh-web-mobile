@@ -445,9 +445,11 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     display: none !important;
   }
 
-  /* ① 隐藏「更多视图」⋯（owner 2026-10-29）：手机档早就藏了（≤1023 那条在下面），
-     它的入口是宿主 header 里的 viewsMoreAnchor；平板这一档没有壳的帧内规则，
-     于是这颗对触屏平板毫无用处的按钮就漏了出来。只藏按钮与锚点，菜单不会再弹。 */
+  /* ① 隐藏「更多视图」⋯（owner 2026-10-29）：这一档页签全放得下，宿主折进菜单的只有
+     插件市场的「浏览 / 创建」，对触屏平板无用；而平板没有壳的帧内规则，按钮会漏出来，
+     所以只藏按钮与锚点。**手机档相反、不能藏**：宿主按宽度折页签，⋯ 是放不下的第三方
+     conversation.view 的唯一入口（手机档那条隐藏规则 2026-11-07 已删，页签行单行排，
+     见 layout.css 手机档）。 */
   header [class*="viewsMore"],
   header [class*="viewsMoreAnchor"] {
     display: none !important;
@@ -580,16 +582,6 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
      navTitle → nav → header → options —— 末子是 options，这条链 0 命中
      （layout.css 的同批清理早已删掉同一串）。现行做法见 layout.css 的
      settings.action 隐藏与「关闭键热区」两条，手机与平板共用。 */
-}
-
-/* 手机档：「更多视图」⋯ 与侧边栏「更多」重复，而且它把页签行挤成两行
-   （tablist 宽 100% → flex 换行），连带把谱系 chip 顶到 header 底边那条空行。
-   只藏按钮本身：菜单以它为锚点，藏了按钮就不会再弹出。 */
-@media (max-width: 1023px) and (pointer: coarse) {
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) button[class*="viewsMore"],
-  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="viewsMoreAnchor"] {
-    display: none !important;
-  }
 }
 
 /* 抽屉打开时，「更多」菜单（宿主 PanelMoreMenu，align=start、宽 288）从锚点
