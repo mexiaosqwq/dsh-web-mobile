@@ -237,18 +237,18 @@ async function main() {
 
   // ===== A. 打开手势回归（drawer 关闭态，2026-08-27 优化后） =====
 
-  // A1. 起点 40px（48px 时代在区外；识别区自适应 45% 视口宽后深在区内。
-  //     2026-09-11 曾短暂缩到 0.25 缓解拖动元素误触发，同日按用户拍板回滚
-  //     保持 0.45——误触发改由让位体系解决：data-mobile-nav-dragging 标记
-  //     + 悬浮窗位置启发式，见 scripts/probes/draggable-conflict-probe.mjs）
-  //     横滑 100px —— 优化前失败（"识别成滚动"），此后各轮扩区应继续打开
+  // A1. 起点 40px（#268 起无识别区，任意起点都可起手）。
+  //     2026-09-11 曾短暂把识别区缩到 0.25 缓解拖动元素误触发，同日按用户
+  //     拍板回滚到 0.45；误触发始终由让位体系解决（data-mobile-nav-dragging
+  //     标记 + 悬浮窗位置启发式，见 probes/draggable-conflict-probe.mjs）。
+  //     识别区本身已随 #268 整体删除。横滑 100px —— 优化前失败（"识别成滚动"）
   await ensureClosed()
   await swipe(40, 400, 140, 400, 150)
   await sleep(700)
   const a1 = await state()
-  record('A1 起点40px横滑100px(识别区内起步)', {
+  record('A1 起点40px横滑100px', {
     ok: a1.open === true,
-    text: `open=${a1.open} (期望 true: 45% 视口识别区覆盖) cancels=${a1.cancels}`,
+    text: `open=${a1.open} (期望 true: 关态任意起点右滑都能开，与旧的 45% 识别区无关) cancels=${a1.cancels}`,
   })
 
   // 复位到关闭态（A1 已打开）
@@ -350,11 +350,11 @@ async function main() {
     verdict.skip('B3 无 newSession 行（可选分支）', 'drawer 未渲染 sessionRow；该分支为可选，跳过且不计 PASS')
   }
 
-  // ===== C. 横向滚动容器让位（识别区 48px→96px→45% 视口宽；2026-09-11 曾短暂 25%，同日回滚保持 45%） =====
+  // ===== C. 横向滚动容器让位（识别区已随 #268 删除；这里是让位链本身的回归） =====
 
-  // C1. 45% 识别区（≈176px@390）覆盖 stats 条左段 / 消息内代码块等
-  //     overflow-x:auto
-  //     容器。手势层必须让位：起指在真实横向滚动容器内的 stroke 归该容器
+  // C1. 真实横向滚动容器（stats 条左段 / 消息内代码块等 overflow-x:auto
+  //     区域）——旧的 45% 识别区正盖在它们上面，才需要这条让位。
+  //     手势层必须让位：起指在真实横向滚动容器内的 stroke 归该容器
   //     原生 pan——既不能 preventDefault 掉它的滚动（原生手势被杀），也不
   //     能把横滑误判成"开抽屉"。注入贴左缘的真实横向滚动容器（内容 600px
   //     > 容器 120px），从 x=40 横滑 120px（超过 62px 打开阈值）。
@@ -606,8 +606,8 @@ async function main() {
     }, true)
   })()`)
 
-  // F1. 双指从起点识别区内向外扩（模拟捏合放大）：第一指落在 x=40（识别区
-  //     内，单指时必然武装手势），第二指落在 x=200，两指同时移动。
+  // F1. 双指从左缘向外扩（模拟捏合放大）：第一指落在 x=40（单指时必然
+  //     武装手势），第二指落在 x=200，两指同时移动。
   await send('Input.dispatchTouchEvent', {
     type: 'touchStart',
     touchPoints: [{ x: 40, y: 400, id: 0 }, { x: 200, y: 420, id: 1 }],

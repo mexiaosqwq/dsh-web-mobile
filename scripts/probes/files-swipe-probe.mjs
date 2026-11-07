@@ -1,22 +1,23 @@
 // Files-panel swipe probe (right-edge gesture, spec
 // 2026-09-13-files-swipe-gesture-design.md).
 //
-// The right edge zone (45% of the viewport, mirroring the drawer's start
-// zone) drives the files gesture: a LEFTWARD stroke opens the host files
-// panel (only when nothing is open), a RIGHTWARD stroke closes whatever is
-// on top (the panel when it is open, the drawer when IT is open). A leftward
-// stroke NEVER collapses anything (the 2026-09-13 narrowing: drawer open +
-// right-edge leftward = a deliberate no-op).
+// The files gesture is direction-routed (issue #268, 2026-11-07): with no
+// panel up, a LEFTWARD stroke opens the host files panel and a RIGHTWARD one
+// opens the drawer; with a panel up, the OPEN one owns every stroke — the
+// panel closes on a rightward stroke (leftward is inert) and the drawer
+// closes on EITHER direction, from anywhere on screen. The 2026-09-13
+// narrowing (drawer open + leftward beside it = no-op) is gone, as is the
+// 45% right-edge start zone.
 //
 // Scenes:
 //   1. the files opener is present in the session frame;
 //   2. right-edge leftward swipe opens the panel, drawer untouched;
 //   3. panel open + rightward swipe closes it, drawer untouched;
 //   4. panel closed + rightward swipe = no action;
-//   5. drawer open + right-edge leftward swipe = drawer stays open (the
-//      narrowing), panel stays closed;
-//   6. drawer open + right-edge rightward swipe = drawer closes via the
-//      animated path, panel untouched;
+//   5. drawer open + leftward swipe beside it = drawer closes (#268; this
+//      scene used to pin the opposite — the narrowing), panel stays closed;
+//   6. drawer open + rightward swipe = drawer closes via the animated path,
+//      panel untouched;
 //   7. the synthetic click after a committed stroke does not re-toggle;
 //   8. mouse pointer (touch emulation kept on): the same right-edge drag is
 //      inert — the pointerType guard rejects mouse strokes; desktop
@@ -174,19 +175,24 @@ async function main() {
     const s4 = await state()
     record(s4.panel === false && s4.collapsed === true, '4.rightward-closed-noop', `panel=${s4.panel} collapsed=${s4.collapsed}`)
 
-    // ---- 5+6. drawer interplay (the 2026-09-13 narrowing) ----
+    // ---- 5+6. drawer interplay (#268: an open drawer owns both directions) ----
     await evaluate(`(() => { document.querySelector('${TOGGLE}')?.click(); return true })()`)
     await waitFor(async () => await evaluate(`document.querySelector('${FRAME}')?.hasAttribute('data-sidebar-collapsed') === false`), 'drawer open', 8000)
     await sleep(600)
     await touchSwipe(388, 400, 250, 400, 120) // leftward beside the open drawer
-    await sleep(700)
+    await waitFor(async () => await evaluate(`document.querySelector('${FRAME}')?.hasAttribute('data-sidebar-collapsed') === true`), 'drawer closed by leftward', 8000)
     const s5 = await state()
-    record(s5.collapsed === false && s5.panel === false, '5.drawer-leftward-noop',
-      `collapsed=${s5.collapsed} panel=${s5.panel} (a leftward stroke beside the drawer must not close it and must not open the panel)`)
+    record(s5.collapsed === true && s5.panel === false, '5.drawer-leftward-closes',
+      `collapsed=${s5.collapsed} panel=${s5.panel} (issue #268: a leftward stroke beside the open drawer closes it and must not open the panel)`)
+    // Reopen for the rightward close (the open drawer closes on both directions).
+    await sleep(600)
+    await evaluate(`(() => { document.querySelector('${TOGGLE}')?.click(); return true })()`)
+    await waitFor(async () => await evaluate(`document.querySelector('${FRAME}')?.hasAttribute('data-sidebar-collapsed') === false`), 'drawer reopened', 8000)
+    await sleep(600)
     await touchSwipe(388, 400, 520, 400, 100) // rightward beside the open drawer
     await waitFor(async () => await evaluate(`document.querySelector('${FRAME}')?.hasAttribute('data-sidebar-collapsed') === true`), 'drawer closed', 8000)
     const s6 = await state()
-    record(s6.panel === false, '6.drawer-rightward-close-only', `panel=${s6.panel}`)
+    record(s6.collapsed === true && s6.panel === false, '6.drawer-rightward-close-only', `collapsed=${s6.collapsed} panel=${s6.panel}`)
 
     // ---- 7. the synthetic click after a committed stroke does not re-toggle ----
     await sleep(600)

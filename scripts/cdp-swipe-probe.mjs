@@ -442,24 +442,19 @@ async function main() {
     await prepareHostScenario(expression => client.evaluate(expression), { timeoutMs: config.timeoutMs })
     await sleep(500, signal)
 
-    // Drawer touch-action (key CSS line) + the root overscroll gate + the
-    // START_ZONE boundary (audit C3: the behavioral parameter nobody locked —
-    // at the zone edge one pixel opens, one beyond does not, per hitTestStart's
-    // inclusive `edge <= startZonePx`). The zone is ADAPTIVE: 45% of the live
-    // viewport width (startZonePxFor; 390px viewport → 176px; 2026-09-11: a
-    // brief 0.25 experiment for the draggable-widget conflict was rolled
-    // back the same day per user decision — the zone STAYS at 0.45 and the
-    // conflict is handled by the data-mobile-nav-dragging mark + the
-    // floating-widget positional heuristic, see
-    // scripts/probes/draggable-conflict-probe.mjs), recomputed per
-    // stroke — portrait/landscape/tablet need no per-device tuning. It long since cleared Chrome Android's
-    // history-navigation trigger strip (EDGE_WIDTH_DP=48dp,
-    // NavigationHandler.java), which claimed edge strokes before the gesture
-    // layer could classify them ("页面直接返回上一页", 2026-08-29 user report).
-    // overscroll-behavior-x: none on the ROOT suppresses that browser gesture
-    // (only html/body count — Chromium issue 41483088); headless CDP cannot
-    // reproduce the gesture itself, so the computed style is the assertable
-    // contract here and the real-device feel needs a human pass.
+    // Drawer touch-action (key CSS line) + the root overscroll gate.
+    // The 45% START ZONE is gone as a gate (issue #268, 2026-11-07): with both
+    // panels shut, any start x may open the drawer and the DIRECTION picks the
+    // family, so there is no boundary left to assert one pixel either side of.
+    // What still has to hold is the CSS side: pan-y + pinch-zoom and no pan-x
+    // on the drawer (horizontal strokes must reach the gesture layer, and the
+    // iOS focus-zoom permission must survive), plus
+    // overscroll-behavior-x: none on the ROOT — it suppresses Chrome Android's
+    // edge history navigation, which claims edge strokes before the gesture
+    // layer can classify them ("页面直接返回上一页", 2026-08-29 user report;
+    // only html/body count, Chromium issue 41483088). headless CDP cannot
+    // reproduce the browser gesture itself, so the computed style is the
+    // assertable contract here and the real-device feel needs a human pass.
     const initial = await drawerState(client)
     // touch-action contract (updated by #45 zoom round): must contain pan-y
     // (horizontal pan stays blocked so the stroke reaches the gesture layer)
@@ -480,23 +475,24 @@ async function main() {
       `root=${initial.rootOverscrollX} body=${initial.bodyOverscrollX} (must be none: suppresses Chrome edge history navigation)`,
     )
 
-    // The boundary is derived from the same formula the client uses, so the
-    // probe tracks future ratio changes instead of hardcoding 176.
-    const zone = Math.round(initial.viewport.width * 0.45)
-    await touchSwipe(client, zone, 300, zone + 120, 300, 140, signal)
-    await waitDrawer(client, `start-zone x=${zone} opens`, config.timeoutMs, signal, true)
-    pass('swipe.start-zone-edge-opens', `x=${zone} open=true`)
+    // Issue #268 removed the 45% start zone: with both panels shut the family
+    // is chosen by direction at the axis lock, so a stroke may begin at ANY x
+    // — including the furthest point from the drawer's own edge, which the
+    // retired zone used to ignore.
+    const farX = initial.viewport.width - 130
+    await touchSwipe(client, farX, 300, farX + 120, 300, 140, signal)
+    const farOpen = await waitDrawer(client, `rightward from x=${farX} opens (no start zone)`, config.timeoutMs, signal, true)
+    check(
+      'swipe.start-anywhere-opens',
+      farOpen !== null && farOpen.collapsed === false,
+      `x=${farX} collapsed=${farOpen && farOpen.collapsed} (issue #268: the closed state starts a stroke anywhere)`,
+    )
     await sleep(500, signal)
-    // Close swipe starts inside the open drawer (~280px wide) and stays
-    // within the 390px probe viewport regardless of the zone size.
+    // Hand a CLOSED drawer to the follow block below (the open state owns both
+    // directions, so this rightward stroke closes it).
     await touchSwipe(client, 200, 300, 340, 300, 140, signal)
-    await waitDrawer(client, 'close for beyond-zone probe', config.timeoutMs, signal, false)
+    await waitDrawer(client, 'close after start-anywhere probe', config.timeoutMs, signal, false)
     await sleep(500, signal)
-    await touchSwipe(client, zone + 1, 300, zone + 121, 300, 140, signal)
-    await sleep(700, signal)
-    const beyondZone = await drawerState(client)
-    check('swipe.start-zone-beyond-ignored', beyondZone.collapsed === true, `x=${zone + 1} collapsed=${beyondZone.collapsed}`)
-
     // --- B 档 follow assertions (2026-08-29 controlled upgrade) ---
     // Only the CLOSE direction follows the finger. An open stroke must NOT
     // write any inline transform: the host mounts a different subtree for the
@@ -510,8 +506,7 @@ async function main() {
     // this viewport is beyond the left edge, so follow values are negative.
     const inlineTx = async () => {
       const r = await client.send('Runtime.evaluate', {
-        expression:
-          '(() => { const f = document.querySelector(\'[data-mobile-nav="frame"]\'); const d = f?.querySelector('[class*="_sidebarCol"]'); if (!d) return null; const r = d.getBoundingClientRect(); return JSON.stringify({ inline: d.style.transform, inlineT: d.style.transition, computed: getComputedStyle(d).transform, left: Math.round(r.left), width: Math.round(r.width), items: d.querySelectorAll(\'[role="treeitem"]\').length, collapsed: f.hasAttribute(\'data-sidebar-collapsed\') }) })()',
+        expression: `(() => { const f = document.querySelector('[data-mobile-nav="frame"]'); const d = f?.querySelector('[class*="_sidebarCol"]'); if (!d) return null; const r = d.getBoundingClientRect(); return JSON.stringify({ inline: d.style.transform, inlineT: d.style.transition, computed: getComputedStyle(d).transform, left: Math.round(r.left), width: Math.round(r.width), items: d.querySelectorAll('[role="treeitem"]').length, collapsed: f.hasAttribute('data-sidebar-collapsed') }) })()`,
         returnByValue: true,
       })
       return JSON.parse(r.result.value)
@@ -624,25 +619,24 @@ async function main() {
     // and the release had to creep the remainder (「停在我最终滑动的地方，
     // 之后消失」). The slot ARITHMETIC is pinned by the unit test
     // 「followTranslate: the close slot must be 110% of the OPEN drawer
-    // width」. On a 390px phone the 2026-09-13 narrowing leaves no legal
-    // start for a -280px drag: every x ≥ 214 (the files-zone boundary) is a
-    // files-family stroke that must not drag the drawer, and the deepest
-    // drawer-family start (x=213) yields at most -211px of travel. So this
-    // scene asserts the follow is ALIVE across the whole legal drag — the
-    // finger's full travel, no mid-drag freeze — and hands the slot math to
-    // the unit test.
-    const zonePx = Math.round(390 * 0.45)
-    const kStart = 390 - zonePx - 1
+    // width」. #268 removed the old 0.45 viewport split, so a stroke may start
+    // anywhere: this drag starts on the right half and travels ~270px, which
+    // the geometric zones could never reach (deepest legal start used to be
+    // x=213 → -211px). The follow must stay glued to the finger for the whole
+    // travel, so the assertion tracks it and leaves the slot math to the unit
+    // test.
+    const kStart = 360
+    const kEnd = 90
     await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touch(kStart, 300) })
     await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(kStart - 40, 300) })
     await sleep(40, signal)
-    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(2, 300) })
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touch(kEnd, 300) })
     await sleep(60, signal)
     const kFar = await inlineTx()
     check(
       'swipe.close-follow-reaches-slot',
-      computedTxOf(kFar.computed) <= -(kStart - 2) + 3,
-      `start=${kStart} computed=${kFar.computed} (the follow must track the finger's full travel from the deepest legal drawer-family start; slot math is pinned by the unit test)`,
+      computedTxOf(kFar.computed) <= -(kStart - kEnd) + 3,
+      `start=${kStart} end=${kEnd} computed=${kFar.computed} (the follow must track the finger's full travel; slot math is pinned by the unit test)`,
     )
     await client.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
     await sleep(450, signal)
@@ -703,21 +697,23 @@ async function main() {
     check('swipe.backdrop-single-reopen', reopen.backdropCount === 1, `count=${reopen.backdropCount}`)
     await sleep(500, signal)
 
-    // --- Checklist 4b: the zone beside the drawer belongs to the FILES
-    // gesture (2026-09-13 narrowing of the sixth-round anywhere-close).
-    // The drawer is open here. Leftward closes remain valid from INSIDE the
-    // drawer (drawer mode, anywhere-close), but a leftward stroke beside the
-    // drawer must NOT close it anymore (the files panel would mount under
-    // the drawer, z-1100, invisible). A RIGHTWARD stroke beside the drawer
-    // still closes it — the animated commitFollowClose path — and its
-    // synthetic click must not re-open it.
+    // --- Checklist 4b: an OPEN drawer owns EVERY stroke on screen (#268).
+    // The 2026-09-13 narrowing handed the right zone beside the drawer to the
+    // files gesture, whose leftward cell answers 'none' — so ~28% of the
+    // screen beside the open drawer was dead to the closing gesture. #268
+    // removed that split (user decision, 2026-11-07): mutual exclusion is
+    // already enforced inside classifyFilesSwipe's leftward cell, which
+    // refuses while the drawer is open, so the stroke can never mount the
+    // panel under the drawer. A leftward stroke therefore closes the drawer
+    // from inside its body AND from beside it.
     await touchSwipe(client, 200, 300, 60, 300, 140, signal) // leftward, inside the drawer
     const leftClosed = await waitDrawer(client, 'leftward close from inside the drawer', config.timeoutMs, signal, false)
     check('swipe.close-leftward-inside', leftClosed !== null, 'collapsed=true (pushing the drawer back into its slot must close it)')
     await sleep(500, signal)
-    // Reopen for the beside-the-drawer checks.
+    // Reopen and repeat the same stroke BESIDE the drawer (right edge + 40):
+    // this is the #268 regression — it used to be a silent no-op.
     await touchSwipe(client, 8, 300, 200, 300, 140, signal)
-    await waitDrawer(client, 'reopen for files-zone close checks', config.timeoutMs, signal, true)
+    await waitDrawer(client, 'reopen for beside-the-drawer close checks', config.timeoutMs, signal, true)
     await sleep(500, signal)
     const besideX = await client.evaluate(`(() => {
       const d = document.querySelector('[data-mobile-nav="frame"] [class*="_sidebarCol"]')
@@ -725,13 +721,20 @@ async function main() {
       return Math.round(d.getBoundingClientRect().right + 40)
     })()`)
     await touchSwipe(client, besideX, 300, besideX - 140, 300, 140, signal)
+    const besideLeft = await waitDrawer(client, 'leftward close from beside the drawer', config.timeoutMs, signal, false)
     await sleep(600, signal)
-    const besideLeft = await drawerState(client)
+    const afterBesideLeft = await drawerState(client)
     check(
-      'swipe.files-zone-leftward-keeps-drawer',
-      besideLeft.collapsed === false,
-      `startX=${besideX} collapsed=${besideLeft.collapsed} (a leftward stroke beside the drawer belongs to the files gesture and must not close the drawer)`,
+      'swipe.close-leftward-beside-drawer',
+      besideLeft !== null && afterBesideLeft.collapsed === true && afterBesideLeft.backdropCount === 0,
+      `startX=${besideX} collapsed=${afterBesideLeft.collapsed} backdrops=${afterBesideLeft.backdropCount} (issue #268: while the drawer is open a leftward stroke closes it from anywhere)`,
     )
+    // The rightward stroke beside the drawer still closes it — the open drawer
+    // owns both directions (the animated commitFollowClose path), and its
+    // synthetic click must not re-open it.
+    await touchSwipe(client, 8, 300, 200, 300, 140, signal)
+    await waitDrawer(client, 'reopen for right-zone close check', config.timeoutMs, signal, true)
+    await sleep(500, signal)
     await touchSwipe(client, besideX, 300, besideX + 140, 300, 100, signal)
     const rightClosed = await waitDrawer(client, 'right-zone rightward close', config.timeoutMs, signal, false)
     await sleep(600, signal)
@@ -746,29 +749,26 @@ async function main() {
     await waitDrawer(client, 'reopen after files-zone close checks', config.timeoutMs, signal, true)
     await sleep(500, signal)
 
-    // --- Checklist 4c: the drawer's own surface ends the files zone
-    // (2026-09-17 owner rule: the open-state judgment zone must reach the
-    // drawer's right edge). At 390px the viewport-relative files zone starts at
-    // x=214 while the drawer ends at 280, so x=265 sits inside BOTH: a leftward
-    // stroke there now belongs to the drawer family and must close the drawer
-    // (before the rule it answered a silent 'none', so the drawer's right
-    // sliver was dead to the finger). The control for the boundary stays in 4b:
-    // beside the drawer (right edge + 40) a leftward stroke must still keep it
-    // open - the files panel would mount under the drawer.
+    // --- Checklist 4c: the drawer's own right sliver closes it.
+    // The 2026-09-17 owner rule existed because the old 0.45 viewport zone
+    // claimed that sliver and answered 'none' — the drawer's right edge was
+    // dead to the finger. #268 subsumes the rule (every start x closes now),
+    // but the sliver is where the dead zone was reported, so it keeps its own
+    // anchor: the stroke must start on the drawer's OWN surface, not beside it.
     const band = await client.evaluate(`(() => {
       const frame = document.querySelector('[data-mobile-nav="frame"]')
       const drawer = frame && frame.querySelector('[class*="_sidebarCol"]')
       if (!drawer) return null
       return {
+        left: Math.round(drawer.getBoundingClientRect().left),
         right: Math.round(drawer.getBoundingClientRect().right),
-        zoneFrom: Math.round(window.innerWidth - window.innerWidth * 0.45),
       }
     })()`)
     const bandX = band === null ? 0 : band.right - 15
     check(
       'swipe.drawer-band-precondition',
-      band !== null && bandX >= band.zoneFrom && bandX < band.right,
-      `drawerRight=${band && band.right} filesZoneFrom=${band && band.zoneFrom} startX=${bandX} (the stroke must start inside BOTH the drawer body and the files zone)`,
+      band !== null && bandX > band.left && bandX < band.right,
+      `drawerLeft=${band && band.left} drawerRight=${band && band.right} startX=${bandX} (the stroke must start inside the drawer body)`,
     )
     await touchSwipe(client, bandX, 300, bandX - 140, 300, 140, signal)
     const bandClosed = await waitDrawer(client, 'leftward close from the drawer right band', config.timeoutMs, signal, false)

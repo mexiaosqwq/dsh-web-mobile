@@ -5,14 +5,12 @@ import {
   classifySwipe,
   classifyFilesSwipe,
   slidingVelocity,
-  hitTestStart,
   followTranslate,
   followOpenTransform,
   findHorizontalScroller,
-  filesZoneHit,
   openStateStartMode,
+  closedStateStrokeMode,
   selectionOwnsStroke,
-  startZonePxFor,
   filesPanelOpen,
   findFloatingWidget,
   type SwipeThresholds,
@@ -185,48 +183,6 @@ test('slidingVelocity: zero time span returns 0', () => {
     ),
     0,
   )
-})
-
-test('startZonePxFor: the zone is a viewport RATIO, not a fixed width', () => {
-  // 45% of the viewport, rounded to an integer so probe boundaries stay
-  // exact. The runtime recomputes this per stroke from the live viewport
-  // width — portrait/landscape/tablet all adapt with no per-device tuning.
-  assert.equal(startZonePxFor(390), 176, 'phone portrait 390px')
-  assert.equal(startZonePxFor(430), 194, 'large phone 430px')
-  assert.equal(startZonePxFor(768), 346, 'tablet 768px')
-  assert.equal(startZonePxFor(1023), 460, 'upper breakpoint 1023px')
-  assert.equal(startZonePxFor(400, 0.25), 100, 'ratio is injectable for tests')
-  assert.equal(startZonePxFor(0), 0)
-})
-
-test('hitTestStart: inside / outside the left start zone (45% of 390 = 176px)', () => {
-  const t = { startZonePx: startZonePxFor(390) }
-  // The inclusive boundary contract (`edge <= startZonePx`), pinned at the
-  // adaptive zone width. Chrome Android's 48dp history-navigation band and
-  // the WebKit ~40px guard precedent sit far inside the zone.
-  assert.equal(hitTestStart(0, 390, false, t), true)
-  assert.equal(hitTestStart(48, 390, false, t), true, 'Chrome edge band (48dp) fully covered')
-  assert.equal(hitTestStart(175, 390, false, t), true)
-  assert.equal(hitTestStart(176, 390, false, t), true, 'Math.round(390*0.45) = 176, inclusive')
-  assert.equal(hitTestStart(177, 390, false, t), false)
-  assert.equal(hitTestStart(389, 390, false, t), false)
-})
-
-test('hitTestStart: RTL mirrors to the right edge (176px)', () => {
-  const t = { startZonePx: startZonePxFor(390) }
-  assert.equal(hitTestStart(389, 390, true, t), true)
-  assert.equal(hitTestStart(214, 390, true, t), true, 'edge = 390-214 = 176, inclusive')
-  assert.equal(hitTestStart(213, 390, true, t), false, 'edge = 177, beyond the zone')
-})
-
-test('hitTestStart: viewport edge bounds', () => {
-  const t = { startZonePx: startZonePxFor(390) }
-  assert.equal(hitTestStart(-1, 390, false, t), false)
-  assert.equal(hitTestStart(390, 390, false, t), false)
-  // RTL mirrors: x=390 is the logical left edge (edge = 390-390 = 0 → in zone)
-  assert.equal(hitTestStart(390, 390, true, t), true)
-  // Negative clientX in RTL is off the right side → never in the zone
-  assert.equal(hitTestStart(-1, 390, true, t), false)
 })
 
 // --- followTranslate (B 档 follow mapping, C3 hybrid) ---
@@ -572,21 +528,6 @@ function filesClassify(
   return classifyFilesSwipe(t, m, rtl)
 }
 
-test('filesZoneHit: right-edge zone boundaries (LTR)', () => {
-  const zone = 176 // startZonePxFor(390, 0.45)
-  assert.equal(filesZoneHit(390, 390, false, zone), true) // edge 0
-  assert.equal(filesZoneHit(389, 390, false, zone), true) // edge 1
-  assert.equal(filesZoneHit(214, 390, false, zone), true) // edge 176 = zone
-  assert.equal(filesZoneHit(213, 390, false, zone), false) // edge 177
-})
-
-test('filesZoneHit: RTL mirrors to the LEFT edge', () => {
-  const zone = 176
-  assert.equal(filesZoneHit(0, 390, true, zone), true) // edge 0
-  assert.equal(filesZoneHit(176, 390, true, zone), true) // edge 176
-  assert.equal(filesZoneHit(177, 390, true, zone), false) // edge 177
-})
-
 test('classifyFilesSwipe: lock slop + axis dominance', () => {
   assert.equal(filesClassify({ dx: 7, dy: 0 }), 'none')
   assert.equal(filesClassify({ dx: -7, dy: 0 }), 'none')
@@ -660,16 +601,46 @@ test('classifyFilesSwipe: RTL mirrors the directions', () => {
   assert.equal(filesClassify({ dx: -120, dy: 0 }, true), 'none') // rtl rightward, everything closed
 })
 
-test('openStateStartMode: the drawer body always owns its stroke', () => {
-  // At 390px the viewport-ratio files zone (45% from the right = x >= 214)
-  // overlaps the 280px drawer by 66px. The owner's rule (2026-09-17): touching
-  // the drawer and dragging left must close it, so inside the body the drawer
-  // family always wins; outside the body the files zone keeps its routing and
-  // its deliberate leftward 'none' verdict (2026-09-13 narrowing).
-  assert.equal(openStateStartMode(true, true), 'drawer')
-  assert.equal(openStateStartMode(true, false), 'drawer')
+test('openStateStartMode: an OPEN drawer owns every stroke on screen', () => {
+  // Owner's rule (2026-09-17), widened to the whole viewport by issue #268:
+  // while the drawer is up, a leftward drag anywhere closes it.
+  assert.equal(openStateStartMode(true, false), 'drawer', 'drawer alone')
+  // The drawer's column paints above the files panel, so a drawer that sits on
+  // top of an open panel still owns the stroke (else its ~28% beside the body
+  // would stop closing it).
+  assert.equal(openStateStartMode(true, true), 'drawer', 'drawer on top of the panel')
+})
+
+test('openStateStartMode: an OPEN files panel owns the stroke wherever it starts', () => {
+  // issue #268: the panel is full-screen, so it has to be closable from either
+  // half. Routing it to the drawer family on the left half sent the stroke to
+  // classifySwipe's closed-drawer cell, which answers 'none' to a leftward drag
+  // — the panel opened but could not be swiped shut. The family must stay
+  // `files` so classifyFilesSwipe judges it (rightward close, leftward inert).
   assert.equal(openStateStartMode(false, true), 'files')
-  assert.equal(openStateStartMode(false, false), 'drawer')
+})
+
+test('closedStateStrokeMode: direction picks the family, anywhere on screen', () => {
+  // issue #268: the closed state no longer splits the viewport into two
+  // geometric zones. The direction each classifier already enforces becomes
+  // the only gate, so a stroke may start at ANY x.
+  assert.equal(closedStateStrokeMode(true), 'drawer', 'rightward opens the drawer')
+  assert.equal(closedStateStrokeMode(false), 'files', 'leftward opens the files panel')
+})
+
+test('closedStateStrokeMode: each family then refuses the direction it does not own', () => {
+  // Route the axis-lock decision through the classifier it hands the stroke to:
+  // the routing must never produce a verdict the family itself forbids.
+  const right = { dx: 120, dy: 0, velX: 0.6 }
+  const left = { dx: -120, dy: 0, velX: -0.6 }
+  assert.equal(closedStateStrokeMode(true), 'drawer')
+  assert.equal(classify(right), 'open')
+  assert.equal(closedStateStrokeMode(false), 'files')
+  assert.equal(filesClassify(left), 'files')
+  // …and the directions the routing did NOT pick are refused by the family, so
+  // a stale marker cannot turn the same stroke into a toggle.
+  assert.equal(classify(left), 'none')
+  assert.equal(filesClassify(right), 'none')
 })
 
 test('the close commit only forces a reflow when a finger wrote the start position', () => {

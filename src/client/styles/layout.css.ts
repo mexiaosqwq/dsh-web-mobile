@@ -29,9 +29,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
        opens the drawer ("页面直接返回上一页", 2026-08-29 user report). Only
        html/body count for this (Chromium issue 41483088: inner containers
        are ignored by the navigation path). iOS Safari's edge back-swipe has
-       no CSS opt-out (WebKit bug 240183) — there the widened gesture start
-       zone (START_ZONE_RATIO 0.45 of the viewport width, ~176px at 390px,
-       past every browser's edge-claim strip) is the mitigation.
+       no CSS opt-out (WebKit bug 240183) — there the mitigation is the
+       gesture layer's own rule: a drawer stroke is a RIGHTWARD drag, the
+       opposite direction of the edge-back swipe, and since issue #268 a
+       stroke may start at any x (no start zone to dodge the edge strip).
      - With the client's viewport-fit=cover, env(safe-area-inset-top) is the
        status bar / notch height; the rules below push the app content below
        it so the status bar never covers anything. Off notched phones (or in
@@ -259,10 +260,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      drawer lets horizontal pointermove events reach the gesture code —
      WITHOUT it the browser treats a horizontal stroke as a pan, fires
      pointercancel and the gesture never classifies (vertical panning stays
-     intact). Start-hit is decided purely by geometry on the document
-     capture listener (START_ZONE_RATIO = 0.45 of the viewport width, ~176px
-     at 390px); there is no hotspot element (removed per audit C2,
-     2026-08-27). pinch-zoom rides along with the
+     intact). Start-hit lives in the gesture layer alone — no hotspot element
+     (removed per audit C2, 2026-08-27) and, since issue #268, no geometric
+     start zone either: the closed state may start a stroke anywhere and the
+     DIRECTION picks the family. pinch-zoom rides along with the
      root value so a browser-applied zoom stays undoable inside the drawer
      too (#45); touch-action intersects down the ancestor chain, so a bare
      pan-y here would cancel the root's pinch permission. */
