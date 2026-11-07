@@ -423,7 +423,7 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
      matches this rule too since the 2026-09-24 centered rework (its direct
      child card carries role=dialog) — harmlessly: it sets the same 1400 the
      dedicated rule below sets. */
-  body:has([data-mobile-nav="backdrop"])
+  body:has([data-mobile-nav="backdrop"][data-active])
     > div:has(> [role="dialog"][aria-modal="true"]) {
     z-index: 1400 !important;
   }
@@ -597,21 +597,41 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
    layers up to that band; the backdrop must sit above the host stack
    (below the drawer's 1300) so the dim covers the content area on every
    host generation. Keep in sync with the drawer z in layout.css.ts. */
-[data-mobile-nav="backdrop"] {
+/* Drawer dim, painted by the frame's own pseudo-element.
+   Device-only report (2026-11-08): tapping the blank area to close flashed the
+   right side bright, from the second open/close cycle on. Bisect: no overlay
+   task → no flash; any full-screen element that paints (or even just
+   hit-tests with an interactive role) → flash. A ::after on the frame lives in
+   the frame's existing paint tree, so there is no extra composited full-screen
+   layer to be re-rastered when the drawer animates. The dim only animates
+   opacity with fixed geometry, which the device compositor cannot flash. */
+html [data-mobile-nav="frame"]::after {
+  content: "";
   position: absolute;
   inset: 0;
   z-index: 1250;
   background: rgba(0, 0, 0, .45);
-  cursor: pointer;
-  /* 时长与缓动同抽屉列（layout.css.ts 的 sidebarCol「transition: transform .28s
-     var(--ds-ease-in-out, ease-in-out)」，手机与平板同一条；手势提交 COMMIT_ANIM_MS 280 也是它）：
-     遮罩与抽屉同起同落，不再先暗完、抽屉还在滑（2026-11-05 对齐，原为 .2s）。 */
-  animation: dsh-web-mobile-fade .28s var(--ds-ease-in-out, ease-in-out);
-  /* Fade-out twin of the mount animation: the task eases the dimming away
-     (inline opacity 0 + pointer-events none) and removes the element after
-     the fade. Also used by the gesture layer so the backdrop fades in step
-     with a close-follow commit's slide-out. */
+  opacity: 0;
   transition: opacity .28s var(--ds-ease-in-out, ease-in-out);
+  pointer-events: none;
+}
+html [data-mobile-nav="frame"][data-mobile-nav-dim="1"]::after {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  html [data-mobile-nav="frame"]::after {
+    transition: none;
+  }
+}
+/* Hit target only: paints nothing, no interactive role/aria, no animation.
+   The dim comes from the frame's ::after. */
+[data-mobile-nav="backdrop"] {
+  position: absolute;
+  inset: 0;
+  z-index: 1250;
+  background: transparent !important;
+  cursor: pointer;
+  transition: none !important;
   -webkit-tap-highlight-color: transparent;
 }
 @keyframes dsh-web-mobile-fade {

@@ -51,18 +51,46 @@ export function createOverlayTask(
   toggleSidebar: () => void,
   panelExit: PanelExit | null,
 ): ReconcilerTask {
-  let backdrop: HTMLDivElement | null = null
   let fab: HTMLButtonElement | null = null
-  let backdropRemoveTimer: number | null = null
-  /** True while the backdrop carries our inline faded state. Guards the
-   * restore branch: while a late close commit is animating, the marker is
-   * STILL open, so a plain open-branch restore would undo the pre-fade. */
-  let faded = false
-  /** Pending confirm of an optimistic mount (showNow); while armed the
-   * closed branch leaves the backdrop alone — the host commit may simply not
-   * have landed yet. Cleared when the open state is seen or the timer fires. */
+  /**
+   * Persistent click catcher. It paints nothing and carries no interactive
+   * role/aria on purpose: the dim is painted by the frame's own ::after (same
+   * paint tree as the conversation, no separate full-screen layer). When this
+   * element carried role="button", the device browser treated the full-screen
+   * surface as a pressed button — the "tap the blank area → the right side
+   * flashes bright" report (2026-11-08, device-only).
+   */
+  let backdrop: HTMLDivElement | null = null
+  /** Pending confirm of an optimistic dim (showNow); while armed the closed
+   * branch leaves the dim alone — the host commit may simply not have landed. */
   let openConfirmTimer: number | null = null
+  /** Releases [data-active] after the close fade so presence-gated CSS never
+   * flips in the same recalculation that starts the dim change. */
+  let activeReleaseTimer: number | null = null
   let removeOpeningHook: (() => void) | null = null
+
+  const ensureCatcher = (frame: HTMLElement): HTMLDivElement => {
+    if (backdrop === null) {
+      backdrop = document.createElement('div')
+      backdrop.dataset.mobileNav = 'backdrop'
+      backdrop.setAttribute('aria-hidden', 'true')
+      backdrop.style.pointerEvents = 'none'
+      frame.appendChild(backdrop)
+    }
+    return backdrop
+  }
+
+  const setDim = (frame: HTMLElement, on: boolean): void => {
+    frame.setAttribute('data-mobile-nav-dim', on ? '1' : '0')
+  }
+
+  const releaseActiveAfter = (ms: number): void => {
+    if (activeReleaseTimer !== null) window.clearTimeout(activeReleaseTimer)
+    activeReleaseTimer = window.setTimeout(() => {
+      activeReleaseTimer = null
+      delete backdrop?.dataset.active
+    }, ms)
+  }
   const drawerOpen = (): boolean => {
     const frame = getFrame()
     if (frame === null) return false
@@ -117,40 +145,19 @@ export function createOverlayTask(
     fab.title = label
     fab.innerHTML = onPanel ? FAB_BACK_ICON : FAB_DRAWER_ICON
   }
-  const mountBackdrop = (frame: HTMLElement): void => {
-    if (backdrop === null) {
-      backdrop = document.createElement('div')
-      backdrop.dataset.mobileNav = 'backdrop'
-      backdrop.setAttribute('role', 'button')
-      backdrop.setAttribute('aria-label', t('backdrop'))
-      // No element-level click listener: phone-chrome's capture-phase click
-      // handler owns the backdrop tap. The third-party mobile shim stops
-      // click propagation at the frame for anything outside the drawer, so
-      // a listener down here never sees the tap (2026-09-14).
-      frame.appendChild(backdrop)
-      faded = false
-    } else if (faded && backdropRemoveTimer !== null) {
-      // Quick close→reopen inside the fade window: cancel the pending
-      // removal and let the CSS transition ease the dimming back in.
-      window.clearTimeout(backdropRemoveTimer)
-      backdropRemoveTimer = null
-      faded = false
-      backdrop.style.removeProperty('pointer-events')
-      backdrop.style.removeProperty('opacity')
-    }
-  }
   /**
    * Opening hook (platform/drawer-open.ts, drawer-jank R3): every opener calls
-   * it right before flipping the host, so the backdrop is appended in the same
-   * task as the open commit — one mutation batch, one reconciler flush, and the
-   * dim starts on the drawer's first frame instead of one rAF later. The next
-   * ensure() stays the source of truth: it keeps the backdrop once the frame
-   * reads open, and fades it (after OPEN_CONFIRM_MS) if the open never landed.
+   * it right before flipping the host, so the dim starts on the drawer's first
+   * frame. Unlike the old optimistic mount this only flips the frame marker —
+   * no element is inserted and no full-screen layer is created on the open
+   * frame (that insertion was the device flash). The next ensure() stays the
+   * source of truth and fades the dim back if the open never landed.
    */
   const showNow = (): void => {
     const frame = getFrame()
     if (frame === null || !frame.hasAttribute('data-sidebar-collapsed')) return
-    mountBackdrop(frame)
+    ensureCatcher(frame)
+    setDim(frame, true)
     if (openConfirmTimer !== null) window.clearTimeout(openConfirmTimer)
     openConfirmTimer = window.setTimeout(() => {
       openConfirmTimer = null
@@ -164,30 +171,34 @@ export function createOverlayTask(
     // body stayed null from the first breakpoint flip onwards, silently
     // killing the backdrop fade.
     fadeHook = (): void => {
-      if (backdrop === null) return
-      faded = true
-      backdrop.style.pointerEvents = 'none'
-      backdrop.style.opacity = '0'
+      const frame = getFrame()
+      if (frame !== null) setDim(frame, false)
+      if (backdrop !== null) backdrop.style.pointerEvents = 'none'
+      releaseActiveAfter(BACKDROP_FADE_MS)
     }
     removeOpeningHook ??= onDrawerOpening(showNow)
     const frame = getFrame()
     if (frame === null) return
+    const catcher = ensureCatcher(frame)
     if (drawerOpen()) {
       if (openConfirmTimer !== null) {
         window.clearTimeout(openConfirmTimer)
         openConfirmTimer = null
       }
-      mountBackdrop(frame)
-    } else if (backdrop !== null && openConfirmTimer === null) {
-      backdrop.style.pointerEvents = 'none'
-      backdrop.style.opacity = '0'
-      faded = true
-      if (backdropRemoveTimer === null) {
-        backdropRemoveTimer = window.setTimeout(() => {
-          backdropRemoveTimer = null
-          backdrop?.remove()
-          backdrop = null
-        }, BACKDROP_FADE_MS + 60)
+      if (activeReleaseTimer !== null) {
+        window.clearTimeout(activeReleaseTimer)
+        activeReleaseTimer = null
+      }
+      setDim(frame, true)
+      catcher.dataset.active = ''
+      catcher.style.pointerEvents = 'auto'
+    } else if (openConfirmTimer === null) {
+      // Fade the dim out (geometry-static opacity transition on the frame's
+      // ::after) and release the presence-gated band once it has landed.
+      setDim(frame, false)
+      if (catcher.style.pointerEvents !== 'none') {
+        catcher.style.pointerEvents = 'none'
+        releaseActiveAfter(BACKDROP_FADE_MS)
       }
     }
     /**
@@ -215,17 +226,18 @@ export function createOverlayTask(
     scopes: ['*', 'data-sidebar-collapsed', 'data-phase'],
     ensure: sync,
     dispose: () => {
-      if (backdropRemoveTimer !== null) {
-        window.clearTimeout(backdropRemoveTimer)
-        backdropRemoveTimer = null
-      }
       if (openConfirmTimer !== null) {
         window.clearTimeout(openConfirmTimer)
         openConfirmTimer = null
       }
+      if (activeReleaseTimer !== null) {
+        window.clearTimeout(activeReleaseTimer)
+        activeReleaseTimer = null
+      }
       removeOpeningHook?.()
       removeOpeningHook = null
       fadeHook = null
+      getFrame()?.removeAttribute('data-mobile-nav-dim')
       backdrop?.remove()
       backdrop = null
       fab?.remove()

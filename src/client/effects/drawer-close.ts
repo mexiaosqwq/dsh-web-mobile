@@ -218,7 +218,11 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       // (its own dismiss path), so that listener never sees the tap. Decide
       // here instead — before both the shim and the element handler.
       if (target instanceof Element && target.closest('[data-mobile-nav="backdrop"]') !== null) {
-        if (drawerOpen()) toggleSidebar()
+        // Plain host toggle, the same path as the drawer's own button: the
+        // animated late-commit closer is the one that flashed on device while
+        // this one never did (2026-11-08). The host's CSS transition still
+        // animates the slide-out.
+        if (drawerOpen()) ctx.layout.toggleSidebar()
         return
       }
       // DSHA detail=0 follows the host's keyboard/programmatic open path.

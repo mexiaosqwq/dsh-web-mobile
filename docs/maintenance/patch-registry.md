@@ -55,7 +55,7 @@
 | `src/client/styles/layout.css.ts` | 524 | 603 | 298 |
 | `src/client/styles/compat.css.ts` | 387 | 112 | 23 |
 | `src/client/styles/misc.css.ts` | 99 | 56 | 34 |
-| `src/client/styles/base.css.ts` | 18 | 8 | 12 |
+| `src/client/styles/base.css.ts` | 20 | 8 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
 | `src/client/effects/sidebar-swipe.ts` | 2 | 1 | 0 |
@@ -79,6 +79,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1037** | **866** | **371** |
+| **合计** | **1039** | **866** | **371** |
 
 <!-- END:inventory -->

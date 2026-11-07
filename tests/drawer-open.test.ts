@@ -212,32 +212,30 @@ async function overlayHarness() {
   return { env, frame, task, backdrops }
 }
 
-test('opening hook appends the backdrop synchronously, before the host commit', async () => {
+test('the opening hook starts the dim synchronously, before the host commit', async () => {
   const { env, frame, task, backdrops } = await overlayHarness()
-  assert.equal(backdrops().length, 0)
+  assert.equal(backdrops().length, 1, 'the catcher is mounted once and stays')
+  assert.equal(frame.getAttribute('data-mobile-nav-dim'), '0', 'closed state has no dim')
   mod.drawerOpening()
-  assert.equal(backdrops().length, 1, 'mounted in the same task as the opener')
-  // The host commit lands: the next ensure keeps the same node and disarms the confirm.
+  assert.equal(frame.getAttribute('data-mobile-nav-dim'), '1', 'dim starts in the opener task')
+  // The host commit lands: the next ensure keeps the dim and disarms the confirm.
   frame.removeAttribute('data-sidebar-collapsed')
   task.ensure()
-  assert.equal(backdrops().length, 1)
+  assert.equal(frame.getAttribute('data-mobile-nav-dim'), '1')
   assert.equal(env.timers.size, 0, 'confirm timer cleared once the open state is seen')
   task.dispose()
   assert.equal(backdrops().length, 0)
+  assert.equal(frame.getAttribute('data-mobile-nav-dim'), null, 'dispose clears the marker')
 })
 
-test('an ensure that runs before the commit lands does not fade the optimistic backdrop', async () => {
-  const { env, task, backdrops } = await overlayHarness()
+test('an ensure before the commit lands keeps the optimistic dim in the confirm window', async () => {
+  const { env, frame, task } = await overlayHarness()
   mod.drawerOpening()
   task.ensure() // frame still reads collapsed
-  const node = backdrops()[0]
-  assert.ok(node !== undefined)
-  assert.equal(node.style.props.get('opacity'), undefined, 'not faded inside the confirm window')
+  assert.equal(frame.getAttribute('data-mobile-nav-dim'), '1', 'not faded inside the confirm window')
   // The open never lands: when the confirm window ends, the closed branch fades it.
   advance(env, 120)
-  assert.equal(node.style.props.get('opacity'), '0')
-  advance(env, 340)
-  assert.equal(backdrops().length, 0, 'removed after the .28s fade + 60ms')
+  assert.equal(frame.getAttribute('data-mobile-nav-dim'), '0')
   task.dispose()
 })
 
@@ -245,7 +243,7 @@ test('opening hook is a no-op while the drawer already reads open', async () => 
   const { frame, task, backdrops } = await overlayHarness()
   frame.removeAttribute('data-sidebar-collapsed')
   mod.drawerOpening()
-  assert.equal(backdrops().length, 0)
+  assert.equal(frame.getAttribute('data-mobile-nav-dim'), '0', 'the no-op hook writes no dim')
   task.dispose()
   mod.drawerOpening()
   assert.equal(backdrops().length, 0, 'dispose unregisters the hook')

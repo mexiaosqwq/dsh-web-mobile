@@ -591,8 +591,9 @@ test('settings sheet: the :is() family predicate keeps its shape (specificity co
   assert.ok(count >= 10, `settings :is() predicate still used by the whole block (found ${count})`)
 })
 
-// 抽屉遮罩与抽屉列同时长、同缓动（2026-11-05）；reduced-motion 下两者都无动画。
-test('drawer backdrop fades with the drawer column: same duration, same easing, both off under reduced motion', () => {
+// 抽屉暗层与抽屉列同时长、同缓动（2026-11-08：暗层改由 frame 的 ::after 绘制，
+// 只做几何静止的 opacity 过渡；遮罩元素退化为无动画的透明命中层）。
+test('drawer dim fades with the drawer column: same duration, same easing, off under reduced motion', () => {
   const layout = scopedRules(LAYOUT_CSS)
   const base = scopedRules(BASE_CSS)
   const COL = '[data-mobile-nav="frame"] > [class*="_sidebarCol"]'
@@ -601,12 +602,17 @@ test('drawer backdrop fades with the drawer column: same duration, same easing, 
   const m = /transition:\s*transform\s+([\d.]+m?s)\s+(var\([^;]+\))/.exec(col.body)
   assert.ok(m, `drawer transition parsable: ${col.body}`)
   const [, duration, easing] = m
-  const bd = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.length === 0)
-  assert.ok(bd, 'backdrop base rule present')
-  assert.ok(bd.body.includes(`animation: dsh-web-mobile-fade ${duration} ${easing}`), `backdrop fade-in must be ${duration} ${easing}: ${bd.body}`)
-  assert.ok(bd.body.includes(`transition: opacity ${duration} ${easing}`), `backdrop fade-out must be ${duration} ${easing}`)
-  const rmBackdrop = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
-  assert.ok(rmBackdrop && /animation:\s*none !important/.test(rmBackdrop.body) && /transition:\s*none !important/.test(rmBackdrop.body))
+  const dim = base.find((r) => r.selector === 'html [data-mobile-nav="frame"]::after' && r.media.length === 0)
+  assert.ok(dim, 'frame ::after dim rule present')
+  assert.ok(dim.body.includes(`transition: opacity ${duration} ${easing}`), `dim fade must be ${duration} ${easing}: ${dim.body}`)
+  assert.ok(dim.body.includes('background: rgba(0, 0, 0, .45)'), 'the dim colour lives on the ::after')
+  assert.ok(dim.body.includes('pointer-events: none'), 'the ::after never takes hits')
+  const backdrop = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.length === 0)
+  assert.ok(backdrop, 'backdrop hit-target rule present')
+  assert.ok(/transition:\s*none !important/.test(backdrop.body), 'the hit target itself must not animate')
+  assert.doesNotMatch(backdrop.body, /animation:/, 'the hit target must not carry the old mount animation')
+  const rmDim = base.find((r) => r.selector === 'html [data-mobile-nav="frame"]::after' && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
+  assert.ok(rmDim && /transition:\s*none/.test(rmDim.body), 'the dim has no transition under reduced motion')
   const rmCol = layout.find((r) => r.selector === COL && r.media.some((x) => x.includes('prefers-reduced-motion: reduce')))
   assert.ok(rmCol && /transition:\s*none !important/.test(rmCol.body), 'drawer column has no transition under reduced motion')
 })
