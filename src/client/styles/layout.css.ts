@@ -2533,8 +2533,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     padding-left: 0 !important;
     margin-left: 0 !important;
     box-sizing: border-box !important;
-    /* 页首是 flex-wrap 容器：若允许换行，工具栏会被挤到第二行（第三版翻车点）。 */
-    flex-wrap: nowrap !important;
+    /* 不再禁止换行（2026-11-06）：这条曾是「一行内排」的 nowrap 落点，与手机档
+       那两条 heading/toolbar 压缩规则配套。真机改判「太密」后整组撤销，页首交还
+       宿主的 @container (width<600px) 排版 —— 见下方 plugin-panel-head-left-align
+       补丁块里的撤销记录。 */
     /* 滚动时页首要有实底，正文从它底下滑过时不至于透出来像浮层。 */
     background: var(--dsw-alias-bg-layer-1, #fff) !important;
   }
@@ -2572,7 +2574,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      同日按店主参考图再落一档：页首必须「一行内排」——标题+说明在左、刷新键与
      添加插件按钮在右。宿主 pageHead 是 flex-wrap:wrap，这一步直接禁止换行、让
      heading 可收缩（min-width:0），工具栏 flex:0 0 auto + margin-left:auto 贴右；
-     说明文字过长时在左列内换行，不再把工具栏挤到第二行。 */
+     说明文字过长时在左列内换行，不再把工具栏挤到第二行。
+     **2026-11-06 撤销该「一行内排」（店主：「感觉还是太密了」）**。撤销时复核到
+     这组规则在 0.2.2 上已经**不再按设计生效**（这是撤销的根据，不是猜测）：
+       ① 页首搬家 —— 0.2.2 把 header.pageHead 收进了 div.pageBar，所以原先那条
+          「> [class*="_pageHead"]」（子代组合器）命中数 = 0，nowrap/gap/align-items
+          全部落空；
+       ② 「_pageHeading」在本代是 display:contents（宿主 [data-natural] 规则），
+          不生成盒子 —— 挂在它身上的 flex:1 1 auto / min-width:0 是空操作。
+     也就是说剩下的只有「header 上一条 nowrap + toolbar 贴右」在起作用，而它换来
+     的是标题与说明被压到同一行的窄列里。宿主自己的 @container (width<600px)
+     本来就排好了手机版（实测 390px：标题 286px 单行、说明单行 20px 高、
+     工具栏与页签条同在第二行 y≈125）—— 交还宿主即可。 */
   /* @patch
      id: plugin-panel-head-left-align
      for: dsh-client-ui-plugin-manager 0.2.1-rc.2 的 section[data-plugin-panel] 页首（_pageHead / _pageHeading / h1 三层）
@@ -2581,27 +2594,14 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      test: tests/css-rules.test.ts
   */
   @media (max-width: 767px) and (pointer: coarse) {
-    /* 一行内排：标题 + 说明在左、工具栏（刷新 + 添加插件）在右（2026-10-20 店主参考图）。
-       宿主 pageHead 自己是 flex-wrap:wrap + space-between；内容宽 300 出头时
-       heading(≈154) + gap16 + toolbar(≈172) 放不下一行，就折成三行堆叠。
-       这里禁止换行、把 heading 让成可收缩的 flex 项（min-width:0 才能压到内容宽），
-       toolbar 保持自身宽度贴右；说明过长时在左列内换行，不再把工具栏挤下去。 */
-    [data-mobile-nav="frame"] section[data-plugin-panel] > [class*="_pageHead"] {
-      --dsh-web-mobile-panel-clearance: calc(60px - clamp(24px, 4vw, 48px));
-      flex-wrap: nowrap !important;
-      align-items: flex-start !important;
-      gap: 8px !important;
-    }
-    [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"] {
-      flex: 1 1 auto !important;
-      min-width: 0 !important;
-      margin-left: 0 !important;
-      width: auto !important;
-    }
-    [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_toolbar"] {
-      flex: 0 0 auto !important;
-      margin-left: auto !important;
-    }
+    /* 页首回到宿主自己的手机排版（2026-11-06 店主「还是太密了」）。
+       本块原先有三条压缩规则（nowrap + heading flex:1 1 auto + toolbar
+       flex:0 0 auto/margin-left:auto），撤销理由与失效证据见上方
+       plugin-panel-head-left-align 补丁块的注释（两条选择器在本代宿主上已落空，
+       剩下的 nowrap 只把标题和说明压窄）。
+       宿主自带 @container (width<600px)：标题+说明占满一行、工具栏与 tab 条
+       第二行，本来就是这个页面在手机上的正确形态——不再插手。
+       唯一保留：h1 的 FAB 让位归零（标题已在返回键下方，见上一条 padding-top）。 */
     [data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"] > h1 {
       margin-left: 0 !important;
     }

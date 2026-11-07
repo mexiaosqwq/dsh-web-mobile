@@ -23,7 +23,7 @@
 | `ofm-mobile-cost-ceiling` | src/client/styles/compat.css.ts:1248 | dsh-our-free-model 2.0.0 的 ofm_ 私有类名（毛玻璃表面 + 极光层 + 装饰动画） | 上游自己给手机档出成本降级（或拿掉极光层与 blur 表面）——届时本块整节删除 | `tests/our-free-model-cost.test.ts` |
 | `ofm-toast-above-drawer` | src/client/styles/compat.css.ts:1317 | dsh-our-free-model 2.0.0 的 .ofm_toasts（公告 toast，portal 到 document.body） | 上游把 toast 抬到宿主弹层之上（1400+）或宿主提供官方通知层 —— 届时本块删除 | `tests/our-free-model-toast-layer.test.ts` |
 | `pet-hidden-under-sheets` | src/client/styles/compat.css.ts:562 | dsh-pet 0.3.x 的 .dsh-pet-root（slot shell.overlay）+ 老代际 _float/_sprite 根节点 | 宠物插件提供「背景 inert 时自行收起」的接缝，或稳定暴露一个语义标记——届时合并本块 | `tests/pet-overlay.test.ts` |
-| `plugin-panel-head-left-align` | src/client/styles/layout.css.ts:2576 | dsh-client-ui-plugin-manager 0.2.1-rc.2 的 section[data-plugin-panel] 页首（_pageHead / _pageHeading / h1 三层） | 宿主给页首容器独立标记，或页首不再需要给 FAB 让位，届时删本块 | `tests/css-rules.test.ts` |
+| `plugin-panel-head-left-align` | src/client/styles/layout.css.ts:2589 | dsh-client-ui-plugin-manager 0.2.1-rc.2 的 section[data-plugin-panel] 页首（_pageHead / _pageHeading / h1 三层） | 宿主给页首容器独立标记，或页首不再需要给 FAB 让位，届时删本块 | `tests/css-rules.test.ts` |
 | `plugin-panel-subpage-back` | src/client/effects/panel-exit.ts:103 | 0.1.6-alpha.2 宿主的插件管理页子页：列表「更多」头的 button class 含 _moreBack，三种详情根（data-plugin-detail / data-plugin-item-detail / data-plugin-row-detail）里的 crumb button class 含 _crumb | 宿主把面板子页的返回暴露成 ctx.layout / panel 服务上的公开动作，或子页自己进 history | `tests/panel-exit-animation.test.ts` |
 | `preset-invisible-capsule` | src/client/styles/layout.css.ts:1836 | 宿主 SVAs4q_label 智能体预设 chip 的外包裹层 | 宿主给预设 chip 自身加上左右内边距（本外壳与 margin 一并删） | `tests/a2-header-gating.test.ts` |
 | `question-card-single-scroll` | src/client/styles/layout.css.ts:3088 | dsh-client-ui-user-questions 的 QuestionComposer（Mbwy4a_card > header + body + footer； | 宿主让 header 参与滚动或自己给长问题限高 | `tests/question-fullscreen.test.ts` |
@@ -51,7 +51,7 @@
 
 | 模块 | `!important` | 哈希子串选择器 | `:has(` |
 | --- | --- | --- | --- |
-| `src/client/styles/layout.css.ts` | 520 | 599 | 293 |
+| `src/client/styles/layout.css.ts` | 510 | 597 | 293 |
 | `src/client/styles/compat.css.ts` | 387 | 112 | 23 |
 | `src/client/styles/misc.css.ts` | 100 | 60 | 36 |
 | `src/client/styles/base.css.ts` | 18 | 8 | 12 |
@@ -78,6 +78,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1034** | **866** | **368** |
+| **合计** | **1024** | **864** | **368** |
 
 <!-- END:inventory -->
