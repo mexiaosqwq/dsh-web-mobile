@@ -13,7 +13,8 @@
 //      only host states (none / translateX(-110%)) — NO plugin inline write;
 //   2. content swipe-out closes;
 //   3. aria-modal open → gestures inert, modal clicks pass through;
-//   4. backdrop count stays exactly 1 across open→close→open;
+//   4. the catcher stays a single element across open→close→open while the dim's
+//      [data-active] follows the drawer state (the element itself is persistent);
 //   5. post-gesture zero side effects (no FAB/backdrop second click, no
 //      session switch);
 //   6. desktop ≥1024px: no mobile DOM, no listener side effects;
@@ -286,11 +287,13 @@ async function drawerState(client) {
   return client.evaluate(`(() => {
     const frame = document.querySelector(${JSON.stringify(FRAME_SELECTOR)})
     const drawer = document.querySelector(${JSON.stringify(DRAWER_SELECTOR)})
+    const backdrop = document.querySelector(${JSON.stringify(BACKDROP_SELECTOR)})
     const rect = drawer === null ? null : drawer.getBoundingClientRect()
     return {
       frame: frame !== null,
       collapsed: frame === null ? null : frame.hasAttribute('data-sidebar-collapsed'),
       backdropCount: document.querySelectorAll(${JSON.stringify(BACKDROP_SELECTOR)}).length,
+      dimActive: backdrop !== null && backdrop.hasAttribute('data-active'),
       drawerWidth: rect === null ? 0 : rect.width,
       drawerHeight: rect === null ? 0 : rect.height,
       drawerTransform: drawer === null ? null : getComputedStyle(drawer).transform,
@@ -307,9 +310,9 @@ async function waitDrawer(client, label, timeoutMs, signal, wantOpen) {
   return waitFor(label, timeoutMs, signal, async () => {
     const state = await drawerState(client)
     if (wantOpen) {
-      return state.backdropCount === 1 && state.collapsed === false && state.drawerWidth > 0 ? state : null
+      return state.dimActive === true && state.collapsed === false && state.drawerWidth > 0 ? state : null
     }
-    return state.collapsed === true && state.backdropCount === 0 ? state : null
+    return state.collapsed === true && state.dimActive === false ? state : null
   })
 }
 
@@ -660,7 +663,7 @@ async function main() {
     await touchSwipe(client, 10, y0, 10, y1, 160, signal)
     await sleep(400, signal) // allow any (wrong) transition to settle
     const afterVertical = await drawerState(client)
-    check('swipe.vertical-no-trigger', afterVertical.collapsed === true && afterVertical.backdropCount === 0, `collapsed=${afterVertical.collapsed}`)
+    check('swipe.vertical-no-trigger', afterVertical.collapsed === true && afterVertical.dimActive === false, `collapsed=${afterVertical.collapsed} dimActive=${afterVertical.dimActive}`)
 
     // --- Checklist 1: edge swipe-in opens, transform stays host-only ---
     await touchSwipe(client, 8, 300, 200, 300, 140, signal) // rightward from left edge
@@ -726,8 +729,8 @@ async function main() {
     const afterBesideLeft = await drawerState(client)
     check(
       'swipe.close-leftward-beside-drawer',
-      besideLeft !== null && afterBesideLeft.collapsed === true && afterBesideLeft.backdropCount === 0,
-      `startX=${besideX} collapsed=${afterBesideLeft.collapsed} backdrops=${afterBesideLeft.backdropCount} (issue #268: while the drawer is open a leftward stroke closes it from anywhere)`,
+      besideLeft !== null && afterBesideLeft.collapsed === true && afterBesideLeft.dimActive === false,
+      `startX=${besideX} collapsed=${afterBesideLeft.collapsed} dimActive=${afterBesideLeft.dimActive} (issue #268: while the drawer is open a leftward stroke closes it from anywhere)`,
     )
     // The rightward stroke beside the drawer still closes it — the open drawer
     // owns both directions (the animated commitFollowClose path), and its
@@ -741,8 +744,8 @@ async function main() {
     const afterRightClose = await drawerState(client)
     check(
       'swipe.close-from-right-zone',
-      rightClosed !== null && afterRightClose.collapsed === true && afterRightClose.backdropCount === 0,
-      `startX=${besideX} collapsed=${afterRightClose.collapsed} backdrops=${afterRightClose.backdropCount} (a rightward stroke beside the drawer must close it, and its synthetic click must not re-open it)`,
+      rightClosed !== null && afterRightClose.collapsed === true && afterRightClose.dimActive === false,
+      `startX=${besideX} collapsed=${afterRightClose.collapsed} dimActive=${afterRightClose.dimActive} (a rightward stroke beside the drawer must close it, and its synthetic click must not re-open it)`,
     )
     // Back to open for the checklists that follow.
     await touchSwipe(client, 8, 300, 200, 300, 140, signal)
@@ -776,8 +779,8 @@ async function main() {
     const afterBandClose = await drawerState(client)
     check(
       'swipe.drawer-band-leftward-closes',
-      bandClosed !== null && afterBandClose.collapsed === true && afterBandClose.backdropCount === 0,
-      `startX=${bandX} collapsed=${afterBandClose.collapsed} backdrops=${afterBandClose.backdropCount} (touching the drawer and dragging left must close it, files-zone overlap or not)`,
+      bandClosed !== null && afterBandClose.collapsed === true && afterBandClose.dimActive === false,
+      `startX=${bandX} collapsed=${afterBandClose.collapsed} dimActive=${afterBandClose.dimActive} (touching the drawer and dragging left must close it, files-zone overlap or not)`,
     )
     // Back to open for the checklists that follow.
     await touchSwipe(client, 8, 300, 200, 300, 140, signal)

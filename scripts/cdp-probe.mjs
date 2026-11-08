@@ -377,15 +377,18 @@ async function runCoreScenario(client, config, signal, pageErrors) {
   pass('core.plugin-style', `count=${boot.styleCount}`);
   pass('mobile.frame-marker', 'present=true');
 
-  // Drawer state: open = backdrop present, frame without data-sidebar-collapsed,
-  // first frame child (the drawer) with positive size; closed = collapsed frame
-  // and no backdrop.
+  // Drawer state: open = the dim is armed ([data-active] on our hit target) with
+  // the frame marker open and the drawer column laid out; closed = collapsed
+  // frame with the dim released. The catcher element is PERSISTENT since
+  // 2026-11-08 (it only hit-tests, the dim is the frame's ::after), so its
+  // presence no longer says anything about the drawer state.
   const drawerStateProbe = async () => client.evaluate(`(() => {
     const frame = document.querySelector(${JSON.stringify(MOBILE_FRAME_SELECTOR)});
     const drawer = document.querySelector(${JSON.stringify(MOBILE_DRAWER_SELECTOR)});
+    const backdrop = document.querySelector(${JSON.stringify(MOBILE_BACKDROP_SELECTOR)});
     const rect = drawer === null ? null : drawer.getBoundingClientRect();
     return {
-      backdrop: document.querySelector(${JSON.stringify(MOBILE_BACKDROP_SELECTOR)}) !== null,
+      dimActive: backdrop !== null && backdrop.hasAttribute('data-active'),
       collapsed: frame === null ? null : frame.hasAttribute('data-sidebar-collapsed'),
       drawerWidth: rect === null ? 0 : rect.width,
       drawerHeight: rect === null ? 0 : rect.height,
@@ -395,9 +398,9 @@ async function runCoreScenario(client, config, signal, pageErrors) {
     try {
       const state = await drawerStateProbe();
       if (wantOpen) {
-        return state.backdrop && state.collapsed === false && state.drawerWidth > 0 && state.drawerHeight > 0 ? state : null;
+        return state.dimActive && state.collapsed === false && state.drawerWidth > 0 && state.drawerHeight > 0 ? state : null;
       }
-      return state.collapsed === true && !state.backdrop ? state : null;
+      return state.collapsed === true && state.dimActive === false ? state : null;
     } catch {
       return null;
     }

@@ -13,7 +13,6 @@ export const NS = 'dshWebMobileNav'
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'open': '打开目录',
-  'backdrop': '点击关闭目录',
   'back': '返回',
   'backToConversation': '返回会话',
   'sessionLog': '导出会话日志',
@@ -43,7 +42,6 @@ export const zh = {
 /** English dictionary, key-identical to the Chinese source of truth. */
 export const en: Record<MobileNavKey, string> = {
   'open': 'Open directory',
-  'backdrop': 'Click to close directory',
   'back': 'Back',
   'backToConversation': 'Back to conversation',
   'sessionLog': 'Session log',

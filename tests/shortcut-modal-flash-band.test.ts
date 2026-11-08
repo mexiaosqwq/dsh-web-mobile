@@ -36,7 +36,10 @@ const band =
   bandStart !== -1 && bandEnd > bandStart ? BASE.slice(bandStart, bandEnd) : ''
 
 const DRAWER_GATE = 'body:has([data-mobile-nav="frame"]:not([data-sidebar-collapsed]))'
-const BACKDROP_GATE = 'body:has([data-mobile-nav="backdrop"])'
+// 2026-11-08: the backdrop element is now a persistent, always-mounted hit
+// target, so presence alone no longer means "on screen"; the gate keys on
+// [data-active], which is set exactly while the dim is painted.
+const BACKDROP_GATE = 'body:has([data-mobile-nav="backdrop"][data-active])'
 
 test('modal-root raise lives in the mobile popover band at the 1400 value', () => {
   const at = band.indexOf('> div:has(> [role="dialog"][aria-modal="true"])')

@@ -247,6 +247,14 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   html[data-dsh-ssh-active] [data-mobile-nav="backdrop"] {
     display: none !important;
   }
+  /* The dim is painted by the frame's ::after since 2026-11-08, so hiding the
+     catcher no longer hides the paint: a takeover must clear the dim too, or a
+     dim from a close in flight covers the panel and cannot be tapped away. */
+  html[data-dsh-taskboard-active] [data-mobile-nav="frame"]::after,
+  html[data-dsh-ssh-active] [data-mobile-nav="frame"]::after {
+    opacity: 0;
+    transition: none;
+  }
   /* Board header: let the search field take the slack instead of squeezing
      the action buttons. */
   [data-dsh-taskboard-board] > [class*="_boardHeader"] [class*="_search"] {
