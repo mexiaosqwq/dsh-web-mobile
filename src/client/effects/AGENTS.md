@@ -59,7 +59,7 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   灯箱的铺满覆盖与 `touch-action:none` 在 `styles/layout.css.ts` 的 `image-lightbox-fullbleed` 补丁块。
 - `selection-chrome.ts` — 非折叠选区期间给 `<html>` 挂 `data-mobile-nav-selecting`，CSS 借此
   把顶栏移出命中测试。
-- `sidebar-swipe.ts` — 抽屉手势，**本目录最大的模块（1,593 行）**。开=8px 锁轴提前提交
+- `sidebar-swipe.ts` — 抽屉手势，**本目录最大的模块（1,516 行）**。开=8px 锁轴提前提交
   （inline `-101%` 基线 + arm 帧 `content-visibility:hidden` 拆挂载）；关=晚提交（inline
   280ms 滑到自身宽×110% px 槽位后翻 marker，防 React 中途换子树）；暗层由 `fadeOverlayOut`
   提前渐隐（frame 的 `::after`，没有元素移除，遮罩只留命中层）。参数与状态机是
