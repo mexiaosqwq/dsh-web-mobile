@@ -4,6 +4,15 @@
 > **一句话结论**：这里每一条都写了「为什么当时不动」和「做完的验收线」——按条做、每条单独验证，**不要顺手一起合**。
 > 做完一条就从本文件删掉该条（台账只减不增；加新条前先想清楚它会不会两周内就被做掉）。
 
+| # | 条目 | 现在能做吗 | 规模 |
+| --- | --- | --- | --- |
+| 1 | 关闭提交住在手势模块里（该上 `platform/`） | 代码能改；**探针要活实例** | 中（60–90 分钟） |
+| 2 | 两个探针各自实现 `drawerState`（连 62 份选择器） | **不能**：要活实例才验得完 | 小（< 1 小时） |
+| 3 | DOM 标记 `backdrop` 实际是命中层 | **能**：纯离线（`test:core` + `build`） | 小（30–45 分钟） |
+| 4 | `tests/` 从不做 typecheck | 刻意不做（留档，等大改 `tests/`） | 中（半天） |
+
+> 顺序：**条 3 现在就能收**；条 1、条 2 卡在同一个活实例上，条 1 改完再抽探针可共用一次实例；条 4 不动。
+
 ---
 
 ## 1. 关闭提交仍住在手势模块里（close-commit 该上 platform/）
@@ -18,7 +27,7 @@
 （点击空白 / Escape / 导航点击 / FAB / 顶栏开关），却住在只有手势用的模块里。代价是两条
 `effects → effects` 边：
 
-- `sidebar-swipe → drawer-layer`：唯一用途 `fadeOverlayOut()`，而它本身就是 `fadeHook?.()`；
+- `sidebar-swipe → drawer-layer`：唯一用途 `fadeDimOut()`，而它本身就是 `fadeHook?.()`；
 - `drawer-close → sidebar-swipe`：唯一用途 `closeDrawerAnimated`（该文件只 import 这一个符号）。
 
 **为什么没动**：搬它要动关闭动效的时序（晚提交窗口、cooldown、reduced-motion 分支），回归面是三个手势
@@ -44,12 +53,13 @@
 `scripts/probes/drawer-click-animation-probe.mjs` / `scripts/cdp-swipe-failures.mjs` 在活实例上全绿——
 **没有活实例就不算验完**，最多到「test:core + build 绿，探针待跑」。
 
-**规模**：中（60–90 分钟，含台账与探针回归）。**单独一轮做，别和改名 / 换标记混在一起。**
+**规模**：中（60–90 分钟，含台账与探针回归）。**单独一轮做，别和换标记（条 3）混在一起。**
 
 ## 2. 两个探针各自实现 drawerState
 
 **位置**：`scripts/cdp-probe.mjs` 的 `drawerStateProbe`（L385），`scripts/cdp-swipe-probe.mjs` 的
-`drawerState`（L286），`scripts/cdp-swipe-failures.mjs` 自建的一次 collapsed 读取（L181）。
+`drawerState`（L286），`scripts/cdp-swipe-failures.mjs` 自建的一次开合读取
+（`open: !frame.hasAttribute('data-sidebar-collapsed')`，L181）。
 
 **现状**：三处各自拼浏览器内查询。两份「状态对象」骨架相同（`collapsed` / `dimActive` / `drawerWidth` /
 `drawerHeight`），字段面不同：cdp-probe 4 个字段、关闭谓词内联在 `waitDrawerState`（L397）里；
@@ -75,7 +85,7 @@ swipe-probe 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawer
 
 ## 3. DOM 标记名遗留：`backdrop` 实际是命中层
 
-**位置**：`data-mobile-nav="backdrop"` 写入点 `drawer-layer.ts`（`dataset.mobileNav`，L88）。
+**位置**：`data-mobile-nav="backdrop"` 写入点 `drawer-layer.ts`（`dataset.mobileNav`，L94）。
 读取点（实测 6 行 CSS + 2 个 JS + 3 个探针 + 6 个测试）：
 
 - `styles/base.css.ts` 2 行（命中层规则 + 弹层带门控）、`styles/compat.css.ts` 2 行（takeover 清屏）、
@@ -106,7 +116,7 @@ swipe-probe 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawer
 **验收**：`pnpm test:core`（含 CSS 结构门与补丁登记门）+ `pnpm build`；
 `git grep -n '"backdrop"' src/ tests/ scripts/` 只剩另外那两个标记的命中；探针需活实例复跑。
 
-**规模**：小改（30–45 分钟）。**排在条 3 之后**（同一个文件两次契约改动分开做，便于 bisect）。
+**规模**：小改（30–45 分钟）。纯离线可验（`test:core` + `build`）；三个探针复跑仍需活实例。
 
 ---
 
@@ -122,13 +132,14 @@ swipe-probe 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawer
 
 **为什么没动**：① 符号漂移（缺导出、改名）今天就会在 `test:core` **加载期**直接 SyntaxError，静态层没有额外猎物
 ——136 条抽检里真缺陷只有 1 类 4 条（`ClientContext` 未导入，已修）；② 132 条里 61 条是「helper 从不写类型」，
-修法只能批量补注解（机械量大）或塞 `any`（门变装饰）；③ 56/72 个测试的断言对象是**源码字符串**，类型系统根本
-看不到它们的行为——那类风险要靠变异/空转审计，不是 typecheck。
+修法只能批量补注解（机械量大）或塞 `any`（门变装饰）；③ 73 个测试文件里 48 个直接 `readFileSync` 读 `src/`
+文本再做字符串断言（2026-11-08 复测：`grep -l readFileSync tests/*.test.ts | wc -l`），类型系统根本看不到
+它们的行为——那类风险要靠变异/空转审计，不是 typecheck。
 
 **修法（将来要做时）**：建 `tsconfig.tests.json`（`strict` + 与 `tsconfig.client.json` 相同的 `paths` + `include`
 加 `tests/**/*.ts` 与 `src/client/**/*.ts`）→ 加 `pnpm verify:tests` → 先修 3 个重灾区（`host-test-compat` /
-`mobile-navigation-behavior` / `architecture`）→ 残量做「不许新增」棘轮。预估 95–105 行可达 69/72 文件覆盖
-（排除 3 个 vm/transpile harness）。
+`mobile-navigation-behavior` / `architecture`）→ 残量做「不许新增」棘轮。预估 95–105 行即可覆盖除 3 个
+vm/transpile harness 外的全部测试文件。
 
 **验收**：门一旦上，`pnpm verify:tests` 必须进 CI；且**不许**为了让它是绿而给测试塞 `any`——那只是把缺口换个
 地方藏。
