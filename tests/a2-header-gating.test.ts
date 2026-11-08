@@ -102,8 +102,8 @@ test('every session-header selector carries the _headerLeading structural anchor
   // deleted. Count over the WHOLE sheet, not headerBlock(): header rules also
   // live in the dark-theme / wallpaper / keyboard sections (the #176 fill rule
   // among them), and a block-scoped count never saw them. This is the fixed
-  // ledger of anchored selector lines (75 as of 2026-11-08; the block itself
-  // holds 67 plus 4 deliberate unanchored floors). The old `>= 30` let 45 of
+  // ledger of anchored selector lines (76 as of 2026-11-08; the block itself
+  // holds 68 plus 4 deliberate unanchored floors). The old `>= 30` let 45 of
   // them disappear in silence. Adding or removing one means updating this.
   const selectorLine = (line: string): boolean => {
     const t = line.trim()
@@ -113,7 +113,7 @@ test('every session-header selector carries the _headerLeading structural anchor
     .split('\n')
     .filter((line) => line.includes('header:has([class*="_headerLeading"])') && selectorLine(line))
     .length
-  assert.equal(anchors, 75, `expected the full anchored set (75 selector lines), found ${anchors}`)
+  assert.equal(anchors, 76, `expected the full anchored set (76 selector lines), found ${anchors}`)
 })
 
 test('no pre-0.2.2 header generation branch survives', () => {
@@ -267,6 +267,25 @@ test('header chips (2026-10-12 换位后，手机档作用域): jobs dot in the 
     '共用移动档里不许出现团队 chip 的内边距覆盖（本批之前没有这条，平板档吃宿主值）')
   assert.equal(phoneDecl(scoped, 'VoX2oq_trigger', 'padding-left: 7px !important'), false,
     '平板档才需要的 7px 不该出现在手机档作用域里')
+})
+
+// #281（2026-11-08）：页签行的 ⋯（宿主「更多视图」ViewsMoreMenu 的 anchor）与谱系 chip
+// 抢同一角。chip 钉 right:8px 时，390px 实测 chip 盒 282–382、⋯ 盒 360–382 —— ⋯ 整个
+// 落在 chip 里，且 chip 带 z-index:3，于是「⋯ 与子代理展开冲突」。判据 = 有 ⋯ 时 chip 让位。
+test('the lineage chip yields to the views-more ⋯ in the same corner (#281)', () => {
+  const layout = layoutSource()
+  const scoped = scopedRules(layout)
+  const yieldRule = scoped.find((r) => inSharedMobile(r)
+    && r.sel.includes('ZKlsPq_root')
+    && r.sel.includes('viewsMoreAnchor'))
+  assert.ok(yieldRule !== undefined, '⋯ 与谱系 chip 的让位规则缺失（回到完全重合态）')
+  // 让位量 = 宿主右边距 8 + ⋯ 宽 22 + 间距 4
+  assert.match(yieldRule.body, /right: 34px !important/, 'chip 必须让到 ⋯ 左边 26px')
+  // 锚在页签行内：标题行的 switcher 变体不吃这条，也避免误伤其他 header chip
+  assert.ok(yieldRule.sel.includes('[role="tablist"]'), '让位规则必须锚在页签行')
+  // ⋯ 是第三方 conversation.view 的唯一入口（pitfalls「更多视图入口」），只能让位不能藏
+  assert.ok(!/viewsMoreAnchor[^{]*\{[^}]*display:\s*none/.test(layout),
+    '手机档不得靠藏 ⋯ 来消除冲突')
 })
 
 // ── 平板档不变现在由「共用移动档 = 本批之前的值 + 平板块已删除」单点保证 ──────────────

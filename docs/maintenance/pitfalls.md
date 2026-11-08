@@ -594,6 +594,9 @@ hero 态存在一个**空的、宿主隐藏但仍在文档流**的 session heade
 
 - **子代理芯片触摸兼容（subagent-chip-touch.ts）**（三类症状分类+iOS 壳硬约束 → `docs/maintenance/pitfalls.md` §子代理芯片）：上游 count 变体 trigger 无 onClick（hover 定时器开关）；触摸路径=pointerup 派发合成 ArrowDown/Escape 走组件键盘路径 + ~800ms 吞射向 `ZKlsPq_`/`h8S2Va_` 子树的 trusted hover 事件（不吞 click）。CDP 注意：每步先断言无 aria-modal（误触 Session log 会拉起模态），一律全新 user-data-dir。
 
+- **宿主换事件通道后，吞事件名单要跟着换代（0.2.2-rc.1，2026-11-08 #281「子代理展开失效」）**：同一个 hover 关闭定时器，老宿主挂在 `onMouseEnter/onMouseLeave`（150ms 开 / 120ms 关），rc.1 挂到 `onPointerLeave`（root 与 menu 容器各一处，仍 120ms）——**老名单只盖 mouse 族，pointer 族照旧穿透**，于是 tap 打开后浏览器在 pointerup 派生的 `pointerout`/`pointerleave` 照常武装关闭定时器，卡片 120ms 后自己关（CDP：pointerup 后 expanded=true，60ms 仍开，150ms 已 false；把这两个事件也吞掉即保持打开）。还有一条**必须一起看**的事实：rc.1 的 count 变体 `onClick` 会置 `pinnedRef=true`（`scheduleHoverClose` 遇 pinned 直接 return），而走键盘路径（ArrowDown）**不置 pin** —— 所以我们既吞掉那颗 click、又走键盘路径时，pin 永远为 false，任何 pointerleave 都能关它。判据：改这类 shim 前先读宿主那一版的 `scheduleHoverClose` 调用点属于哪一族事件，别照抄上一版的名单。
+- **同一角落两个控件：绝对定位那颗按对方的实测宽度让位（#281「⋯ 与子代理展开冲突」）**：谱系 chip 按 `lineage-chip-pinned` 钉 `right:8px`，宿主「更多视图」⋯ 也是 `right:8px` —— 390px 实测 chip 盒 282–382、⋯ 盒 360–382（22×19 完全重合），chip 的 z-index:3 压在上面 ⇒ ⋯ 点不到。修法=有 ⋯ 时把 chip 让到 `right:34px`（8 + 22 + 4，见 `lineage-chip-views-more-yield`）。**不许靠藏 ⋯ 避开**（它是第三方 `conversation.view` 的唯一入口，见本档「更多视图入口」）；这类冲突的复现判据是 `elementFromPoint(⋯ 中心)` 是否落在 ⋯ 自己身上 + 两盒的 x 向重叠量（应为 0）。
+
 ### subagent 两代
 
 - **dsh-client-ui-subagent 两代互斥开关实现必须同兼容**（闪退竞态根因+修复 → `docs/maintenance/pitfalls.md` §subagent 两代）：0.1.0-rc.6~8（`h8S2Va_`）=onClick 代，0.1.1-rc.1/2（`ZKlsPq_`）=hover 代（npm dist-tag 不可信）；判定看 served bundle 有无 onClick/hover 定时器，别看版本号。onClick 代双开关竞态由 `toggledTrigger`（1s 宽限）+ document 捕获吞同 trigger 的 click 解决。**宿主下限 0.2.2-rc.1 起**（2026-11-05）`HOVER_SUBTREE_SELECTOR` 只列 `ZKlsPq_`（`h8S2Va_` 在 0.2.2 宿主包 0 命中，已删）；0.2.2 的计数 trigger 带 onClick（只开不关）且非触摸才排 hover 定时器（`dsh-client-ui-subagent/lib/client.js:540-552`），`toggledTrigger` 吞 click 与 hover 吞噬两条防护仍保留。

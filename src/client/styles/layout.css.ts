@@ -1820,6 +1820,18 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
     transform: none !important;
     z-index: 3 !important;
   }
+  /* @patch
+     id: lineage-chip-views-more-yield
+     for: 页签行右缘的「更多视图」⋯（宿主 ViewsMoreMenu 的 anchor，[class*=viewsMoreAnchor]）与谱系 chip 的同一落点
+     why: chip 按 lineage-chip-pinned 钉在 right:8px，⋯ 也在 right:8px —— 390px 实测 chip 盒 282–382、⋯ 盒 360–382（22×19 完全重合），chip 的 z-index:3 又压在上面，于是 ⋯ 点不到、chip 右端也被自己的省略号窗吃掉（#281）。只能由 CSS 让位：⋯ 的宽度与边距都宿主所有，我们不能改
+     until: 宿主把 ⋯ 移出页签行，或给谱系 chip 一个不与之共享的稳定槽——届时删本块
+     test: tests/a2-header-gating.test.ts
+  */
+  /* 让位量 = 宿主右边距 8 + ⋯ 宽 22 + 间距 4。⋯ 是第三方 conversation.view 的唯一入口，
+     不许靠藏它来避开（pitfalls「更多视图入口」）。 */
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([role="tablist"]):has([class*="viewsMoreAnchor"]) [class*="ZKlsPq_root"]:not([class*="_switcherRoot"]) {
+    right: 34px !important;
+  }
   /* 谱系 chip 里的文字（子代理标题 /「N 个子代理」）给一个规矩的省略号窗口。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="ZKlsPq_root"] span {
     display: block !important;
