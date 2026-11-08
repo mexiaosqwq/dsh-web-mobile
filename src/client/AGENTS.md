@@ -77,7 +77,8 @@ DOM 标记即跨模块状态契约：`data-mobile-nav="frame"`、`data-sidebar-c
 `data-mobile-nav="stats"`、`data-mobile-nav="stats-ring"` + overlay 体系五标记（`stats-ring-reserve` /
 `stats-tps-reserve` / `stats-tps` / `stats-ring-dock` / `stats-tps-row`，#104）、`data-file-viewer-open`
 （dsh-file-viewer 兼容布局的 frame 级门，锚 `.dsfv-panel`）、`data-mobile-nav="session-delete"`
-（菜单项探针键）、`delete-dialog-backdrop` + `delete-dialog`（确认弹层）、`data-mobile-nav-ios`
+（菜单项探针键）、`delete-dialog-backdrop` + `delete-dialog`（确认弹层）、`data-mobile-nav-dim`
+（frame 级暗层开关，`1`/`0`，画 frame 的 `::after`）、`data-mobile-nav-ios`
 （挂 `<html>`，iOS 专属 CSS 门）。
 
 ## 效果与资源纪律

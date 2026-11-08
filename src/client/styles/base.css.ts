@@ -404,26 +404,28 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
      Measured 2026-09-19: with the drawer open (column z 1300) the workspace
      Rename dialog sat entirely under it and needed the drawer closed first.
      Raise the portal root, not the dialog.
-     GATE (2026-09-25, real device): the gate is OUR BACKDROP'S PRESENCE, not
-     the drawer-open marker. Marker and paint disagree for the whole close
-     transition — the backdrop fades over .28s (with the column) and is removed after the
-     marker flips (overlay-backdrop-fab.ts), the column transitions .28s
-     (layout.css.ts) and React swaps the pane subtree ~200ms late — so a
-     marker-gated raise went dark inside that window and the drawer band
-     covered any open modal. Measured on the reporter's phone (Android 16
-     WebView) with the shortcut modal open: forcing data-sidebar-collapsed
-     dropped this root 1400 -> 1000 and made elementsFromPoint(0.85w, .30h)
-     return [data-mobile-nav="backdrop"] — rgba(0,0,0,.45) over the modal's
-     white = luminance 141, matching the reporter's recording (140 behind a
-     280px drawer edge). That is the "快捷键弹层抽搐/闪" report: a ~200-280ms
-     dark frame with the drawer over the shortcut modal, not a compositing
-     tear. The backdrop's presence IS the drawing condition, so gating on it
-     has no such window; with no backdrop the host's own ordering stands (a
-     menu opened inside a modal still sorts above it). Our own delete backdrop
-     matches this rule too since the 2026-09-24 centered rework (its direct
-     child card carries role=dialog) — harmlessly: it sets the same 1400 the
-     dedicated rule below sets. */
-  body:has([data-mobile-nav="backdrop"])
+     GATE (2026-09-25, real device; re-anchored 2026-11-08): the gate follows
+     the dim, NOT the drawer-open marker. Marker and paint disagree for the
+     whole close transition — the dim fades over .28s with the column, the
+     column transitions .28s (layout.css.ts) and React swaps the pane subtree
+     ~200ms late — so a marker-gated raise went dark inside that window and
+     the drawer band covered any open modal. Measured on the reporter's phone
+     (Android 16 WebView) with the shortcut modal open: forcing
+     data-sidebar-collapsed dropped this root 1400 -> 1000 and made
+     elementsFromPoint(0.85w, .30h) return the dim — rgba(0,0,0,.45) over the
+     modal's white = luminance 141, matching the recording (140 behind a 280px
+     drawer edge). That is the "快捷键弹层抽搐/闪" report: a ~200-280ms dark
+     frame with the drawer over the shortcut modal, not a compositing tear.
+     The dim is painted by the frame's ::after now, so the trigger is
+     [data-active] on our hit target: set exactly while the dim paints and
+     released BAND_RELEASE_MS (one fade + the old 60ms slack, see
+     overlay-backdrop-fab.ts) after the marker flips — that slack keeps the
+     raise past the ~200-280ms subtree swap above. With no active backdrop the
+     host's own ordering stands (a menu opened inside a modal still sorts above
+     it). Our own delete backdrop matches this rule too since the 2026-09-24
+     centered rework (its direct child card carries role=dialog) — harmlessly:
+     it sets the same 1400 the dedicated rule below sets. */
+  body:has([data-mobile-nav="backdrop"][data-active])
     > div:has(> [role="dialog"][aria-modal="true"]) {
     z-index: 1400 !important;
   }
@@ -592,37 +594,50 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
   outline-offset: 2px;
 }
 
-/* Dimmed backdrop under the open drawer; above every column, below the drawer.
+/* Drawer dim, painted by the frame's own pseudo-element.
    z 1250: 0.1.5 pins its native sidebarCol at z-index:1100 and paints mid
-   layers up to that band; the backdrop must sit above the host stack
-   (below the drawer's 1300) so the dim covers the content area on every
-   host generation. Keep in sync with the drawer z in layout.css.ts. */
-[data-mobile-nav="backdrop"] {
+   layers up to that band; the dim must sit above the host stack (below the
+   drawer's 1300) so it covers the content area on every host generation.
+   Keep in sync with the drawer z in layout.css.ts.
+   Device-only report (2026-11-08): tapping the blank area to close flashed the
+   right side bright, from the second open/close cycle on. Bisect: no overlay
+   task → no flash; any full-screen element that paints (or even just
+   hit-tests with an interactive role) → flash. A ::after on the frame lives in
+   the frame's existing paint tree, so there is no extra composited full-screen
+   layer to be re-rastered when the drawer animates. The dim only animates
+   opacity with fixed geometry, which the device compositor cannot flash. */
+html [data-mobile-nav="frame"]::after {
+  content: "";
   position: absolute;
   inset: 0;
   z-index: 1250;
   background: rgba(0, 0, 0, .45);
-  cursor: pointer;
-  /* 时长与缓动同抽屉列（layout.css.ts 的 sidebarCol「transition: transform .28s
-     var(--ds-ease-in-out, ease-in-out)」，手机与平板同一条；手势提交 COMMIT_ANIM_MS 280 也是它）：
-     遮罩与抽屉同起同落，不再先暗完、抽屉还在滑（2026-11-05 对齐，原为 .2s）。 */
-  animation: dsh-web-mobile-fade .28s var(--ds-ease-in-out, ease-in-out);
-  /* Fade-out twin of the mount animation: the task eases the dimming away
-     (inline opacity 0 + pointer-events none) and removes the element after
-     the fade. Also used by the gesture layer so the backdrop fades in step
-     with a close-follow commit's slide-out. */
+  opacity: 0;
   transition: opacity .28s var(--ds-ease-in-out, ease-in-out);
+  pointer-events: none;
+}
+html [data-mobile-nav="frame"][data-mobile-nav-dim="1"]::after {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  html [data-mobile-nav="frame"]::after {
+    transition: none;
+  }
+}
+/* Hit target only: paints nothing, no interactive role/aria, no animation.
+   The dim comes from the frame's ::after. */
+[data-mobile-nav="backdrop"] {
+  position: absolute;
+  inset: 0;
+  z-index: 1250;
+  background: transparent;
+  cursor: pointer;
+  transition: none;
   -webkit-tap-highlight-color: transparent;
 }
 @keyframes dsh-web-mobile-fade {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-mobile-nav="backdrop"] {
-    animation: none !important;
-    transition: none !important;
-  }
 }
 /* Settings sheet entrance: the official dialog mounts with no animation at
    all, so it snaps in. A slight rise/scale reads as a proper sheet.

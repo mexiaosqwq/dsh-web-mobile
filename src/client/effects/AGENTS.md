@@ -42,7 +42,8 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
 - `drawer-close.ts` — 抽屉关闭三条监听路（Escape / 遮罩与导航目标的捕获 click / DSHA
   `dsha-session-open`）与共用的那一个 `toggleDrawer`（晚提交关闭）。打开分支（头部开关 / FAB）与手势
   arm 共用 `platform/drawer-open.ts`：先失焦文本输入（点按还等键盘收起），翻状态前调 `drawerOpening()`
-  让 overlay-backdrop-fab 同任务挂遮罩（2026-11-05 drawer-jank R2/R3）。新开抽屉入口必须走它。
+  让 overlay-backdrop-fab 同任务翻暗层标记（2026-11-05 drawer-jank R2/R3；2026-11-08 起暗层画在
+  frame 的 `::after` 上，开屏不再插元素）。新开抽屉入口必须走它。
 - `drawer-session-log.ts` — 抽屉品牌行右端的会话日志导出图标（issue #225，替代页脚胶囊）：往
   `[class*="sidebarCol"] [class*="logoRow"]` 注入 `data-mobile-nav="session-log"` 按钮，
   `scopes:['*']` 处理宿主重建，`dispose` 退订 + 移除；无当前会话置灰。
@@ -60,8 +61,9 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   把顶栏移出命中测试。
 - `sidebar-swipe.ts` — 抽屉手势，**本目录最大的模块（1,593 行）**。开=8px 锁轴提前提交
   （inline `-101%` 基线 + arm 帧 `content-visibility:hidden` 拆挂载）；关=晚提交（inline
-  280ms 滑到自身宽×110% px 槽位后翻 marker，防 React 中途换子树）；遮罩 `fadeOverlayOut`
-  渐隐。参数与状态机是 `docs/specs/2026-08-27-sidebar-swipe-gestures.md` 的契约，**不可破**。
+  280ms 滑到自身宽×110% px 槽位后翻 marker，防 React 中途换子树）；暗层由 `fadeOverlayOut`
+  提前渐隐（frame 的 `::after`，没有元素移除，遮罩只留命中层）。参数与状态机是
+  `docs/specs/2026-08-27-sidebar-swipe-gestures.md` 的契约，**不可破**。
 - `gesture-guard.ts` — 宿主让位 consume marks + 笔画锁轴。
 - `stats-line.ts` — 标记官方状态行；上下文环与 TPS 读数**留在 React 渲染的位置**，只叠在插件
   自有的占位槽上（#104：宿主 React 节点禁搬）。`scopes: ['*','characterData']` 两个键都不能

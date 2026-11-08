@@ -2791,9 +2791,10 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
      not the whole exit: since 2026-10-12 the reveal side compares Animation
      objects (panel-exit.ts finishMain reads event.animationName only for the
      ghost), and the ghost cleanup still listens on animationend BY NAME
-     (panel-exit.ts ghostEnd). dsh-web-mobile-fade also runs on the backdrop and
-     the dialogs, which are frame descendants too — reusing it would end the
-     ghost early. Comment corrected 2026-10-13 (was claiming the whole exit
+     (panel-exit.ts ghostEnd). dsh-web-mobile-fade also runs on the dialogs,
+     which are frame descendants too — reusing it would end the ghost early.
+     (The backdrop carried it until 2026-11-08; the dialogs alone still block
+     the reuse.) Comment corrected 2026-10-13 (was claiming the whole exit
      listens by name; the code had moved on). */
   @keyframes dsh-web-mobile-panel-reveal {
     from { opacity: 0; transform: translateX(-14px); }

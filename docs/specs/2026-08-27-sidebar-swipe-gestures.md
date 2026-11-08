@@ -35,7 +35,7 @@
 | 项 | 结论 | 依据 |
 |---|---|---|
 | 缺陷 1（跟手 transform 违反 `transform:none` 不变式） | 打开方向天然不可达（设置对话框只能从抽屉内打开）；关闭方向依赖"aria-modal 让位 + 每帧守卫"才是安全（若只在 pointerdown 查一次，拖拽中模态升起仍会偏移设置遮罩 102px） | layout.css.ts L66-77 实证 + AGENTS.md L85 |
-| 缺陷 2（backdrop 双归属） | **必然成立**：reconciler 用闭包局部变量 `backdrop === null` 判定创建/销毁，从不查 DOM；手势层自建 backdrop → release 后 rAF flush 必再建一个 → 双遮罩 + 孤儿节点 | overlay-backdrop-fab.ts L9/L23/L30 |
+| 缺陷 2（backdrop 双归属） | **必然成立**（按当时的创建/销毁模型）：reconciler 用闭包局部变量 `backdrop === null` 判定创建/销毁，从不查 DOM；手势层自建 backdrop → release 后 rAF flush 必再建一个 → 双遮罩 + 孤儿节点。2026-11-08 起遮罩常驻、该模型退役，本条只作历史依据 | overlay-backdrop-fab.ts L9/L23/L30 |
 | B 档价值打折 | 遮罩跟手被缺陷 2 禁止（取 reconciler 引用做 opacity 跟手 = 脆弱依赖 + 竞态），只剩抽屉本体跟手；rAF 拖拽帧与 reconciler 的 rAF 合并 flush 抢帧 | — |
 | 审查/维护成本 | A 档 ~110 行、状态机可穷举、判定纯函数可 node:test；B 档 ~200+ 行 + 每帧守卫 + backdrop 归属，每个点都在碰铁律 | — |
 | 升级路径 | A 档把"判定"与"提交执行器"解耦（`classifySwipe` 纯函数 + `commit` 回调），未来升 B 档只换 commit 实现，零沉没成本 | — |
@@ -71,7 +71,7 @@
 - **反向回拉钉住不释放**：`followTranslate` 返回 null（拉过原点）时写 `translateX(0px)` 而非清 inline——清 inline 会把宿主 .28s transition 放回来，方向抖动即自己动起来、再跨回正向又跳一下；
 - **打开方向＝先提交后跟手（early commit，2026-08-29 第三次迭代）**：宿主 collapsed/open 是两套互斥子树（206px 导航 rail 79 节点 0 treeitem ↔ 280px 抽屉 389 节点 15 treeitem），所以「拖着 closed 元素出场」必然错。正确顺序是 **轴锁定（8px）即 arm（第九轮：`OPEN_FOLLOW_ARM_PX` 12→8，锁轴到 arm 之间的 4px 是纯死区）→ 先用 important inline 把抽屉钉在槽位 → 同 task `toggleSidebar()`**：React 在屏外挂载真抽屉，之后每个 move 用 `followOpenTransform` 把它从槽位拉出来，用户看到的是真实会话树跟着手指走。钉位必须**先于**翻转，否则宿主 open 规则 `transform:none` 会先画一帧「已就位」再开始跟手（闪一下）。松手时判定语义不变（`classifySwipe` 仍用 `lockDrawerOpen`＝起手时的关闭态），但**提交方向反过来**：verdict=open → 什么都不做（已经开了，release inline 让宿主 transition 收尾），否则走**晚提交**（见下）；cancel/blur 同理由 `abortStroke(ctx)` 晚提交翻回。
 - **关闭方向＝晚提交（late commit，第八轮 2026-08-29，用户报「最后抽屉样式突然消失，不是自然的动画收起」）**：松手瞬间翻转宿主是错的——React 对互斥子树的替换**异步落地**，CDP 帧采样实测落在 280ms 动画的中段（t≈200ms：宽度 280→206，tx 从 -207.6 **倒跳**回 -181.9，`translateX(-110%)` 对窄 rail 重新解析）＝动画中途抽屉内容被换、位置回跳。正确顺序：`commitWithAnimation` 先给抽屉写 inline `transition: transform 280ms` + **flush（读一次 getBoundingClientRect 锁定 before-change style）** + inline transform 到 `±110%` 终槽，**动画落地后**（定时器 280+40ms）`finishPendingCommit` 才翻转宿主并清 inline——此时子树互换发生在完全离屏处，不可见。三个配套不变式：① `finishPendingCommit` 翻转前检查 marker（280ms 窗口内 backdrop 真实 tap 已把宿主关上时，盲 toggle 会把抽屉**再打开**）；② 提交开始即写 cooldown（350ms 覆盖动画窗），窗口内新 stroke 被 `onCooldown` 拦截；③ `abortStroke` 遇 `pendingCommit` 直接让位（仅 dispose 传 `immediate` 同步落定）。开方向 revert（armed 后 verdict≠open）与 close 共用 `commitFollowClose`。
-- **背景遮罩淡入淡出（第八轮同批，用户要求「背景黑色遮罩进行渐变动画」）**：淡入本就有（挂载 animation `.2s`）；补齐**淡出**——overlay 任务的移除路径改为「inline `opacity:0` + `pointer-events:none`（立即防误触）→ 260ms 后真正 remove」，重开窗口内（timer 未到）取消移除并恢复。手势层关抽屉时经 `fadeOverlayOut()` 在提交动画开始瞬间预淡出，使遮罩渐隐与抽屉滑出**同步**（帧采样实测 opacity 1→0.76→0.23→0.04→0 与 tx -80→-308 同帧推进）。`faded` 标志守卫恢复分支：晚提交期间 marker 仍 open，无标志的 open 分支会把预淡出洗回。`prefers-reduced-motion` 下 animation/transition 全关。铁律演进：「零手势层 backdrop、commit 时二值出现」中的「二值」自本轮起放宽为「commit 时渐变」，手势层仍不创建/持有 backdrop（只经 hook 预淡出）。
+- **背景遮罩淡入淡出（第八轮同批，用户要求「背景黑色遮罩进行渐变动画」）**：手势层关抽屉时经 `fadeOverlayOut()` 在提交动画开始瞬间预淡出，使暗层渐隐与抽屉滑出**同步**（帧采样实测 opacity 1→0.76→0.23→0.04→0 与 tx -80→-308 同帧推进）。**2026-11-08 起形态变了**：暗层由 frame 的 `::after` 画（`data-mobile-nav-dim`），命中遮罩常驻、开合只切 `pointer-events` 与 `[data-active]`，**没有「260ms 后 remove / 重开取消移除」这条路径了**；预淡出不被洗回的守卫换成 `dimHeldOff`（晚提交期间 marker 仍 open，无守卫的 open 分支会把预淡出洗回，`tests/drawer-open.test.ts` 钉住）。`prefers-reduced-motion` 下 transition 全关。铁律演进：「零手势层 backdrop、commit 时二值出现」中的「二值」自本轮起放宽为「commit 时渐变」，手势层仍不创建/持有 backdrop（只经 hook 预淡出）。
 - **开方向 baseline 必须是百分比而不是 px**：arm 时元素还是 206px rail（槽位 -226.7px），一帧后变成 280px 抽屉（槽位 -308px）——arm 前缓存的 px 基线会让宽抽屉错位 74px（实测 left=-284 而非 -308）。`followOpenTransform` 输出 `translateX(min(0px, calc(-101% + Npx)))`（RTL 为 `max(0px, calc(101% - Npx))`），百分比每帧按当前宽度重解析，跨挂载自动正确；`min()/max()` 兼作开端夹取。**基线是 -101% 而非宿主槽位 -110%**（第九轮）：从 -110% 起跟，手指要先抵消 10% 超出量——CDP 实测 dx=12 首帧 left=-296（完全不可见），dx=28 才露第一条边＝用户报「刚开始会卡一下，之后才会拖出来」「最开始有真空期」；-102% 在 arm 点只剩 2.4px 仍偏空，**-101% 在 8px arm 即露 ~5px**（帧采样 left=-273.8，右缘 6.2px 可见），1% 余量保亚像素安全。CDP 实测 `calc` + `min()` 在 inline important 下正常解析。
 - **inline 必须带 `important` 优先级**：open 态由我们自己的 `transform: none !important`（layout.css.ts 的 containing-block 规则）统治，普通 inline 声明**输掉层叠**——`element.style.transform` 读回完美但 computed 恒为 `none`，抽屉一动不动。这就是 B 档第一版「跟手隐形」的根因（2026-08-29 用户报"实时拖动消失了"）：所有断言都在看 `element.style.transform`，没有一条看 computed。故 `applyFollow` 用 `style.setProperty(..., 'important')`、`releaseFollowStyles` 用 `removeProperty`；探针新增 `swipe.close-follow-visible` 断言 **computed matrix 的 m41 与 `getBoundingClientRect().left` 双双随手指移动**。教训：跟手类断言只认 computed 几何，inline 字符串不构成证据。
 - **跟手绑定必须每 stroke 重置**：`endStroke` 是先 `reset()` 后 `releaseFollowStyles()`（要留着 followDrawer 才能清样式），所以 `followDrawer` 会跨 stroke 存活——`startFollow` 首行必须先解绑，否则一次关闭跟手之后的**打开** stroke 会继承旧绑定、又跟起手来（实锤：探针 `swipe.open-stroke-no-follow` 第一次跑就抓到 `translateX(-166.703px)`）。
@@ -227,7 +227,7 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 **CDP 验证清单（390×844 mobile，全新 user-data-dir）**：
 1. 边缘滑出打开：marker 翻转；逐帧采样 `getComputedStyle(drawer).transform` 断言**无插件写入**，且关态必须是**设计槽位**（`rect.left <= -rect.width`，390px 下 left=-308 / right=-28）而不只是「离屏」——宿主 0.1.5 的 52px 透明壳同样「离屏」，2026-09-17 的点击路径动画回归正是从这条缝漏过去的
 2. 设置对话框（aria-modal）打开后：手势不生效、模态内 click 正常穿透
-3. 双遮罩断言：开→关→开后 `[data-mobile-nav="backdrop"]` 数量恒为 1
+3. 遮罩断言：开→关→开后 `[data-mobile-nav="backdrop"]` 恒为 1 个元素，且暗层活动态 `[data-active]` 随开合翻转（2026-11-08：元素常驻，单看数量已无判别力）
 4. 自愈回归：触摸 tap sessionRow（无手势）→ 会话打开 + 抽屉关（合成 click 未被误吞）
 5. 手势后零副作用：内容区右滑关闭 → 无会话切换、无 FAB/backdrop 二次 click
 6. 桌面 ≥1024px：无热区 DOM、无监听副作用、与禁用插件布局一致
@@ -256,7 +256,7 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 
 环境：隔离 DSH_HOME + link 本地 fork + `dsh web --port 3456` + headless Chrome（`scripts/cdp-swipe-probe.mjs`，复用 cdp-probe.mjs 的 CDP 基础设施 + `Input.dispatchTouchEvent` 触摸注入）。
 
-**CDP 清单 7 项全部通过**：边缘滑出打开（marker 翻转 + 逐帧 transform 采样仅宿主两态）、内容区右滑关闭、aria-modal 让位（注入 modal 后手势 inert、清理后恢复）、双遮罩恒 1、手势后零副作用、桌面 ≥1024px 零回归（无热区/无 frame/无 backdrop）、纵向滚动不触发。
+**CDP 清单 7 项全部通过**：边缘滑出打开（marker 翻转 + 逐帧 transform 采样仅宿主两态）、内容区右滑关闭、aria-modal 让位（注入 modal 后手势 inert、清理后恢复）、遮罩恒 1 且暗层活动态随开合、手势后零副作用、桌面 ≥1024px 零回归（无热区/无 frame/无 backdrop）、纵向滚动不触发。
 
 **实测驱动的两处实现修正**（方案文档原设计未覆盖）：
 

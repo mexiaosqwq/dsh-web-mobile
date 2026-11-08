@@ -182,7 +182,10 @@ async function main() {
       '2b.open-landing', `transform=${opened.transform} width=${opened.width}`)
 
     // ---- 3. backdrop click closes WITH animation (late commit) ----
-    await waitFor(async () => await evaluate(`document.querySelectorAll('${BACKDROP}').length > 0`), 'backdrop mounted', 8000)
+    // The catcher is persistent since 2026-11-08 (the dim paints on the frame's
+    // ::after), so arm the wait on [data-active] — the state that actually says
+    // the close affordance is live — instead of on the element's presence.
+    await waitFor(async () => await evaluate(`document.querySelector('${BACKDROP}')?.hasAttribute('data-active') === true`), 'backdrop armed', 8000)
     const closeSample = await sample(`(() => { document.querySelector('${BACKDROP}').click(); return true })()`)
     await waitFor(async () => await evaluate(`document.querySelector('${FRAME}').hasAttribute('data-sidebar-collapsed') === true`), 'drawer closed', 8000)
     await sleep(300)
