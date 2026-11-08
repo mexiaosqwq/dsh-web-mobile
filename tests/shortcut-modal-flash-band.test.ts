@@ -10,7 +10,7 @@
 // 真机实测（Android 16 WebView，快捷键弹层开着）：人为加上
 // data-sidebar-collapsed 后，根计算 z 1400 -> 1000，且
 // elementsFromPoint(0.85w, .30h) 命中的最顶层元素变成
-// [data-mobile-nav="backdrop"]；rgba(0,0,0,.45) 压在白底上 = 亮度 141，与报障
+// [data-mobile-nav="hit"]；rgba(0,0,0,.45) 压在白底上 = 亮度 141，与报障
 // 人录屏里量到的 140（抽屉右缘 280px 之后）一致。这就是「抽搐/闪」，不是合成撕裂。
 //
 // 本文件钉住修复的两半，任一半回退都红。
@@ -40,7 +40,7 @@ const DRAWER_GATE = 'body:has([data-mobile-nav="frame"]:not([data-sidebar-collap
 // 2026-11-08: the backdrop element is now a persistent, always-mounted hit
 // target, so presence alone no longer means "on screen"; the gate keys on
 // [data-active], which is set exactly while the dim is painted.
-const BACKDROP_GATE = 'body:has([data-mobile-nav="backdrop"][data-active])'
+const BACKDROP_GATE = 'body:has([data-mobile-nav="hit"][data-active])'
 const MODAL_ROOT = '> div:has(> [role="dialog"][aria-modal="true"])'
 
 test('modal-root raise lives in the mobile popover band at the 1400 value', () => {
@@ -111,7 +111,7 @@ test('every non-gesture closer shares the one late-commit toggle', () => {
   )
   // The backdrop tap (drawer-close.ts capture handler) is a closer too: it must
   // go through the shared late-commit helper, never the raw host toggle.
-  const tapAt = DRAWER_CLOSE.indexOf("target.closest('[data-mobile-nav=\"backdrop\"]')")
+  const tapAt = DRAWER_CLOSE.indexOf("target.closest('[data-mobile-nav=\"hit\"]')")
   assert.notEqual(tapAt, -1, 'backdrop tap path missing from drawer-close.ts')
   const tap = DRAWER_CLOSE.slice(tapAt, tapAt + 600)
   assert.match(tap, /if \(drawerOpen\(\)\) toggleSidebar\(\)/, 'backdrop tap must use the shared closer')

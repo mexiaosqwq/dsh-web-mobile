@@ -37,7 +37,7 @@ const DEFAULT_TIMEOUT_MS = 30_000
 const CHROME_GRACE_MS = 5_000
 const DRAWER_SELECTOR = '[data-mobile-nav="frame"] [class*="_sidebarCol"]'
 const FRAME_SELECTOR = '[data-mobile-nav="frame"]'
-const BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]'
+const HIT_SELECTOR = '[data-mobile-nav="hit"]'
 const FAB_SELECTOR = '[data-mobile-nav="fab"]'
 const TOGGLE_SELECTOR = '[data-mobile-nav="toggle"]'
 const STYLE_SELECTOR = 'style[data-plugin="dsh-web-mobile"]'
@@ -287,12 +287,12 @@ async function drawerState(client) {
   return client.evaluate(`(() => {
     const frame = document.querySelector(${JSON.stringify(FRAME_SELECTOR)})
     const drawer = document.querySelector(${JSON.stringify(DRAWER_SELECTOR)})
-    const backdrop = document.querySelector(${JSON.stringify(BACKDROP_SELECTOR)})
+    const backdrop = document.querySelector(${JSON.stringify(HIT_SELECTOR)})
     const rect = drawer === null ? null : drawer.getBoundingClientRect()
     return {
       frame: frame !== null,
       collapsed: frame === null ? null : frame.hasAttribute('data-sidebar-collapsed'),
-      backdropCount: document.querySelectorAll(${JSON.stringify(BACKDROP_SELECTOR)}).length,
+      backdropCount: document.querySelectorAll(${JSON.stringify(HIT_SELECTOR)}).length,
       dimActive: backdrop !== null && backdrop.hasAttribute('data-active'),
       drawerWidth: rect === null ? 0 : rect.width,
       drawerHeight: rect === null ? 0 : rect.height,

@@ -72,7 +72,8 @@ CSS 写在 `styles/`，不写进组件文件；保留拼接顺序与完整 CSS �
 会静默漏匹配（全库迁移时实测）。选择器要限定到它自己的区域，前缀重叠的片段用 `:not` 防误伤；树行用
 `[class*="_treeRow"]`，区分目录/文件时排除 `[class*="_treeArrowEmpty"]`。
 
-DOM 标记即跨模块状态契约：`data-mobile-nav="frame"`、`data-sidebar-collapsed`、
+DOM 标记即跨模块状态契约：`data-mobile-nav="frame"`、`data-mobile-nav="hit"`（常驻透明命中层：
+点空白关闭 + 弹层 z 门控，`[data-active]` 是门控信号）、`data-sidebar-collapsed`、
 `data-aionui-explorer-open`、`data-aionui-preview-open`、`data-mobile-preview-full`、
 `data-mobile-nav="stats"`、`data-mobile-nav="stats-ring"` + overlay 体系五标记（`stats-ring-reserve` /
 `stats-tps-reserve` / `stats-tps` / `stats-ring-dock` / `stats-tps-row`，#104）、`data-file-viewer-open`

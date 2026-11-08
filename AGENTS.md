@@ -56,7 +56,7 @@
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
 - 动手改某块代码前 → `docs/maintenance/pitfalls.md`（73 坑原文，名字=锚点，索引在下方 Pitfalls 节）
-- 准备重构关闭/暗层链路、整理探针、给 `drawer-layer.ts` 换标记 → `docs/maintenance/debt-backlog.md`（刻意未动的 4 条债 + 各自「为什么不动」与验收线）
+- 准备重构关闭/暗层链路、整理探针 → `docs/maintenance/debt-backlog.md`（刻意未动的 3 条债 + 各自「为什么不动」与验收线）
 - 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约）
 - 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（跨模块形状约束 + 模块索引）
 - 做验收或起探针环境 → `docs/maintenance/verification-playbook.md`（三档验收场景 + CDP/Playwright MCP/Termux 配方）

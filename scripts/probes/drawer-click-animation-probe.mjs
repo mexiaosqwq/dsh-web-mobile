@@ -34,7 +34,7 @@ const CHROME = process.env.DSH_PROBE_CHROME || 'chromium'
 const PORT = 9367
 const FRAME = '[data-mobile-nav="frame"]'
 const TOGGLE = '[data-mobile-nav="toggle"]'
-const BACKDROP = '[data-mobile-nav="backdrop"]'
+const HIT = '[data-mobile-nav="hit"]'
 const PANE = '[data-pane="sidebar"]'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -63,7 +63,7 @@ const GEOMETRY = `(() => {
     collapsed: frame.hasAttribute('data-sidebar-collapsed'),
     width: Math.round(r.width), left: Math.round(r.left), right: Math.round(r.right),
     transform: cs.transform, transition: cs.transitionProperty + ' ' + cs.transitionDuration,
-    backdrop: document.querySelectorAll('${BACKDROP}').length,
+    backdrop: document.querySelectorAll('${HIT}').length,
   })
 })()`
 
@@ -185,8 +185,8 @@ async function main() {
     // The catcher is persistent since 2026-11-08 (the dim paints on the frame's
     // ::after), so arm the wait on [data-active] — the state that actually says
     // the close affordance is live — instead of on the element's presence.
-    await waitFor(async () => await evaluate(`document.querySelector('${BACKDROP}')?.hasAttribute('data-active') === true`), 'backdrop armed', 8000)
-    const closeSample = await sample(`(() => { document.querySelector('${BACKDROP}').click(); return true })()`)
+    await waitFor(async () => await evaluate(`document.querySelector('${HIT}')?.hasAttribute('data-active') === true`), 'backdrop armed', 8000)
+    const closeSample = await sample(`(() => { document.querySelector('${HIT}').click(); return true })()`)
     await waitFor(async () => await evaluate(`document.querySelector('${FRAME}').hasAttribute('data-sidebar-collapsed') === true`), 'drawer closed', 8000)
     await sleep(300)
     const closedAgain = JSON.parse(await evaluate(GEOMETRY))

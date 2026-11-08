@@ -1454,7 +1454,7 @@ export function installSidebarSwipe(ctx: ClientContext, filesToggle: () => boole
       // whose overlay IS the element this stroke started on: re-toggling the
       // drawer straight back open is exactly what that would do.
       const overlay = event.target.closest(
-        '[data-mobile-nav="backdrop"], [data-mobile-nav="fab"]',
+        '[data-mobile-nav="hit"], [data-mobile-nav="fab"]',
       )
       if (overlay !== null && !overlay.contains(consumedEl)) return
       if (!consumeIfGestured(event)) return

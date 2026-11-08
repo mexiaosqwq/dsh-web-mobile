@@ -425,7 +425,7 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
      it). Our own delete backdrop matches this rule too since the 2026-09-24
      centered rework (its direct child card carries role=dialog) — harmlessly:
      it sets the same 1400 the dedicated rule below sets. */
-  body:has([data-mobile-nav="backdrop"][data-active])
+  body:has([data-mobile-nav="hit"][data-active])
     > div:has(> [role="dialog"][aria-modal="true"]) {
     z-index: 1400 !important;
   }
@@ -626,7 +626,7 @@ html [data-mobile-nav="frame"][data-mobile-nav-dim="1"]::after {
 }
 /* Hit target only: paints nothing, no interactive role/aria, no animation.
    The dim comes from the frame's ::after. */
-[data-mobile-nav="backdrop"] {
+[data-mobile-nav="hit"] {
   position: absolute;
   inset: 0;
   z-index: 1250;

@@ -91,7 +91,7 @@ export function createDrawerLayerTask(
   const ensureHitLayer = (frame: HTMLElement): HTMLDivElement => {
     if (hitLayer === null) {
       hitLayer = document.createElement('div')
-      hitLayer.dataset.mobileNav = 'backdrop'
+      hitLayer.dataset.mobileNav = 'hit'
       hitLayer.setAttribute('aria-hidden', 'true')
       hitLayer.style.pointerEvents = 'none'
       frame.appendChild(hitLayer)

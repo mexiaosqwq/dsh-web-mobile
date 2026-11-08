@@ -1,6 +1,6 @@
 # 技术债台账：看过但刻意没动的地方
 
-> **何时读**：准备重构抽屉关闭/暗层链路、整理探针脚本、或要给 `drawer-layer.ts` 换标记时。
+> **何时读**：准备重构抽屉关闭/暗层链路或整理探针脚本时。
 > **一句话结论**：这里每一条都写了「为什么当时不动」和「做完的验收线」——按条做、每条单独验证，**不要顺手一起合**。
 > 做完一条就从本文件删掉该条（台账只减不增；加新条前先想清楚它会不会两周内就被做掉）。
 
@@ -8,10 +8,9 @@
 | --- | --- | --- | --- |
 | 1 | 关闭提交住在手势模块里（该上 `platform/`） | 代码能改；**探针要活实例** | 中（60–90 分钟） |
 | 2 | 两个探针各自实现 `drawerState`（连 62 份选择器） | **不能**：要活实例才验得完 | 小（< 1 小时） |
-| 3 | DOM 标记 `backdrop` 实际是命中层 | **能**：纯离线（`test:core` + `build`） | 小（30–45 分钟） |
-| 4 | `tests/` 从不做 typecheck | 刻意不做（留档，等大改 `tests/`） | 中（半天） |
+| 3 | `tests/` 从不做 typecheck | 刻意不做（留档，等大改 `tests/`） | 中（半天） |
 
-> 顺序：**条 3 现在就能收**；条 1、条 2 卡在同一个活实例上，条 1 改完再抽探针可共用一次实例；条 4 不动。
+> 顺序：剩下的三条里，条 1、条 2 卡在同一个活实例上（条 1 改完再抽探针，可共用一次实例）；条 3 刻意不动。
 
 ---
 
@@ -83,44 +82,7 @@ swipe-probe 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawer
 
 **规模**：小（< 1 小时）+ 一次探针验证。
 
-## 3. DOM 标记名遗留：`backdrop` 实际是命中层
-
-**位置**：`data-mobile-nav="backdrop"` 写入点 `drawer-layer.ts`（`dataset.mobileNav`，L94）。
-读取点（实测 6 行 CSS + 2 个 JS + 3 个探针 + 6 个测试）：
-
-- `styles/base.css.ts` 2 行（命中层规则 + 弹层带门控）、`styles/compat.css.ts` 2 行（takeover 清屏）、
-  `styles/misc.css.ts` 2 行（user-select / 桌面隐藏）——三处成对改；
-- `effects/drawer-close.ts`（捕获期点击归属判定，L220）、`effects/sidebar-swipe.ts`（手势合成 click
-  放行判定，L1457——**最容易漏的一处**）；
-- 探针 3：`scripts/cdp-probe.mjs`（L23）、`scripts/cdp-swipe-probe.mjs`（L40）、
-  `scripts/probes/drawer-click-animation-probe.mjs`（L37）；
-- 测试 6：`css-rules`（L626）、`shortcut-modal-flash-band`（L43 门控 + L13 注释）、
-  `our-free-model-toast-layer`（L60 取 z-index）、`text-selection-scope`（L49）、
-  `drawer-open`（L211 假节点判定）、`mobile-navigation-behavior`（L45 选择器匹配）。
-
-`effects/gesture-guard.ts` **不读**这个标记（全文只有一句注释提到它），改名时别被它带偏。
-
-**坑**：`backdrop` 这个词还出现在另外两个标记里（`delete-dialog-backdrop`、`file-picker-backdrop`），
-只许精确串替换（`'backdrop'` / `"backdrop"` / `="backdrop"]`），禁止 `sed s/backdrop/hit/g` 一把梭。
-
-**现状**：这个元素已经不画任何东西（`background: transparent`，只有命中测试与 `cursor: pointer`）；
-暗层靠 `data-mobile-nav-dim` 单独表达。名字里的 `backdrop` 是 2026-11-08 之前的角色残留。
-
-**为什么没动**：改标记等于改跨模块契约，八个读点分散在 styles / effects / 探针 / 测试四处。
-
-**旧口径作废**：「双侧并存一代」的兼容窗口**不需要**——插件是单 bundle，CSS 与 JS 永远同版本；
-缓存页拿到的是整个旧 bundle，不存在新旧混跑。直接单名替换。
-
-**修法**：写入点改 `'hit'`，上列八处读点同步；`tests/` 里断言 CSS 文本的四处跟着改；探针常量改新名。
-
-**验收**：`pnpm test:core`（含 CSS 结构门与补丁登记门）+ `pnpm build`；
-`git grep -n '"backdrop"' src/ tests/ scripts/` 只剩另外那两个标记的命中；探针需活实例复跑。
-
-**规模**：小改（30–45 分钟）。纯离线可验（`test:core` + `build`）；三个探针复跑仍需活实例。
-
----
-
-## 4. `tests/` 从不做 typecheck（2026-11-08 测量后决定**不设门**）
+## 3. `tests/` 从不做 typecheck（2026-11-08 测量后决定**不设门**）
 
 **位置**：`tsconfig.json` 的 `include` 只到 `src/index.ts`，`tsconfig.client.json` 只到 `src/client/**`——`tests/`
 两份都不覆盖；`test:core` 用 Node 24 原生 type-stripping 直跑 `.test.ts`，类型在运行期被整个剥掉。

@@ -42,7 +42,7 @@ function sessionFixture() {
     constructor(button = false) { this.button = button }
     closest(selector: string) {
       if (selector.includes('sessionRow') && selector.includes('button')) return this.button ? this : null
-      if (selector.includes('backdrop')) return null
+      if (selector.includes('data-mobile-nav="hit"')) return null
       // 面板行菜单锚点（「更多」）不是会话行，也不在会话行里面：抽屉的
       // 菜单豁免只该放过侧边栏的 panelRow 按钮（2026-10-25）。
       if (selector.includes('panelRow') || selector.includes('aria-haspopup')) return null
