@@ -511,7 +511,7 @@ test('the system back climbs one subpage level and consumes the level entry', ()
     'back() 先点子页控件，根页才走 exit',
   )
   // FAB 也必须走同一动作，否则两条返回路径会各走各的。
-  const FAB = readFileSync(join(ROOT, 'src/client/effects/overlay-backdrop-fab.ts'), 'utf8')
+  const FAB = readFileSync(join(ROOT, 'src/client/effects/drawer-layer.ts'), 'utf8')
   assert.match(FAB, /panelExit\.back\(\)/, 'FAB 的返回必须走 panelExit.back()')
   assert.doesNotMatch(FAB, /panelExit\.exit\(\)/, 'FAB 不得再直接整层退出')
 })

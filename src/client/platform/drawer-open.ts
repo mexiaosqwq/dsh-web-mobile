@@ -3,7 +3,7 @@
 // Why it lives here and not in an effect: the openers are drawer-close.ts
 // (toggleDrawer: header toggle, FAB) and sidebar-swipe.ts (the gesture's arm
 // step), and the thing that must run before them belongs to a third effect
-// (the backdrop in overlay-backdrop-fab.ts). Wiring them to each other would add
+// (the backdrop in drawer-layer.ts). Wiring them to each other would add
 // effects → effects edges (the architecture ledger only shrinks); a neutral hook
 // slot plus a focus helper keeps all three on platform/ instead. Nothing here
 // knows what the hook paints.

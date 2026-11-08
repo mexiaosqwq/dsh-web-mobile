@@ -1,6 +1,6 @@
 # 技术债台账：看过但刻意没动的地方
 
-> **何时读**：准备重构抽屉关闭/暗层链路、整理探针脚本、或要给 `overlay-backdrop-fab.ts` 改名/换标记时。
+> **何时读**：准备重构抽屉关闭/暗层链路、整理探针脚本、或要给 `drawer-layer.ts` 换标记时。
 > **一句话结论**：这里每一条都写了「为什么当时不动」和「做完的验收线」——按条做、每条单独验证，**不要顺手一起合**。
 > 做完一条就从本文件删掉该条（台账只减不增；加新条前先想清楚它会不会两周内就被做掉）。
 
@@ -18,7 +18,7 @@
 （点击空白 / Escape / 导航点击 / FAB / 顶栏开关），却住在只有手势用的模块里。代价是两条
 `effects → effects` 边：
 
-- `sidebar-swipe → overlay-backdrop-fab`：唯一用途 `fadeOverlayOut()`，而它本身就是 `fadeHook?.()`；
+- `sidebar-swipe → drawer-layer`：唯一用途 `fadeOverlayOut()`，而它本身就是 `fadeHook?.()`；
 - `drawer-close → sidebar-swipe`：唯一用途 `closeDrawerAnimated`（该文件只 import 这一个符号）。
 
 **为什么没动**：搬它要动关闭动效的时序（晚提交窗口、cooldown、reduced-motion 分支），回归面是三个手势
@@ -37,7 +37,7 @@
 手势侧只留 `commitFollowClose`（它绑定 `followDrawer` / `strokeRtl` / `releaseFollowStyles`，是手势自己的
 东西）与 `releaseFollowStyles`；目标串改由 `closedSlotTx(rtl)` 产出，两个入口各传自己的取向。
 
-**验收**（结构判据，不是行数）：① `tests/architecture.test.ts` 里 `sidebar-swipe → overlay-backdrop-fab`
+**验收**（结构判据，不是行数）：① `tests/architecture.test.ts` 里 `sidebar-swipe → drawer-layer`
 与 `drawer-close → sidebar-swipe` 两行边注释归零（台账只许缩短）；② `pendingCommit` / `cooldownUntil`
 全仓唯一声明在 `platform/drawer-commit.ts`；③ `DEBT.bigFiles` 的 sidebar-swipe 数字下调并记理由、
 `DEBT.moduleState` 20 → 18 且新增 `platform/drawer-commit.ts` 键；④ `scripts/cdp-swipe-probe.mjs` /
@@ -73,42 +73,9 @@ swipe-probe 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawer
 
 **规模**：小（< 1 小时）+ 一次探针验证。
 
-## 3. 模块名与角色不符（`overlay-backdrop-fab` → `drawer-layer`）
+## 3. DOM 标记名遗留：`backdrop` 实际是命中层
 
-**位置**：`src/client/effects/overlay-backdrop-fab.ts`。
-
-**现状**：名字说的是「遮罩 + 悬浮键」，但现在它既不创建遮罩层（暗层画在 frame 的 `::after` 上），
-也不是遮罩的所有者——它拥有的是 FAB、常驻命中层（`[data-mobile-nav="backdrop"]`）与暗层标记
-（`data-mobile-nav-dim`）。读名字找「谁画暗层」会找错人。
-
-**改名面**（实测 36 行 / 17 文件，`git grep -n overlay-backdrop-fab -- . ':!lib'`）：
-
-- 源码 6：`reconciler-adapter.ts`（import）、`sidebar-swipe.ts`（`fadeOverlayOut` import）、
-  `panel-exit.ts` / `header-metrics.ts` / `styles/base.css.ts`（2 行指路注释）/
-  `platform/drawer-open.ts`（docblock）；
-- 测试 4：`architecture`（`DEBT.moduleState` 按**文件路径**做键，另有 3 行边注释）、
-  `reconciler-core`（**任务名**做键：`'overlay-backdrop-fab': ['*', 'data-sidebar-collapsed', 'data-phase']`）、
-  `panel-exit-animation`（`readFileSync` 路径）、`drawer-open`（两处动态 import）；
-- 文档 7：`AGENTS.md` 路由行、`src/client/AGENTS.md` 任务清单与 `src/client/effects/AGENTS.md` 两处、
-  `docs/specs/2026-08-27-sidebar-swipe-gestures.md` 两处、`docs/maintenance/pitfalls.md` 四处、
-  本文件（本条做完即删）。
-
-**为什么没动**：纯机械但面广——当轮手上已有跨 29 文件的 diff，叠一起审查成本失控。
-
-**修法**：`git mv src/client/effects/overlay-backdrop-fab.ts src/client/effects/drawer-layer.ts` → 改 import →
-`name: 'overlay-backdrop-fab'`（L254）改 `'drawer-layer'` → 同步上面四处测试耦合与七处文档 →
-`pnpm build` 后删掉 `lib/types/client/effects/overlay-backdrop-fab.d.ts(.map)`（tsc 不清理陈旧产物）→
-`git grep -n overlay-backdrop-fab -- . ':!lib'` 归零。
-
-**验收**：`pnpm verify` + `pnpm test:core`（四个耦合测试会自己报）+ `pnpm build` +
-`node scripts/client-bundle-smoke.mjs`；旧名 grep 零残留（`lib/` 已重建）；`?mobile-nav-debug=1` 徽章里的
-任务名跟着变（无代码按名匹配该字符串）。
-
-**规模**：小但机械（30–45 分钟）。
-
-## 4. DOM 标记名遗留：`backdrop` 实际是命中层
-
-**位置**：`data-mobile-nav="backdrop"` 写入点 `overlay-backdrop-fab.ts`（`dataset.mobileNav`，L88）。
+**位置**：`data-mobile-nav="backdrop"` 写入点 `drawer-layer.ts`（`dataset.mobileNav`，L88）。
 读取点（实测 6 行 CSS + 2 个 JS + 3 个探针 + 6 个测试）：
 
 - `styles/base.css.ts` 2 行（命中层规则 + 弹层带门控）、`styles/compat.css.ts` 2 行（takeover 清屏）、
@@ -143,7 +110,7 @@ swipe-probe 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawer
 
 ---
 
-## 5. `tests/` 从不做 typecheck（2026-11-08 测量后决定**不设门**）
+## 4. `tests/` 从不做 typecheck（2026-11-08 测量后决定**不设门**）
 
 **位置**：`tsconfig.json` 的 `include` 只到 `src/index.ts`，`tsconfig.client.json` 只到 `src/client/**`——`tests/`
 两份都不覆盖；`test:core` 用 Node 24 原生 type-stripping 直跑 `.test.ts`，类型在运行期被整个剥掉。

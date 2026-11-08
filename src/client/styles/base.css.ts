@@ -419,7 +419,7 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
      The dim is painted by the frame's ::after now, so the trigger is
      [data-active] on our hit target: set exactly while the dim paints and
      released BAND_RELEASE_MS (one fade + the old 60ms slack, see
-     overlay-backdrop-fab.ts) after the marker flips — that slack keeps the
+     drawer-layer.ts) after the marker flips — that slack keeps the
      raise past the ~200-280ms subtree swap above. With no active backdrop the
      host's own ordering stands (a menu opened inside a modal still sorts above
      it). Our own delete backdrop matches this rule too since the 2026-09-24
@@ -479,7 +479,7 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
      390px with the terminal panel open: elementFromPoint at the FAB's centre
      returned a panel child, and a real tap on it left the drawer closed — the
      phone lost its only way back to navigation (the FAB is the screen's only
-     control once a panel owns the main area, see overlay-backdrop-fab.ts).
+     control once a panel owns the main area, see drawer-layer.ts).
      Raise OUR two surfaces for that state, the same "raise the root, not the
      children" shape as above; the FAB stays in the below-the-drawer band (55)
      so an open drawer keeps covering it. Gate on the open attribute: the

@@ -161,7 +161,7 @@ test('openers are wired: header toggle via toggleDrawer, gesture arm blurs befor
   assert.doesNotMatch(SOURCE, /from '\.\.\/effects\//)
 })
 
-// ── R3: the backdrop mounts in the opening task (overlay-backdrop-fab showNow) ──
+// ── R3: the backdrop mounts in the opening task (drawer-layer showNow) ──
 
 class FakeNode {
   tagName: string
@@ -205,8 +205,8 @@ async function overlayHarness() {
   doc.createElement = (tag: string) => new FakeNode(tag)
   // The active session view exists, so the FAB stays out of the picture.
   doc.querySelector = (sel: string) => (sel === '[data-mobile-nav="frame"]' ? frame : sel === '[data-phase="active"]' ? {} : null)
-  const { createOverlayTask } = await import('../src/client/effects/overlay-backdrop-fab.ts')
-  const task = createOverlayTask(((k: string) => k) as never, () => {}, null)
+  const { createDrawerLayerTask } = await import('../src/client/effects/drawer-layer.ts')
+  const task = createDrawerLayerTask(((k: string) => k) as never, () => {}, null)
   task.ensure()
   const backdrops = (): FakeNode[] => frame.children.filter((c) => c.dataset.mobileNav === 'backdrop')
   return { env, frame, task, backdrops }
@@ -241,12 +241,12 @@ test('an ensure before the commit lands keeps the optimistic dim in the confirm 
 
 test('a mutation during a late close commit does not re-light the pre-faded dim', async () => {
   const { frame, task } = await overlayHarness()
-  const { fadeOverlayOut } = await import('../src/client/effects/overlay-backdrop-fab.ts')
+  const { fadeDimOut } = await import('../src/client/effects/drawer-layer.ts')
   mod.drawerOpening()
   frame.removeAttribute('data-sidebar-collapsed')
   task.ensure()
   assert.equal(frame.getAttribute('data-mobile-nav-dim'), '1')
-  fadeOverlayOut() // the close commit starts animating; the marker has not flipped
+  fadeDimOut() // the close commit starts animating; the marker has not flipped
   assert.equal(frame.getAttribute('data-mobile-nav-dim'), '0')
   task.ensure() // any tree mutation landing inside the 280ms window
   assert.equal(frame.getAttribute('data-mobile-nav-dim'), '0', 'the pre-fade must survive the marker lag')

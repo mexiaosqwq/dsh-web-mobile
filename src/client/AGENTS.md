@@ -40,7 +40,7 @@
   树键因为它的槽随树重建，文本键因为 TPS 更新可能以原地 `nodeValue` 改写到达。**加键安全；删掉树键
   正是这行要防的失效模式**。
 - 已注册任务：`frame-marker`、`header-metrics`、`preview-fullscreen-toggle`、`preview-close-sync`、
-  `sheet-rise-replay`、`file-viewer-open-marker`、`stats-line`、`overlay-backdrop-fab`、`panel-back-exit`、
+  `sheet-rise-replay`、`file-viewer-open-marker`、`stats-line`、`drawer-layer`、`panel-back-exit`、
   `drawer-session-log`、`image-lightbox-zoom`、`question-fullscreen`（后两个由各自效果在移动档自注册）。
 
 ## 分层与依赖

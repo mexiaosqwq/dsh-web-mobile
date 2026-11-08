@@ -10,7 +10,7 @@ import { NS } from '../i18n/locales.ts'
 import { createPreviewCloseTask, createSheetRiseTask } from './aionui-compat.ts'
 import { createStatsLineTask } from './stats-line.ts'
 import { createPreviewFullscreenTask } from './preview-fullscreen.ts'
-import { createOverlayTask } from './overlay-backdrop-fab.ts'
+import { createDrawerLayerTask } from './drawer-layer.ts'
 import { createFileViewerMarkerTask } from './file-viewer-compat.ts'
 import { createDrawerSessionLogTask } from './drawer-session-log.ts'
 import { createDrawerQuickSettingsTask } from './drawer-quick-settings.ts'
@@ -128,7 +128,7 @@ export function registerReconcileTasks(ctx: ClientContext, panelExit: PanelExit)
     addReconcilerTask(createPreviewCloseTask()),
     addReconcilerTask(createSheetRiseTask()),
     addReconcilerTask(createStatsLineTask()),
-    addReconcilerTask(createOverlayTask(t, () => toggleDrawer(ctx), panelExit)),
+    addReconcilerTask(createDrawerLayerTask(t, () => toggleDrawer(ctx), panelExit)),
     addReconcilerTask(panelExit.task),
     addReconcilerTask(createFileViewerMarkerTask()),
     addReconcilerTask(createDrawerSessionLogTask(ctx)),

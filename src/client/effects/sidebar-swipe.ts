@@ -3,7 +3,7 @@ import { foreignModalOpen, getDrawer, getFrame } from '../platform/frame.ts'
 import { installMobileEffect } from '../platform/breakpoints.ts'
 import { drawerOpening, releaseTextFocus } from '../platform/drawer-open.ts'
 import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
-import { fadeOverlayOut } from './overlay-backdrop-fab.ts'
+import { fadeDimOut } from './drawer-layer.ts'
 
 /**
  * Sidebar drawer swipe gestures (B 档 hybrid follow, per the 2026-08-29
@@ -925,7 +925,7 @@ function commitWithAnimation(ctx: ClientContext, el: HTMLElement, targetTx: stri
   // gesture-close path reaches here without a reduce check (issue #86). Land
   // the exact same guarded commit, just without the animation beat.
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    fadeOverlayOut()
+    fadeDimOut()
     cooldownUntil = performance.now() + COOLDOWN_MS
     pendingCommit = { el, ctx, timer: 0, target: targetTx }
     finishPendingCommit()
@@ -945,7 +945,7 @@ function commitWithAnimation(ctx: ClientContext, el: HTMLElement, targetTx: stri
   // Fade the dimming in step with the slide-out: the marker flips only when
   // the drawer lands, so without this the screen would go drawer-then-dark
   // (backdrop snapping away ~260ms AFTER the drawer already left).
-  fadeOverlayOut()
+  fadeDimOut()
   cooldownUntil = performance.now() + COOLDOWN_MS
   pendingCommit = {
     el,
