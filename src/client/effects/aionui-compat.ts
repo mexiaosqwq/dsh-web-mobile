@@ -1,7 +1,9 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { getFrame } from '../platform/frame.ts'
-import { installMobileEffect } from '../platform/breakpoints.ts'
+import { NS } from '../i18n/locales.ts'
+import { installMobileEffect, TABLET_TOUCH_QUERY } from '../platform/breakpoints.ts'
+import { createPreviewFullscreenTask } from './preview-fullscreen.ts'
 
 /** dsh-web-ui 兼容：explorer / preview 列的显隐标记与升起动画（同域同机制，合并一处）。 */
 export function installAionuiCompat(ctx: ClientContext): void {
@@ -89,6 +91,79 @@ export function installAionuiCompat(ctx: ClientContext): void {
       document.removeEventListener('click', onCollapse, true)
     }
   })
+
+  // 宽屏触屏（≥1024）没有手机壳，宿主原生预览列也没有 data-mobile-nav
+  // frame。这里把平板自己的 open/close 标记挂到 <html>，由下面的轻量观察器
+  // 驱动 preview-fullscreen 任务；共享 reconciler 只在 MOBILE_QUERY 武装。
+  installMobileEffect(
+    ctx,
+    'dsh-web-mobile: tablet preview open marker',
+    () => {
+      const onTap = (event: MouseEvent): void => {
+        const target = event.target as HTMLElement | null
+        if (target === null) return
+        const row = target.closest('[data-aionui-explorer-col] [class*="_treeRow"]')
+        if (row === null) return
+        if (row.querySelector('[class*="_treeArrow"]:not([class*="_treeArrowEmpty"])') !== null) return
+        document.documentElement.setAttribute('data-aionui-preview-open', '')
+      }
+      const onCollapse = (event: MouseEvent): void => {
+        const target = event.target as HTMLElement | null
+        if (target?.closest('[data-aionui-preview-col] [class*="_panelCollapse"]') === null) return
+        document.documentElement?.removeAttribute('data-aionui-preview-open')
+        document.documentElement?.removeAttribute('data-mobile-preview-full')
+      }
+      document.addEventListener('click', onTap, true)
+      document.addEventListener('click', onCollapse, true)
+      return () => {
+        document.removeEventListener('click', onTap, true)
+        document.removeEventListener('click', onCollapse, true)
+        document.documentElement?.removeAttribute('data-aionui-preview-open')
+        document.documentElement?.removeAttribute('data-mobile-preview-full')
+      }
+    },
+    TABLET_TOUCH_QUERY,
+  )
+
+  // 宽屏触屏的全屏按钮不走共享 reconciler（它只在 MOBILE_QUERY 武装）。
+  // 与 tablet-quick-settings 同口径：复用任务逻辑，自己用极轻的观察器驱动
+  // ensure。只观察预览标记和子节点挂载，不读几何。
+  installMobileEffect(
+    ctx,
+    'dsh-web-mobile: tablet preview fullscreen',
+    () => {
+      const task = createPreviewFullscreenTask(ctx.locale.bind(NS))
+      const sync = (): void => {
+        try {
+          task.ensure()
+        } catch (error) {
+          console.error('[dsh-web-mobile] tablet-preview-fullscreen', error)
+        }
+      }
+      let queued = false
+      const schedule = (): void => {
+        if (queued) return
+        queued = true
+        requestAnimationFrame(() => {
+          queued = false
+          sync()
+        })
+      }
+      const observer = new MutationObserver(schedule)
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-aionui-preview-open', 'data-mobile-preview-full'],
+      })
+      sync()
+      return () => {
+        observer.disconnect()
+        task.dispose()
+      }
+    },
+    TABLET_TOUCH_QUERY,
+  )
 }
 
 export function createPreviewCloseTask(): ReconcilerTask {
@@ -106,6 +181,8 @@ export function createPreviewCloseTask(): ReconcilerTask {
       if (pv.style.visibility === 'hidden') {
         getFrame()?.removeAttribute('data-aionui-preview-open')
         getFrame()?.removeAttribute('data-mobile-preview-full')
+        document.documentElement?.removeAttribute('data-aionui-preview-open')
+        document.documentElement?.removeAttribute('data-mobile-preview-full')
       }
     },
     dispose: () => {},

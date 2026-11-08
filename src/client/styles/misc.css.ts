@@ -539,6 +539,83 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
     display: inline-flex !important;
   }
 
+  /* ③″ 预览全屏按钮放回来（2026-11-08）：宽屏触屏没有手机壳，宿主原生预览列
+     只给「收起」，而手机档的全屏按钮被上面的桌面隐藏块藏掉。按钮与标记由
+     effects/aionui-compat.ts 按 TABLET_TOUCH_QUERY 补挂；这里复用
+     手机档的尺寸/热区/图标语言，并把全屏列铺满视口。标记落在 <html> 而不是
+     frame —— 这一档根本没有 frame。 */
+  [data-aionui-preview-col] {
+    position: relative !important;
+  }
+  [data-mobile-nav="preview-full-toggle"] {
+    position: absolute !important;
+    right: 36px !important;
+    top: 8px !important;
+    z-index: 57 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--aion-text-secondary, var(--dsw-alias-label-secondary, inherit));
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color .15s, top .24s var(--ds-ease-out, ease-in-out);
+  }
+  [data-mobile-nav="preview-full-toggle"]::after {
+    content: '';
+    position: absolute;
+    inset: -12px -4px;
+  }
+  [data-mobile-nav="preview-full-toggle"]:active {
+    background: var(--aion-bg-active, rgba(0, 0, 0, .28));
+  }
+  [data-mobile-nav="preview-full-toggle"]:focus-visible {
+    outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
+    outline-offset: 2px;
+  }
+  [data-mobile-nav="preview-full-toggle"] svg {
+    width: 14px;
+    height: 14px;
+  }
+  [data-mobile-nav="preview-full-toggle"] .dsh-web-mobile-full-out {
+    display: none !important;
+  }
+  html[data-mobile-preview-full] [data-aionui-preview-col] {
+    position: fixed !important;
+    inset: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    box-sizing: border-box !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    z-index: 56 !important;
+  }
+  html[data-mobile-preview-full] [data-aionui-preview-col] [data-mobile-nav="preview-full-toggle"] {
+    top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+  }
+  html[data-mobile-preview-full] [data-aionui-preview-col] [data-mobile-nav="preview-full-toggle"] .dsh-web-mobile-full-in {
+    display: none !important;
+  }
+  html[data-mobile-preview-full] [data-aionui-preview-col] [data-mobile-nav="preview-full-toggle"] .dsh-web-mobile-full-out {
+    display: inline !important;
+  }
+  html[data-mobile-preview-full] body {
+    overflow: hidden !important;
+  }
+
   /* ③′ 输入框回形针放回来（#259 ②）：触屏平板同样没有拖放与 hover，回形针是顺手的文件入口；
      弹层逻辑见 effects/composer-file-picker.ts（按 TOUCH_QUERY 武装）。手机档的盒子样式
      （28px 圆、-8px 左移、::after 外扩命中区）在 layout.css 的移动块里，平板不命中，这里补

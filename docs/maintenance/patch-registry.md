@@ -55,7 +55,7 @@
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 525 | 608 | 301 |
 | `src/client/styles/compat.css.ts` | 387 | 112 | 23 |
-| `src/client/styles/misc.css.ts` | 99 | 56 | 34 |
+| `src/client/styles/misc.css.ts` | 126 | 56 | 34 |
 | `src/client/styles/base.css.ts` | 16 | 8 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
@@ -63,7 +63,7 @@
 | `src/client/core/css-rules.ts` | 1 | 2 | 3 |
 | `src/client/effects/stats-line.ts` | 1 | 9 | 0 |
 | `src/client/debug.ts` | 0 | 5 | 0 |
-| `src/client/effects/aionui-compat.ts` | 0 | 4 | 0 |
+| `src/client/effects/aionui-compat.ts` | 0 | 8 | 0 |
 | `src/client/effects/composer-clearance.ts` | 0 | 3 | 1 |
 | `src/client/effects/composer-keyboard-lift.ts` | 0 | 2 | 0 |
 | `src/client/effects/composer-plus-toggle.ts` | 0 | 1 | 0 |
@@ -80,6 +80,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1036** | **871** | **374** |
+| **合计** | **1063** | **875** | **374** |
 
 <!-- END:inventory -->
