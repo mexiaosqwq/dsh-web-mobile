@@ -6,55 +6,74 @@
 
 ---
 
-## 1. 关闭路径：target 串各拼一遍（「两个动画器」已合并）
+## 1. 关闭提交仍住在手势模块里（close-commit 该上 platform/）
 
-**位置**：`src/client/effects/sidebar-swipe.ts`——`closeDrawerAnimated`（L991：点击 / Escape / 导航点击走它）
-与 `commitFollowClose`（L962：手势松手走它）。
+**位置**：`src/client/effects/sidebar-swipe.ts`——`cooldownUntil`（L156）/ `CLOSED_SLOT_PCT`（L109）/
+`pendingCommit`（L891）/ `finishPendingCommit`（L893）/ `commitWithAnimation`（L914）/
+`commitFollowClose`（L962）/ `closeDrawerAnimated`（L991）/ `frameRtl`（L1364）。
 
-**现状**：两条路径共用 `commitWithAnimation`（L914）：滑出动画、落地翻 marker、晚提交窗口、
-`cooldownUntil` 与**唯一一份** `pendingCommit`（L891）/ `finishPendingCommit`（L893）都只有一处实现。
-残余重复只在入口——两者各自拼 `translateX(±110%)`，RTL 取向还取两个来源：手势在笔画开始时采样
-`strokeRtl`（L167），点击 / 导航现读 `frameRtl()`（L1364）。
+**现状**：「两个动画器」已经合并，别再照旧找重复：两条关闭路径共用 `commitWithAnimation`，滑出动画、
+落地翻 marker、晚提交窗口、`pendingCommit` 与 `finishPendingCommit` 都只有一处实现，`cooldownUntil`
+也只有一份。真实残余是**归属错了**——这套关闭提交同时服务手势松手与 `drawer-close` 的全部关闭入口
+（点击空白 / Escape / 导航点击 / FAB / 顶栏开关），却住在只有手势用的模块里。代价是两条
+`effects → effects` 边：
 
-**为什么没动**：残余只有几行且两处语义等价；动它要跑全套手势探针，当时更在意不碰
-`docs/specs/2026-08-27-sidebar-swipe-gestures.md` 的状态机。
+- `sidebar-swipe → overlay-backdrop-fab`：唯一用途 `fadeOverlayOut()`，而它本身就是 `fadeHook?.()`；
+- `drawer-close → sidebar-swipe`：唯一用途 `closeDrawerAnimated`（该文件只 import 这一个符号）。
 
-**修法**：加 `closedSlotTx(rtl: boolean): string`，两个入口各传自己的取向。**不要再抽 `platform/` 纯核**——
-重复已经不存在，抽了只剩一层转发。
+**为什么没动**：搬它要动关闭动效的时序（晚提交窗口、cooldown、reduced-motion 分支），回归面是三个手势
+探针，而本机没有可跑的探针实例；那几轮手上还压着跨 29 文件的 diff。
 
-**验收**：`scripts/cdp-swipe-probe.mjs` / `scripts/probes/drawer-click-animation-probe.mjs` /
-`scripts/cdp-swipe-failures.mjs` 三个探针全绿；`CLOSED_SLOT_PCT` 只在一处被拼进 target 串。
-**别用「行数下降」当判据**——抽在同一个文件里行数基本不变（2026-11-08 复核纠正，原条目把它写成唯一量化目标）。
+**修法**：新建 `src/client/platform/drawer-commit.ts`，搬 `CLOSED_SLOT_PCT` / `COOLDOWN_MS` /
+`cooldownUntil`（导出 `onCooldown()` / `markCooldown()`）/ `pendingCommit` / `finishPendingCommit` /
+`commitWithAnimation` / `closeDrawerAnimated` / `frameRtl`，并给暗层淡出加一个中立钩子槽
+（`setDimFade(fn | null)` + `fadeDim()`）。**先例是 `src/client/platform/drawer-open.ts`**——同款钩子槽
+就是为消这条边建起来的，照它的 docblock 写法。
 
-**规模**：小（< 30 分钟）。
+硬约束（源码注释里的血泪）：`fadeHook` 现在在 `sync()` 里**每次 ensure 重挂**、`dispose()` 里清空，
+因为 `core.deactivate()` 每次断点翻转都会 dispose，只在工厂体注册一次就会从第一次翻转起永久静默失效。
+钩子槽必须同款重挂语义。
+
+手势侧只留 `commitFollowClose`（它绑定 `followDrawer` / `strokeRtl` / `releaseFollowStyles`，是手势自己的
+东西）与 `releaseFollowStyles`；目标串改由 `closedSlotTx(rtl)` 产出，两个入口各传自己的取向。
+
+**验收**（结构判据，不是行数）：① `tests/architecture.test.ts` 里 `sidebar-swipe → overlay-backdrop-fab`
+与 `drawer-close → sidebar-swipe` 两行边注释归零（台账只许缩短）；② `pendingCommit` / `cooldownUntil`
+全仓唯一声明在 `platform/drawer-commit.ts`；③ `DEBT.bigFiles` 的 sidebar-swipe 数字下调并记理由、
+`DEBT.moduleState` 20 → 18 且新增 `platform/drawer-commit.ts` 键；④ `scripts/cdp-swipe-probe.mjs` /
+`scripts/probes/drawer-click-animation-probe.mjs` / `scripts/cdp-swipe-failures.mjs` 在活实例上全绿——
+**没有活实例就不算验完**，最多到「test:core + build 绿，探针待跑」。
+
+**规模**：中（60–90 分钟，含台账与探针回归）。**单独一轮做，别和改名 / 换标记混在一起。**
 
 ## 2. 两个探针各自实现 drawerState
 
 **位置**：`scripts/cdp-probe.mjs` 的 `drawerStateProbe`（L385），`scripts/cdp-swipe-probe.mjs` 的
-`drawerState`（L286）。
+`drawerState`（L286），`scripts/cdp-swipe-failures.mjs` 自建的一次 collapsed 读取（L181）。
 
-**现状**：两份浏览器内查询同骨架——`collapsed` / `dimActive` / `drawerWidth` / `drawerHeight` 共有；字段面
-不同：前者 4 个字段，后者 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawerTransition` /
-`touchAction` / 两个 overscroll / `viewport`）。关闭谓词两边都有，但只有后者抽成函数
-（`isClosed()`，L320），前者内联在 `waitDrawerState` 里。
+**现状**：三处各自拼浏览器内查询。两份「状态对象」骨架相同（`collapsed` / `dimActive` / `drawerWidth` /
+`drawerHeight`），字段面不同：cdp-probe 4 个字段、关闭谓词内联在 `waitDrawerState`（L397）里；
+swipe-probe 12 个（多 `frame` / `backdropCount` / `drawerTransform` / `drawerTransition` / `touchAction` /
+两个 overscroll / `viewport`），关闭谓词抽成了 `isClosed()`（L320）。
 
-**为什么没动**：共享要新增 `scripts/lib/drawer-state.mjs` 并改两个探针的启动路径，而本机没有可跑的
-探针目标实例（需带 token 的 DSH Web + session id），改完无法当场验证——探针类改动「改完跑不了」等于
-没验证。
+选择器常量的重复远不止这两处：`[data-mobile-nav="frame"]` 在 `scripts/` 下 **62 份 / 19 个文件**
+（`FRAME_SELECTOR` / `MOBILE_FRAME_SELECTOR` / 内联字面量三种写法混用），台账点名的 5 个脚本占 14 份。
 
-**修法**：抽 `scripts/lib/drawer-state.mjs`，导出选择器常量 + `drawerStateScript(fields)` + `isOpen` /
-`isClosed` 谓词，两个探针按需传字段。**顺带收编选择器**：`FRAME_SELECTOR` / `DRAWER_SELECTOR` /
-`BACKDROP_SELECTOR` 现在在五处各有一份——`scripts/cdp-probe.mjs`（`MOBILE_*` 前缀）、
-`scripts/cdp-swipe-probe.mjs`、`scripts/cdp-swipe-failures.mjs`、`scripts/probes/drawer-click-animation-probe.mjs`、
-`scripts/probes/draggable-conflict-probe.mjs`；`cdp-swipe-failures.mjs` 还自建了一次 collapsed 读取
-（L181）。只抽状态查询不收选择器 = 只做一半。
+**为什么没动**：共享要新增 `scripts/lib/` 模块并改探针的引用方式，而本机没有可跑的探针目标实例
+（需带 token 的 DSH Web + session id）——探针类改动「改完跑不了」等于没验证。
+
+**修法**：新建 `scripts/lib/mobile-dom.mjs`，导出 `FRAME` / `DRAWER` / `BACKDROP` / `FAB` 选择器常量、
+`drawerStateScript(fields)` 与 `isOpen` / `isClosed` 谓词；只收编台账点名的 5 个脚本
+（`cdp-probe` / `cdp-swipe-probe` / `cdp-swipe-failures` / `probes/drawer-click-animation-probe` /
+`probes/draggable-conflict-probe`）与那 2 份状态查询。**长尾 14 个探针故意不动**——没有活实例就无法验证，
+改它们只换来一次不可证明的 diff；条目的名字因此从「两个探针」改成「五个脚本」。
 
 **验收**：两个探针在隔离实例上各跑一次全绿（探针跑通本身就是证据，不需要额外单测）；
-抽完 `git grep -c 'data-mobile-nav="frame"' scripts` 的份数必须下降。
+`git grep -c 'data-mobile-nav="frame"' scripts` 从 62 降到 48（5 个脚本那 14 份 + 状态查询里的字面量）。
 
 **规模**：小（< 1 小时）+ 一次探针验证。
 
-## 3. 模块名与角色不符
+## 3. 模块名与角色不符（`overlay-backdrop-fab` → `drawer-layer`）
 
 **位置**：`src/client/effects/overlay-backdrop-fab.ts`。
 
@@ -62,57 +81,65 @@
 也不是遮罩的所有者——它拥有的是 FAB、常驻命中层（`[data-mobile-nav="backdrop"]`）与暗层标记
 （`data-mobile-nav-dim`）。读名字找「谁画暗层」会找错人。
 
-**为什么没动**：改名牵动 `reconciler-adapter.ts`（导入）、`sidebar-swipe.ts`（`fadeOverlayOut` 导入）、
-探针脚本里的选择器注释、两处 `AGENTS.md` 索引（`src/client/AGENTS.md` 任务清单 +
-`src/client/effects/AGENTS.md` 两处）、`panel-exit.ts` / `header-metrics.ts` 的引用注释，以及
-**四处按名字/路径写死的测试耦合**：
+**改名面**（实测 36 行 / 17 文件，`git grep -n overlay-backdrop-fab -- . ':!lib'`）：
 
-- `tests/architecture.test.ts` 的行预算台账按**文件路径**做键（`'src/client/effects/overlay-backdrop-fab.ts': 1`）；
-- `tests/reconciler-core.test.ts` 的任务注册表按**任务名**做键（`'overlay-backdrop-fab': ['*', 'data-sidebar-collapsed', 'data-phase']`）；
-- `tests/panel-exit-animation.test.ts` 直接 `readFileSync('src/client/effects/overlay-backdrop-fab.ts')`；
-- `tests/drawer-open.test.ts` 按路径**动态 import**（L208 / L244），漏改直接红。
+- 源码 6：`reconciler-adapter.ts`（import）、`sidebar-swipe.ts`（`fadeOverlayOut` import）、
+  `panel-exit.ts` / `header-metrics.ts` / `styles/base.css.ts`（2 行指路注释）/
+  `platform/drawer-open.ts`（docblock）；
+- 测试 4：`architecture`（`DEBT.moduleState` 按**文件路径**做键，另有 3 行边注释）、
+  `reconciler-core`（**任务名**做键：`'overlay-backdrop-fab': ['*', 'data-sidebar-collapsed', 'data-phase']`）、
+  `panel-exit-animation`（`readFileSync` 路径）、`drawer-open`（两处动态 import）；
+- 文档 7：`AGENTS.md` 路由行、`src/client/AGENTS.md` 任务清单与 `src/client/effects/AGENTS.md` 两处、
+  `docs/specs/2026-08-27-sidebar-swipe-gestures.md` 两处、`docs/maintenance/pitfalls.md` 四处、
+  本文件（本条做完即删）。
 
-另有 `src/client/platform/drawer-open.ts`、`src/client/styles/base.css.ts` 的指路注释，以及
-`tests/architecture.test.ts` 依赖台账里三行注释（`sidebar-swipe → gesture-guard·overlay-backdrop-fab` 等）
-要一起改。当轮已经有一个跨 29 文件的 diff，再叠纯改名会让审查成本失控。
+**为什么没动**：纯机械但面广——当轮手上已有跨 29 文件的 diff，叠一起审查成本失控。
 
-**修法**：`git mv` 到 `drawer-layer.ts` → 改导入 → 任务名 `name: 'overlay-backdrop-fab'` 改
-`'drawer-layer'` → 同步上面四处测试耦合与两处索引文字 → 顺手改那三行依赖台账注释。
-先 `git grep -n overlay-backdrop-fab` 全量打点，改完再跑一次确认零残留。
+**修法**：`git mv src/client/effects/overlay-backdrop-fab.ts src/client/effects/drawer-layer.ts` → 改 import →
+`name: 'overlay-backdrop-fab'`（L254）改 `'drawer-layer'` → 同步上面四处测试耦合与七处文档 →
+`pnpm build` 后删掉 `lib/types/client/effects/overlay-backdrop-fab.d.ts(.map)`（tsc 不清理陈旧产物）→
+`git grep -n overlay-backdrop-fab -- . ':!lib'` 归零。
 
-**验收**：全门禁（`architecture` / `reconciler-core` / `panel-exit-animation` / `drawer-open` 四处若漏改会自己报）；
-`scripts/cdp-probe.mjs` 的抽屉/FAB 断言不受影响（DOM 选择器没变）；`?mobile-nav-debug=1` 徽章里的任务名
-跟着变（无代码按名匹配该字符串）。
+**验收**：`pnpm verify` + `pnpm test:core`（四个耦合测试会自己报）+ `pnpm build` +
+`node scripts/client-bundle-smoke.mjs`；旧名 grep 零残留（`lib/` 已重建）；`?mobile-nav-debug=1` 徽章里的
+任务名跟着变（无代码按名匹配该字符串）。
 
-**规模**：小但机械（约 30 分钟）。**建议与下一次动这个文件时合并做。**
+**规模**：小但机械（30–45 分钟）。
 
 ## 4. DOM 标记名遗留：`backdrop` 实际是命中层
 
-**位置**：`data-mobile-nav="backdrop"` 写入点 `overlay-backdrop-fab.ts`（`dataset.mobileNav`，L88）。读取点：
+**位置**：`data-mobile-nav="backdrop"` 写入点 `overlay-backdrop-fab.ts`（`dataset.mobileNav`，L88）。
+读取点（实测 6 行 CSS + 2 个 JS + 3 个探针 + 6 个测试）：
 
-- `styles/base.css.ts`（命中层规则 + 弹层带门控）、`styles/compat.css.ts`（takeover 清屏）、
-  `styles/misc.css.ts`（user-select / 桌面隐藏清单）——三处成对改；
-- `effects/drawer-close.ts`（捕获期点击归属判定，L220）；
-- `effects/sidebar-swipe.ts`（手势合成 click 放行判定，L1457——**最容易漏的一处**）；
-- 7 个探针/测试引用：`scripts/cdp-probe.mjs`、`scripts/cdp-swipe-probe.mjs`、
-  `scripts/probes/drawer-click-animation-probe.mjs`，`tests/css-rules`、`tests/our-free-model-toast-layer`
-  （取 z-index）、`tests/shortcut-modal-flash-band`、`tests/text-selection-scope`。
+- `styles/base.css.ts` 2 行（命中层规则 + 弹层带门控）、`styles/compat.css.ts` 2 行（takeover 清屏）、
+  `styles/misc.css.ts` 2 行（user-select / 桌面隐藏）——三处成对改；
+- `effects/drawer-close.ts`（捕获期点击归属判定，L220）、`effects/sidebar-swipe.ts`（手势合成 click
+  放行判定，L1457——**最容易漏的一处**）；
+- 探针 3：`scripts/cdp-probe.mjs`（L23）、`scripts/cdp-swipe-probe.mjs`（L40）、
+  `scripts/probes/drawer-click-animation-probe.mjs`（L37）；
+- 测试 6：`css-rules`（L626）、`shortcut-modal-flash-band`（L43 门控 + L13 注释）、
+  `our-free-model-toast-layer`（L60 取 z-index）、`text-selection-scope`（L49）、
+  `drawer-open`（L211 假节点判定）、`mobile-navigation-behavior`（L45 选择器匹配）。
 
 `effects/gesture-guard.ts` **不读**这个标记（全文只有一句注释提到它），改名时别被它带偏。
 
-**现状**：这个元素已经不画任何东西（`background: transparent`，只有命中测试与 `cursor: pointer`）；暗层靠
-`data-mobile-nav-dim` 单独表达。名字里的 `backdrop` 是 2026-11-08 之前的角色残留。
+**坑**：`backdrop` 这个词还出现在另外两个标记里（`delete-dialog-backdrop`、`file-picker-backdrop`），
+只许精确串替换（`'backdrop'` / `"backdrop"` / `="backdrop"]`），禁止 `sed s/backdrop/hit/g` 一把梭。
 
-**为什么没动**：改标记等于改跨模块契约，且**跨代兼容窗口**真实存在——用户机上的旧版缓存页面与新
-代码可能短期共存，标记一换就有一代漏命中（点空白关不掉）或漏隐藏（桌面冒出透明命中层）。
+**现状**：这个元素已经不画任何东西（`background: transparent`，只有命中测试与 `cursor: pointer`）；
+暗层靠 `data-mobile-nav-dim` 单独表达。名字里的 `backdrop` 是 2026-11-08 之前的角色残留。
 
-**修法**：先加新名（如 `data-mobile-nav-hit`）双侧并存一代：JS 同时写两个属性，CSS 两个选择器并列
-（桌面隐藏块、user-select 块、takeover 清屏块三处都要成对），下个版本删旧名。
+**为什么没动**：改标记等于改跨模块契约，八个读点分散在 styles / effects / 探针 / 测试四处。
 
-**验收**：并存期间三处 CSS 都能命中；`gesture-guard` 不参与、`drawer-close` 与 `sidebar-swipe` 的点击归属
-判定同时识别两名；探针断言改新名后全绿。
+**旧口径作废**：「双侧并存一代」的兼容窗口**不需要**——插件是单 bundle，CSS 与 JS 永远同版本；
+缓存页拿到的是整个旧 bundle，不存在新旧混跑。直接单名替换。
 
-**规模**：小改 + 一个兼容窗口。**排在条 3 之后**（先改文件名再改标记，避免同一轮两个契约同时动）。
+**修法**：写入点改 `'hit'`，上列八处读点同步；`tests/` 里断言 CSS 文本的四处跟着改；探针常量改新名。
+
+**验收**：`pnpm test:core`（含 CSS 结构门与补丁登记门）+ `pnpm build`；
+`git grep -n '"backdrop"' src/ tests/ scripts/` 只剩另外那两个标记的命中；探针需活实例复跑。
+
+**规模**：小改（30–45 分钟）。**排在条 3 之后**（同一个文件两次契约改动分开做，便于 bisect）。
 
 ---
 
