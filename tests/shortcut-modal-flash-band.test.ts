@@ -19,11 +19,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { sliceBand, POPOVER_BAND_START, POPOVER_BAND_END } from './lib/css.ts'
+import { sliceBand, ruleBodyAt, POPOVER_BAND_START, POPOVER_BAND_END } from './lib/css.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
-const PHONE = readFileSync(join(ROOT, 'src/client/effects/phone-chrome.ts'), 'utf8')
 // P1 拆分（2026-10-12）：toggleDrawer 搬到 drawer-close.ts；createOverlayTask 的
 // 装配（registerReconcileTasks）第四片搬到 reconciler-adapter.ts，
 // 所以三条断言各读各的文件（逐条钉住它真正所在的那一份）。
@@ -42,21 +41,22 @@ const DRAWER_GATE = 'body:has([data-mobile-nav="frame"]:not([data-sidebar-collap
 // target, so presence alone no longer means "on screen"; the gate keys on
 // [data-active], which is set exactly while the dim is painted.
 const BACKDROP_GATE = 'body:has([data-mobile-nav="backdrop"][data-active])'
+const MODAL_ROOT = '> div:has(> [role="dialog"][aria-modal="true"])'
 
 test('modal-root raise lives in the mobile popover band at the 1400 value', () => {
   assert.notEqual(bandStart, -1, 'popover band marker not found in base.css.ts')
   assert.ok(bandEnd > bandStart, 'popover band end marker not found')
-  const at = band.indexOf('> div:has(> [role="dialog"][aria-modal="true"])')
+  const at = band.indexOf(MODAL_ROOT)
   assert.notEqual(at, -1, 'modal-root raise missing from the popover band')
   assert.match(
-    band.slice(at, band.indexOf('}', at)),
+    ruleBodyAt(band, MODAL_ROOT, at),
     /z-index: 1400 !important/,
     'modal-root raise must stay at the 1400 band value',
   )
 })
 
 test('modal-root raise is gated on the dim being active, not on the drawer marker', () => {
-  const at = band.indexOf('> div:has(> [role="dialog"][aria-modal="true"])')
+  const at = band.indexOf(MODAL_ROOT)
   assert.notEqual(at, -1, 'modal-root raise missing from the popover band')
   // The gate must belong to THIS rule: nothing may close a block between the
   // gate and the selector.

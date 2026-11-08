@@ -31,6 +31,10 @@ const HOST_CANDIDATES = [
   join(ROOT, 'node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js'),
 ]
 const HOST = resolveHostBundle()
+// Candidate 0 is the host that is actually running; candidate 1 is this repo's
+// devDependency copy. A silent fallback would let a green "host contract" mean
+// only that the devDep copy agrees with itself, so say it in the diagnostic.
+const HOST_IS_DEV_DEP_FALLBACK = HOST !== undefined && HOST.file === HOST_CANDIDATES[1]
 
 const key = (over: Partial<Record<'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey' | 'isComposing', boolean>> = {}) => ({
   shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, isComposing: false, ...over,
@@ -70,7 +74,12 @@ test('the hook registers ahead of the host CRITICAL handler and is armed from th
 // below were audited against.
 test('host contract: Lexical addFront on flagged priority, and the composer sends on bare Enter', { skip: hostSkipReason(HOST) }, (t) => {
   if (HOST === undefined) return // unreachable: skipped above
-  t.diagnostic('asserted against host bundle ' + (HOST.version ?? '<unknown version>') + ' at ' + HOST.file)
+  t.diagnostic(
+    'asserted against host bundle ' + (HOST.version ?? '<unknown version>') + ' at ' + HOST.file
+    + (HOST_IS_DEV_DEP_FALLBACK
+      ? ' — 运行期宿主未找到，断言的是 devDeps 副本（该副本只在 devDep 与宿主同代时等价）'
+      : ''),
+  )
   const host = readFileSync(HOST.file, 'utf8')
   assert.match(host, /return s !== o \? l\.addFront\(n\) : l\.addBack\(n\)/)
   assert.match(host, /if \(event\?\.shiftKey === true\) return false;/)

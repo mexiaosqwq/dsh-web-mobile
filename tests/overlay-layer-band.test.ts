@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { sliceBand, POPOVER_BAND_START, POPOVER_BAND_END } from './lib/css.ts'
+import { sliceBand, ruleBodyAt, POPOVER_BAND_START, POPOVER_BAND_END } from './lib/css.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
@@ -21,26 +21,6 @@ const { start: bandStart, end: bandEnd, text: band } = sliceBand(
   POPOVER_BAND_START,
   POPOVER_BAND_END,
 )
-
-/** Declarations of the rule whose selector starts at `selectorAt`.
- *
- * A plain `indexOf('}')` cannot delimit a band rule here (closing braces are
- * indented by two spaces and nested media blocks are common), and matching the
- * selector plus `{ z-index }` anywhere in the band is satisfied by a sibling
- * rule with the same selector. Balance from this selector's own brace. */
-const declarations = (selectorAt: number): string => {
-  const open = band.indexOf('{', selectorAt)
-  assert.ok(open > -1, 'overlayLayer rule has no declaration block')
-  let depth = 0
-  for (let i = open; i < band.length; i += 1) {
-    if (band[i] === '{') depth += 1
-    else if (band[i] === '}') {
-      depth -= 1
-      if (depth === 0) return band.slice(open + 1, i)
-    }
-  }
-  return assert.fail('overlayLayer rule has an unbalanced declaration block')
-}
 
 test('overlayLayer band raise lives in the mobile popover band section', () => {
   assert.notEqual(bandStart, -1, 'popover band marker not found in base.css.ts')
@@ -65,7 +45,7 @@ test('overlayLayer raise is drawer-open-gated at the 1400 band', () => {
   // Read only this selector's own declarations: the fullscreen sibling rule
   // carries the same selector and the same 1400, so a band-wide regex stayed
   // green when this rule's value was broken.
-  assert.match(declarations(selectorAt), /z-index: 1400 !important/)
+  assert.match(ruleBodyAt(band, '[class*="_overlayLayer"]', selectorAt), /z-index: 1400 !important/)
 })
 
 // 0.1.7 fullscreen sidebar panels (terminal / files / preview / browser) put the
@@ -80,7 +60,7 @@ test('fullscreen right-sidebar panel raises our FAB above the dock layer band', 
   const gate = `body:has(${FIX}) [data-mobile-nav="fab"]`
   const at = band.indexOf(gate)
   assert.notEqual(at, -1, 'FAB raise for the fullscreen right sidebar is missing')
-  const body = band.slice(at, band.indexOf('}', at))
+  const body = ruleBodyAt(band, gate, at)
   assert.match(body, /z-index: 55 !important/, 'FAB must rise to the below-the-drawer band (55)')
   // Below the drawer stack by design: an open drawer still covers the FAB.
   const value = Number(/(\d+)/.exec(body)?.[1])
@@ -92,7 +72,7 @@ test('fullscreen right-sidebar panel also raises the overlayLayer root', () => {
   const selection = `body:has(${FIX})\n    [class*="_overlayLayer"]`
   assert.ok(band.includes(selection), 'overlayLayer raise for the fullscreen right sidebar is missing')
   const at = band.indexOf(selection)
-  assert.match(band.slice(at, band.indexOf('}', at)), /z-index: 1400 !important/)
+  assert.match(ruleBodyAt(band, selection, at), /z-index: 1400 !important/)
 })
 
 test('the right-sidebar raise is gated on the OPEN attribute, not the presentation', () => {
