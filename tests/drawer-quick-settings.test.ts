@@ -12,6 +12,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { createDrawerQuickSettingsTask } from '../src/client/effects/drawer-quick-settings.ts'
 import { BASE_CSS } from '../src/client/styles/base.css.ts'
 import { MISC_CSS } from '../src/client/styles/misc.css.ts'
@@ -21,12 +22,42 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SOURCE = readFileSync(join(ROOT, 'src/client/effects/drawer-quick-settings.ts'), 'utf8')
 const ADAPTER = readFileSync(join(ROOT, 'src/client/effects/reconciler-adapter.ts'), 'utf8')
 
+/** Source with comments blanked: this file's JSDoc names `scopes: ['*']` in
+ * prose, so a regex run on SOURCE stayed green after the real declaration was
+ * deleted. Only executable text may satisfy a source assertion. */
+const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+/** Declarations of the first rule with exactly this selector (brace-balanced:
+ * the sheet's closing braces are indented, so `[^}]*` is not a block). */
+function declarationsOf(selector: string): string {
+  const at = BASE_CSS.indexOf(`${selector} {`)
+  assert.ok(at > -1, `rule not found: ${selector}`)
+  const open = at + selector.length + 1
+  let depth = 0
+  for (let i = open; i < BASE_CSS.length; i += 1) {
+    if (BASE_CSS[i] === '{') depth += 1
+    else if (BASE_CSS[i] === '}') {
+      depth -= 1
+      if (depth === 0) return BASE_CSS.slice(open + 1, i)
+    }
+  }
+  return assert.fail(`unbalanced declaration block: ${selector}`)
+}
+
+/** Last `property:` value in a declaration list — the one the cascade applies
+ * when the same rule declares the property twice. Declarations sit one per
+ * line, and a comment may precede the first one, so anchor on line starts. */
+function lastDeclaration(css: string, property: string): string | null {
+  const values = [...css.matchAll(new RegExp(`^\\s*${property}:\\s*([^;]+);`, 'gm'))]
+  return values.at(-1)?.[1].trim() ?? null
+}
+
 test('the gear is a scoped reconciler task on the drawer account row', () => {
-  assert.match(SOURCE, /name: 'drawer-quick-settings'/)
-  assert.match(SOURCE, /scopes: \['\*'\]/)
+  assert.match(CODE, /name: 'drawer-quick-settings'/)
+  assert.match(CODE, /scopes: \['\*'\]/)
   // The row lookup stays inside the drawer's sidebar column (no bare triggerRow).
-  assert.match(SOURCE, /\[class\*="sidebarCol"\] \[class\*="triggerRow"\]/)
-  assert.match(SOURCE, /button\[aria-haspopup="menu"\]/)
+  assert.match(CODE, /\[class\*="sidebarCol"\] \[class\*="triggerRow"\]/)
+  assert.match(CODE, /button\[aria-haspopup="menu"\]/)
   assert.match(ADAPTER, /createDrawerQuickSettingsTask\(ctx\)/)
 })
 
@@ -61,6 +92,11 @@ test('the gear box is 30px and sits 6px off the row edge', () => {
   assert.match(BASE_CSS, /\[data-mobile-nav="quick-settings"\] \{[^}]*height: 30px/)
   assert.match(BASE_CSS, /\[data-mobile-nav="quick-settings-wrap"\] \{[^}]*margin-right: 6px/)
   assert.match(SOURCE, /<svg width="17" height="17" viewBox="0 0 16 16"/)
+  // 「包含 width: 30px」不是层叠判据：同一规则里后面再写一条 `width: 31px`
+  // 渲染值就变了，而先出现的那条仍在。同规则内后者胜，故读最后一条声明。
+  const gear = declarationsOf('[data-mobile-nav="quick-settings"]')
+  assert.equal(lastDeclaration(gear, 'width'), '30px', 'the last width declaration wins the cascade')
+  assert.equal(lastDeclaration(gear, 'height'), '30px', 'the last height declaration wins the cascade')
 })
 
 test('the account menu folds its first row (Settings) away only while the gear is on screen', () => {

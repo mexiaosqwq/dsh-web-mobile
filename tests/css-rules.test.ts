@@ -83,6 +83,14 @@ test('the phone stats row keeps its tightened spacing (2026-10-07)', () => {
   assert.match(pill.body, /padding-right: 6px !important/)
 })
 
+/** Last `property:` value in a rule body — the one the cascade applies when the
+ * same rule declares the property twice. Declarations sit one per line, and a
+ * comment may precede the first one, so anchor on line starts. */
+function lastDeclaration(body: string, property: string): string | null {
+  const values = [...body.matchAll(new RegExp(`^\\s*${property}:\\s*([^;]+);`, 'gm'))]
+  return values.at(-1)?.[1].trim() ?? null
+}
+
 test('the composer file button paints one pill, not two (2026-10-07 店主报障)', () => {
   // 真机实测（按下瞬间像素剖面）：外圈 130 设备px 的 233（宿主按钮盒底色，圆角 8）
   // + 内圈 108 设备px 的 222（我们 ::before 胶囊）—— 半透明叠半透明，重叠区更深。
@@ -93,7 +101,12 @@ test('the composer file button paints one pill, not two (2026-10-07 店主报障
     !block.selector.includes('::before') && !block.selector.includes(':hover')
     && block.selector.includes('[data-mobile-nav="file-upload"]') && /width:\s*28px !important/.test(block.body))
   assert.ok(box !== undefined, '盒子必须是可见胶囊尺寸 28x28')
-  assert.match(box.body, /border-radius:\s*999px/, '盒子本身要是全圆（与加号同尺寸的圆胶囊）')
+  // 「块内出现过 999px」不是层叠判据：同规则后面再写一条 `border-radius: 4px
+  // !important`，渲染值就变成 4px，而先出现的那条仍在（2026-10-07「双层胶囊」
+  // 回归正是这个形状）。同规则内后者胜，故读最后一条声明。
+  const radius = lastDeclaration(box.body, 'border-radius')
+  assert.ok(radius !== null, '盒子必须有 border-radius 声明')
+  assert.equal(radius, '999px', '盒子的生效圆角必须是全圆（后写的同名声明会覆盖它）')
   assert.match(box.body, /margin:\s*0 0 0 -8px !important/, '盒宽 34→28 后 margin 要跟着收，图标中心不动')
   const before = blocks.find((block) => block.selector.includes('[data-mobile-nav="file-upload"]::before') && block.selector.includes(':hover'))
   assert.equal(before, undefined, '胶囊不再由 ::before 画（否则又是两层）')

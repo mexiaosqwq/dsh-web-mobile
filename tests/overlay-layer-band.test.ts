@@ -11,14 +11,36 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sliceBand, POPOVER_BAND_START, POPOVER_BAND_END } from './lib/css.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
 
-const bandStart = BASE.indexOf('popover band above the open drawer')
-const bandEnd = BASE.indexOf('/* Floating fallback button', bandStart)
-const band =
-  bandStart !== -1 && bandEnd > bandStart ? BASE.slice(bandStart, bandEnd) : ''
+const { start: bandStart, end: bandEnd, text: band } = sliceBand(
+  BASE,
+  POPOVER_BAND_START,
+  POPOVER_BAND_END,
+)
+
+/** Declarations of the rule whose selector starts at `selectorAt`.
+ *
+ * A plain `indexOf('}')` cannot delimit a band rule here (closing braces are
+ * indented by two spaces and nested media blocks are common), and matching the
+ * selector plus `{ z-index }` anywhere in the band is satisfied by a sibling
+ * rule with the same selector. Balance from this selector's own brace. */
+const declarations = (selectorAt: number): string => {
+  const open = band.indexOf('{', selectorAt)
+  assert.ok(open > -1, 'overlayLayer rule has no declaration block')
+  let depth = 0
+  for (let i = open; i < band.length; i += 1) {
+    if (band[i] === '{') depth += 1
+    else if (band[i] === '}') {
+      depth -= 1
+      if (depth === 0) return band.slice(open + 1, i)
+    }
+  }
+  return assert.fail('overlayLayer rule has an unbalanced declaration block')
+}
 
 test('overlayLayer band raise lives in the mobile popover band section', () => {
   assert.notEqual(bandStart, -1, 'popover band marker not found in base.css.ts')
@@ -27,19 +49,23 @@ test('overlayLayer band raise lives in the mobile popover band section', () => {
 })
 
 test('overlayLayer raise is drawer-open-gated at the 1400 band', () => {
-  const at = band.indexOf('[class*="_overlayLayer"]')
-  assert.notEqual(at, -1, 'overlayLayer rule missing from the popover band')
+  const selectorAt = band.indexOf('[class*="_overlayLayer"]')
+  assert.ok(selectorAt !== -1, 'overlayLayer rule missing from the popover band')
   // The gate must belong to THIS rule, not a sibling's: nothing may close a
-  // block between the nearest gate and the selector.
+  // block between the nearest gate and the selector. `lastIndexOf` is scoped to
+  // this selector because the same gate also precedes the usage-stats rule.
   const gate = 'body:has([data-mobile-nav="frame"]:not([data-sidebar-collapsed]))'
-  const gateAt = band.lastIndexOf(gate, at)
+  const gateAt = band.lastIndexOf(gate, selectorAt)
   assert.ok(gateAt !== -1, 'overlayLayer raise must be drawer-open-gated')
   assert.doesNotMatch(
-    band.slice(gateAt, at),
+    band.slice(gateAt + gate.length, selectorAt),
     /\}/,
     'gate must belong to the overlayLayer rule itself',
   )
-  assert.match(band, /\[class\*="_overlayLayer"\]\s*\{\s*z-index: 1400 !important;\s*\}/)
+  // Read only this selector's own declarations: the fullscreen sibling rule
+  // carries the same selector and the same 1400, so a band-wide regex stayed
+  // green when this rule's value was broken.
+  assert.match(declarations(selectorAt), /z-index: 1400 !important/)
 })
 
 // 0.1.7 fullscreen sidebar panels (terminal / files / preview / browser) put the

@@ -665,7 +665,9 @@ test('a repeat close inside the commit window is claimed, not force-settled', ()
   assert.ok(claim > -1, 'must recognise a same-intent in-flight commit')
   assert.ok(settle > -1 && claim < settle, 'the claim has to run before any force-settle')
   assert.match(src, /pendingCommit: \{ el: HTMLElement; ctx: ClientContext; timer: number; target: string \} \| null/)
-  assert.equal((src.match(/target: targetTx/g) ?? []).length, 2, 'both commit branches must record their target')
+  // Word boundary, not prefix: without it a branch rewritten to `targetTx2`
+  // still counted and the assertion kept its 2.
+  assert.equal((src.match(/\btarget: targetTx\b/g) ?? []).length, 2, 'both commit branches must record their target')
 })
 
 // #249: the panel-state read must be the host's own marker. The 0.1.5-era

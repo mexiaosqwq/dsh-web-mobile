@@ -19,6 +19,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sliceBand, POPOVER_BAND_START, POPOVER_BAND_END } from './lib/css.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
@@ -30,10 +31,11 @@ const ADAPTER = readFileSync(join(ROOT, 'src/client/effects/reconciler-adapter.t
 const DRAWER_CLOSE = readFileSync(join(ROOT, 'src/client/effects/drawer-close.ts'), 'utf8')
 const MENU = readFileSync(join(ROOT, 'src/client/effects/session-menu.ts'), 'utf8')
 
-const bandStart = BASE.indexOf('popover band above the open drawer')
-const bandEnd = BASE.indexOf('/* Floating fallback button', bandStart)
-const band =
-  bandStart !== -1 && bandEnd > bandStart ? BASE.slice(bandStart, bandEnd) : ''
+const { start: bandStart, end: bandEnd, text: band } = sliceBand(
+  BASE,
+  POPOVER_BAND_START,
+  POPOVER_BAND_END,
+)
 
 const DRAWER_GATE = 'body:has([data-mobile-nav="frame"]:not([data-sidebar-collapsed]))'
 // 2026-11-08: the backdrop element is now a persistent, always-mounted hit
@@ -42,6 +44,8 @@ const DRAWER_GATE = 'body:has([data-mobile-nav="frame"]:not([data-sidebar-collap
 const BACKDROP_GATE = 'body:has([data-mobile-nav="backdrop"][data-active])'
 
 test('modal-root raise lives in the mobile popover band at the 1400 value', () => {
+  assert.notEqual(bandStart, -1, 'popover band marker not found in base.css.ts')
+  assert.ok(bandEnd > bandStart, 'popover band end marker not found')
   const at = band.indexOf('> div:has(> [role="dialog"][aria-modal="true"])')
   assert.notEqual(at, -1, 'modal-root raise missing from the popover band')
   assert.match(

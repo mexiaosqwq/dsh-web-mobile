@@ -38,10 +38,39 @@ const rules = (): string => {
   return b.slice(end)
 }
 
+/** Blank CSS block comments in place: braces inside prose must not count when
+ * balancing, and every offset stays valid for the original string. */
+const withoutComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+
+/** Offset of the `}` closing the block opened at `open`, or -1 when unbalanced. */
+const blockEnd = (source: string, open: number): number => {
+  let depth = 0
+  for (let i = open; i < source.length; i += 1) {
+    if (source[i] === '{') depth += 1
+    else if (source[i] === '}') {
+      depth -= 1
+      if (depth === 0) return i
+    }
+  }
+  return -1
+}
+
 test('our-free-model cost block is mobile-only', () => {
-  // It must live inside the top-level mobile media query, not at top level.
-  const top = COMPAT_CSS.indexOf('@media (max-width: 1023px) and (pointer: coarse) {')
-  assert.ok(top > -1 && top < COMPAT_CSS.indexOf(HEADER))
+  // Comparing two indexOf values only proves the query appears earlier: closing
+  // the media block in front of the section (and reopening it after) keeps that
+  // true while the section sits at top level. Parse the media query's real
+  // brace range and require the section to start inside it.
+  const code = withoutComments(COMPAT_CSS)
+  const top = code.indexOf('@media (max-width: 1023px) and (pointer: coarse) {')
+  assert.ok(top > -1, 'the mobile media query is missing')
+  const end = blockEnd(code, code.indexOf('{', top))
+  assert.ok(end > top, 'the mobile media query is unbalanced')
+  const header = COMPAT_CSS.indexOf(HEADER)
+  assert.ok(
+    header > top && header < end,
+    'the our-free-model cost block must sit inside the mobile media query',
+  )
 })
 
 test('our-free-model cost block is not frame- or root-scoped', () => {

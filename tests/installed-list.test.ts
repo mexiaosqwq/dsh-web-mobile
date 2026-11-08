@@ -39,7 +39,13 @@ function body(source: string, from: string, to: string): string {
 const EFFECT = installedListEffect()
 
 test('installed-list styling excludes nested action rows', () => {
-  assert.match(COMPAT_CSS, /\[class\*="irow"\]:not\(\[class\*="irowActions"\]\):not\(\[class\*="irowTrailing"\]\)/)
+  // The selector alone appears ten times in the sheet (two of them target
+  // `> [class*="grow"]`); deleting this row's own rule left "selector exists"
+  // green. Pin this rule's selector AND its declaration.
+  assert.match(
+    COMPAT_CSS,
+    /\[class\*="irow"\]:not\(\[class\*="irowActions"\]\):not\(\[class\*="irowTrailing"\]\) > \[class\*="grow"\] \{\s*order: 0 !important;\s*\}/,
+  )
 })
 
 test('写入前比较：当前值与优先级已经一致就不写', () => {
