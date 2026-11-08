@@ -163,22 +163,27 @@ function cycles() {
 // R3 的**机检口径要说清楚**（2026-10-11 B1 后补，免得下一位读者以为「effects 互不
 // import」已经被全量拦住）：本门拦的是「运行时环」（SCC > 1）+ 那条 7 文件白名单，
 // **不拦非环的 effects → effects 边**。B1 清掉的是环（6 条回边）与 components→effects
-// 越界；剩下的 **21 条非环边**（P1 拆分第三/四/五片 2026-10-12 后逐条实扫；第一片后
-// 16 条。第四片把 registerReconcileTasks 连同它的 6 条 effects 依赖移到
-// reconciler-adapter（phone-chrome 的 7 条只剩 header-metrics 1 条），第三/四/五片
-// 又各给 phone-chrome 添 1 条新边 → 3 条；reconciler-adapter 自己 9 条，含 2026-10-18 的 drawer-session-log 与 2026-10-20 的 image-lightbox-zoom）仍在，
-// 尚未机检：
+// 越界；剩下的 **23 条非环边（运行时 21 + `import type` 2）**仍在，尚未机检。
+// （2026-11-08 全量重扫补齐：旧注释正文写「21 条」、清单自己合计 20、实扫 23——
+//  三处不一致，这里按实扫对齐，并补上 question-fullscreen / tablet-quick-settings
+//  两个源文件与 reconciler-adapter → drawer-quick-settings 那条边。P1 拆分沿革：
+//  第一片后 16 条；第四片把 registerReconcileTasks 连同它的 6 条 effects 依赖移到
+//  reconciler-adapter（phone-chrome 的 7 条只剩 header-metrics 1 条），第三/四/五片
+//  又各给 phone-chrome 添 1 条新边 → 3 条。）
 //
 //   effects/reconciler-adapter.ts → aionui-compat·drawer-close(toggleDrawer)·
-//                             file-viewer-compat·drawer-layer·panel-exit·
-//                             preview-fullscreen·stats-line·drawer-session-log·image-lightbox-zoom (9)
+//                             file-viewer-compat·drawer-layer·panel-exit(类型)·
+//                             preview-fullscreen·stats-line·drawer-session-log·
+//                             drawer-quick-settings·image-lightbox-zoom           (10)
 //   effects/drawer-close.ts → gesture-guard·session-row-fiber·sidebar-swipe       (3)
 //   effects/phone-chrome.ts → header-metrics·reconciler-adapter·viewport-meta     (3)
 //   effects/session-menu.ts → drawer-close(toggleDrawer)·session-row-fiber        (2)
 //   effects/sidebar-swipe.ts → gesture-guard·drawer-layer                         (2)
+//   effects/question-fullscreen.ts → reconciler-adapter                           (1)
 //   effects/drawer-layer.ts → panel-exit(类型)                                    (1)
-//                                                                   合计 20 条（实测；
-//   2026-11-05 删 session-focus-guard 去掉其 → composer-keyboard-guard 那 1 条）
+//   effects/tablet-quick-settings.ts → drawer-quick-settings                      (1)
+//                                                                   合计 23 条（其中
+//   2 条是 `import type`；2026-11-05 删 session-focus-guard 去掉其 → composer-keyboard-guard 那 1 条）
 //
 // 清法就是架构标准 P1 的第 ③ 步「跨特性工厂由组装根注入」：把 toggleDrawer /
 // fadeDimOut / 共享类型提到 platform/，或由 index.tsx 注入；清完再把本门收紧成
