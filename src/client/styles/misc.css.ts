@@ -295,7 +295,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="frame"] [data-composer-card],
   [data-mobile-nav="stats"],
   [data-mobile-nav="fab"],
-  [data-mobile-nav="backdrop"] {
+  [data-mobile-nav="hit"] {
     -webkit-user-select: none !important;
     user-select: none !important;
   }
@@ -375,7 +375,7 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="files"],
   [data-mobile-nav="file-upload"],
   [data-mobile-nav="fab"],
-  [data-mobile-nav="backdrop"],
+  [data-mobile-nav="hit"],
   [data-mobile-nav="session-log"],
   [data-mobile-nav="session-log-wrap"],
   [data-mobile-nav="quick-settings"],

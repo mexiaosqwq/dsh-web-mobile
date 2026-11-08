@@ -217,7 +217,7 @@ export function installOverlayInteractions(ctx: ClientContext): void {
       // stops click propagation at the frame for anything outside the drawer
       // (its own dismiss path), so that listener never sees the tap. Decide
       // here instead — before both the shim and the element handler.
-      if (target instanceof Element && target.closest('[data-mobile-nav="backdrop"]') !== null) {
+      if (target instanceof Element && target.closest('[data-mobile-nav="hit"]') !== null) {
         if (drawerOpen()) toggleSidebar()
         return
       }

@@ -46,7 +46,7 @@ test('chrome surfaces are unselectable on the phone tier (both spellings)', () =
     '[data-mobile-nav="frame"] [data-composer-card]', // composer button rows
     '[data-mobile-nav="stats"]',
     '[data-mobile-nav="fab"]',
-    '[data-mobile-nav="backdrop"]',
+    '[data-mobile-nav="hit"]',
   ]) {
     assert.ok(noneRule.selectors.includes(sel), `missing chrome selector: ${sel}`)
   }

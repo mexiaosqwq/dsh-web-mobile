@@ -20,7 +20,7 @@ const CHIP_SELECTOR = '[data-gitgraph-chip-anchor] [data-gitgraph-chip]';
 const MOBILE_STYLE_SELECTOR = 'style[data-plugin="dsh-web-mobile"]';
 const MOBILE_FRAME_SELECTOR = '[data-mobile-nav="frame"]';
 const MOBILE_DRAWER_SELECTOR = '[data-mobile-nav="frame"] [class*="_sidebarCol"]';
-const MOBILE_BACKDROP_SELECTOR = '[data-mobile-nav="backdrop"]';
+const MOBILE_HIT_SELECTOR = '[data-mobile-nav="hit"]';
 const MOBILE_TOGGLE_SELECTOR = '[data-mobile-nav="toggle"]';
 const MOBILE_FAB_SELECTOR = '[data-mobile-nav="fab"]';
 const MOBILE_CONTROL_SELECTORS = [MOBILE_TOGGLE_SELECTOR, MOBILE_FAB_SELECTOR];
@@ -385,7 +385,7 @@ async function runCoreScenario(client, config, signal, pageErrors) {
   const drawerStateProbe = async () => client.evaluate(`(() => {
     const frame = document.querySelector(${JSON.stringify(MOBILE_FRAME_SELECTOR)});
     const drawer = document.querySelector(${JSON.stringify(MOBILE_DRAWER_SELECTOR)});
-    const backdrop = document.querySelector(${JSON.stringify(MOBILE_BACKDROP_SELECTOR)});
+    const backdrop = document.querySelector(${JSON.stringify(MOBILE_HIT_SELECTOR)});
     const rect = drawer === null ? null : drawer.getBoundingClientRect();
     return {
       dimActive: backdrop !== null && backdrop.hasAttribute('data-active'),
@@ -475,7 +475,7 @@ async function runCoreScenario(client, config, signal, pageErrors) {
       const backdropY = viewport.height / 2;
       const overBackdrop = await client.evaluate(`(() => {
         const element = document.elementFromPoint(${backdropX}, ${backdropY});
-        return element !== null && element.closest(${JSON.stringify(MOBILE_BACKDROP_SELECTOR)}) !== null;
+        return element !== null && element.closest(${JSON.stringify(MOBILE_HIT_SELECTOR)}) !== null;
       })()`);
       if (!overBackdrop) {
         check('mobile.backdrop.point', false, `(${Math.round(backdropX)}, ${Math.round(backdropY)}) not over backdrop`);

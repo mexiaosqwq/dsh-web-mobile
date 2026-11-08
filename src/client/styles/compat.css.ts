@@ -243,8 +243,8 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
      ssh own the center column while active). */
   html[data-dsh-taskboard-active] [data-mobile-nav="fab"],
   html[data-dsh-ssh-active] [data-mobile-nav="fab"],
-  html[data-dsh-taskboard-active] [data-mobile-nav="backdrop"],
-  html[data-dsh-ssh-active] [data-mobile-nav="backdrop"] {
+  html[data-dsh-taskboard-active] [data-mobile-nav="hit"],
+  html[data-dsh-ssh-active] [data-mobile-nav="hit"] {
     display: none !important;
   }
   /* The dim is painted by the frame's ::after since 2026-11-08, so hiding the

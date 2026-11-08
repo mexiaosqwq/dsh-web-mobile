@@ -208,7 +208,7 @@ async function overlayHarness() {
   const { createDrawerLayerTask } = await import('../src/client/effects/drawer-layer.ts')
   const task = createDrawerLayerTask(((k: string) => k) as never, () => {}, null)
   task.ensure()
-  const backdrops = (): FakeNode[] => frame.children.filter((c) => c.dataset.mobileNav === 'backdrop')
+  const backdrops = (): FakeNode[] => frame.children.filter((c) => c.dataset.mobileNav === 'hit')
   return { env, frame, task, backdrops }
 }
 

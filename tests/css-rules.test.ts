@@ -623,7 +623,7 @@ test('drawer dim fades with the drawer column: same duration, same easing, off u
   const dimOn = base.find((r) => r.selector === 'html [data-mobile-nav="frame"][data-mobile-nav-dim="1"]::after' && r.media.length === 0)
   assert.ok(dimOn, 'the marker-driven dim rule present')
   assert.match(dimOn.body, /opacity:\s*1/, 'the open marker paints the dim fully')
-  const backdrop = base.find((r) => r.selector === '[data-mobile-nav="backdrop"]' && r.media.length === 0)
+  const backdrop = base.find((r) => r.selector === '[data-mobile-nav="hit"]' && r.media.length === 0)
   assert.ok(backdrop, 'backdrop hit-target rule present')
   assert.match(backdrop.body, /transition:\s*none\b/, 'the hit target itself must not animate')
   assert.doesNotMatch(backdrop.body, /!important/, 'the hit target needs no layered override')

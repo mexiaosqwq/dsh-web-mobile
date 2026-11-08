@@ -227,7 +227,7 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 **CDP 验证清单（390×844 mobile，全新 user-data-dir）**：
 1. 边缘滑出打开：marker 翻转；逐帧采样 `getComputedStyle(drawer).transform` 断言**无插件写入**，且关态必须是**设计槽位**（`rect.left <= -rect.width`，390px 下 left=-308 / right=-28）而不只是「离屏」——宿主 0.1.5 的 52px 透明壳同样「离屏」，2026-09-17 的点击路径动画回归正是从这条缝漏过去的
 2. 设置对话框（aria-modal）打开后：手势不生效、模态内 click 正常穿透
-3. 遮罩断言：开→关→开后 `[data-mobile-nav="backdrop"]` 恒为 1 个元素，且暗层活动态 `[data-active]` 随开合翻转（2026-11-08：元素常驻，单看数量已无判别力）
+3. 遮罩断言：开→关→开后 `[data-mobile-nav="hit"]` 恒为 1 个元素，且暗层活动态 `[data-active]` 随开合翻转（2026-11-08：元素常驻，单看数量已无判别力）
 4. 自愈回归：触摸 tap sessionRow（无手势）→ 会话打开 + 抽屉关（合成 click 未被误吞）
 5. 手势后零副作用：内容区右滑关闭 → 无会话切换、无 FAB/backdrop 二次 click
 6. 桌面 ≥1024px：无热区 DOM、无监听副作用、与禁用插件布局一致
