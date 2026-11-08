@@ -181,7 +181,7 @@ function cycles() {
 //   2026-11-05 删 session-focus-guard 去掉其 → composer-keyboard-guard 那 1 条）
 //
 // 清法就是架构标准 P1 的第 ③ 步「跨特性工厂由组装根注入」：把 toggleDrawer /
-// fadeOverlayOut / 共享类型提到 platform/，或由 index.tsx 注入；清完再把本门收紧成
+// fadeDimOut / 共享类型提到 platform/，或由 index.tsx 注入；清完再把本门收紧成
 // 「effects → effects 除白名单外一律 fail」。在那之前，**别把这个缺口当已机检**。
 test('R1/R3 运行时 import 环：只允许台账里登记的那些', () => {
   const found = cycles()

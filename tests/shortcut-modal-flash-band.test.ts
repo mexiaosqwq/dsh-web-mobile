@@ -23,7 +23,7 @@ import { sliceBand, ruleBodyAt, POPOVER_BAND_START, POPOVER_BAND_END } from './l
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = readFileSync(join(ROOT, 'src/client/styles/base.css.ts'), 'utf8')
-// P1 拆分（2026-10-12）：toggleDrawer 搬到 drawer-close.ts；createOverlayTask 的
+// P1 拆分（2026-10-12）：toggleDrawer 搬到 drawer-close.ts；createDrawerLayerTask 的
 // 装配（registerReconcileTasks）第四片搬到 reconciler-adapter.ts，
 // 所以三条断言各读各的文件（逐条钉住它真正所在的那一份）。
 const ADAPTER = readFileSync(join(ROOT, 'src/client/effects/reconciler-adapter.ts'), 'utf8')
@@ -89,14 +89,14 @@ test('every non-gesture closer shares the one late-commit toggle', () => {
   assert.match(helper, /^[^]*?if \(closeDrawerAnimated\(ctx\)\) return/, 'toggleDrawer must try the animated close first')
   assert.match(helper, /openDrawerAfterKeyboard\(\(\) => \{[^}]*ctx\.layout\.toggleSidebar\(\)/, 'the open branch must go through openDrawerAfterKeyboard')
   assert.ok(helper.indexOf('closeDrawerAnimated(ctx)') < helper.indexOf('openDrawerAfterKeyboard'), 'close decision precedes the open branch')
-  // The FAB's opener callback (createOverlayTask) is a closer once the drawer
+  // The FAB's opener callback (createDrawerLayerTask) is a closer once the drawer
   // is open: it must not bypass the helper.
-  const overlayAt = ADAPTER.indexOf('createOverlayTask(t,')
-  assert.notEqual(overlayAt, -1, 'createOverlayTask call missing')
+  const layerAt = ADAPTER.indexOf('createDrawerLayerTask(t,')
+  assert.notEqual(layerAt, -1, 'createDrawerLayerTask call missing')
   assert.match(
-    ADAPTER.slice(overlayAt, ADAPTER.indexOf('\n', overlayAt)),
+    ADAPTER.slice(layerAt, ADAPTER.indexOf('\n', layerAt)),
     /toggleDrawer\(ctx\)/,
-    'createOverlayTask must receive toggleDrawer, not a raw toggleSidebar',
+    'createDrawerLayerTask must receive toggleDrawer, not a raw toggleSidebar',
   )
   // The session-delete follow-up is a closer on the mobile branch.
   assert.match(

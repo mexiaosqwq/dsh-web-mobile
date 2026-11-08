@@ -7,7 +7,7 @@ import type { PanelExit } from './panel-exit.ts';
  * WITH the drawer's slide-out instead of vanishing after it. The dim itself is
  * painted by the frame's ::after (data-mobile-nav-dim); the catcher element is
  * persistent and only re-arms when the marker flips. */
-export declare function fadeOverlayOut(): void;
+export declare function fadeDimOut(): void;
 /**
  * @param t - our dictionary (the `NS` locale namespace, i18n/locales.ts).
  * @param toggleSidebar - opens/closes the drawer.
@@ -17,5 +17,5 @@ export declare function fadeOverlayOut(): void;
  *   level on a panel subpage, out of the panel at its root. Null on a host that
  *   cannot select panels (rc.6), where it stays a plain drawer button.
  */
-export declare function createOverlayTask(t: TranslateNS<typeof NS>, toggleSidebar: () => void, panelExit: PanelExit | null): ReconcilerTask;
+export declare function createDrawerLayerTask(t: TranslateNS<typeof NS>, toggleSidebar: () => void, panelExit: PanelExit | null): ReconcilerTask;
 //# sourceMappingURL=drawer-layer.d.ts.map

@@ -1,3 +1,9 @@
+// The drawer's layer surface, owned by one reconciler task: the floating
+// fallback button (FAB), the persistent full-screen hit layer that closes the
+// drawer on a blank tap, and the dim marker (`data-mobile-nav-dim`). It does
+// NOT paint the dim — that lives on the frame's ::after, because a painted
+// full-screen element is what made the device flash bright on close
+// (2026-11-08, device-only; see base.css.ts). Task name: `drawer-layer`.
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ReconcilerTask } from '../core/reconciler-core.ts'
 import { NS } from '../i18n/locales.ts'
@@ -10,7 +16,7 @@ import { onDrawerOpening } from '../platform/drawer-open.ts'
  * WITH the drawer's slide-out instead of vanishing after it. The dim itself is
  * painted by the frame's ::after (data-mobile-nav-dim); the catcher element is
  * persistent and only re-arms when the marker flips. */
-export function fadeOverlayOut(): void {
+export function fadeDimOut(): void {
   fadeHook?.()
 }
 
@@ -18,13 +24,13 @@ let fadeHook: (() => void) | null = null
 
 /** The dim's opacity transition, shared with the drawer column's .28s slide
  * (user request 2026-08-29 「背景黑色遮罩进行渐变动画」). */
-const BACKDROP_FADE_MS = 280
+const DIM_FADE_MS = 280
 
 /** How long the presence-gated band outlives the marker flip: one fade plus
  * the 60ms slack the old removal timer carried. The slack is load-bearing for
  * the 快捷键弹层 z band (2026-09-25): the raised modal root must outlive the
  * host's pane-subtree swap, measured at ~200-280ms after the flip. */
-const BAND_RELEASE_MS = BACKDROP_FADE_MS + 60
+const BAND_RELEASE_MS = DIM_FADE_MS + 60
 
 /** How long an optimistically started dim (see showNow) waits for the host's
  * open commit before the closed-state fade is allowed to take it back. */
@@ -51,21 +57,21 @@ const FAB_DRAWER_ICON =
  *   level on a panel subpage, out of the panel at its root. Null on a host that
  *   cannot select panels (rc.6), where it stays a plain drawer button.
  */
-export function createOverlayTask(
+export function createDrawerLayerTask(
   t: TranslateNS<typeof NS>,
   toggleSidebar: () => void,
   panelExit: PanelExit | null,
 ): ReconcilerTask {
   let fab: HTMLButtonElement | null = null
   /**
-   * Persistent click catcher. It paints nothing and carries no interactive
+   * Persistent click catcher (`hitLayer`). It paints nothing and carries no interactive
    * role/aria on purpose: the dim is painted by the frame's own ::after (same
    * paint tree as the conversation, no separate full-screen layer). When this
    * element carried role="button", the device browser treated the full-screen
    * surface as a pressed button — the "tap the blank area → the right side
    * flashes bright" report (2026-11-08, device-only).
    */
-  let backdrop: HTMLDivElement | null = null
+  let hitLayer: HTMLDivElement | null = null
   /** Pending confirm of an optimistic dim (showNow); while armed the closed
    * branch leaves the dim alone — the host commit may simply not have landed. */
   let openConfirmTimer: number | null = null
@@ -82,15 +88,15 @@ export function createOverlayTask(
   let dimHeldOff = false
   let removeOpeningHook: (() => void) | null = null
 
-  const ensureCatcher = (frame: HTMLElement): HTMLDivElement => {
-    if (backdrop === null) {
-      backdrop = document.createElement('div')
-      backdrop.dataset.mobileNav = 'backdrop'
-      backdrop.setAttribute('aria-hidden', 'true')
-      backdrop.style.pointerEvents = 'none'
-      frame.appendChild(backdrop)
+  const ensureHitLayer = (frame: HTMLElement): HTMLDivElement => {
+    if (hitLayer === null) {
+      hitLayer = document.createElement('div')
+      hitLayer.dataset.mobileNav = 'backdrop'
+      hitLayer.setAttribute('aria-hidden', 'true')
+      hitLayer.style.pointerEvents = 'none'
+      frame.appendChild(hitLayer)
     }
-    return backdrop
+    return hitLayer
   }
 
   const setDim = (frame: HTMLElement, on: boolean): void => {
@@ -115,7 +121,7 @@ export function createOverlayTask(
     cancelActiveRelease()
     activeReleaseTimer = window.setTimeout(() => {
       activeReleaseTimer = null
-      delete backdrop?.dataset.active
+      delete hitLayer?.dataset.active
     }, ms)
   }
   const drawerOpen = (): boolean => {
@@ -185,7 +191,7 @@ export function createOverlayTask(
     if (frame === null || !frame.hasAttribute('data-sidebar-collapsed')) return
     // A fresh open cancels any pending pre-fade from a close still in flight.
     dimHeldOff = false
-    ensureCatcher(frame)
+    ensureHitLayer(frame)
     setDim(frame, true)
     cancelOpenConfirm()
     openConfirmTimer = window.setTimeout(() => {
@@ -198,18 +204,18 @@ export function createOverlayTask(
     // runs dispose() on every MOBILE_QUERY flip (reconciler-core.ts), and
     // reactivation only re-runs ensure() - a hook assigned in the factory
     // body stayed null from the first breakpoint flip onwards, silently
-    // killing the backdrop fade.
+    // killing the dim fade.
     fadeHook = (): void => {
       const frame = getFrame()
       dimHeldOff = true
       if (frame !== null) setDim(frame, false)
-      if (backdrop !== null) backdrop.style.pointerEvents = 'none'
+      if (hitLayer !== null) hitLayer.style.pointerEvents = 'none'
       releaseActiveAfter(BAND_RELEASE_MS)
     }
     removeOpeningHook ??= onDrawerOpening(showNow)
     const frame = getFrame()
     if (frame === null) return
-    const catcher = ensureCatcher(frame)
+    const hit = ensureHitLayer(frame)
     if (drawerOpen()) {
       cancelOpenConfirm()
       // A close commit may still be animating (marker not flipped yet): the
@@ -217,16 +223,16 @@ export function createOverlayTask(
       if (!dimHeldOff) {
         cancelActiveRelease()
         setDim(frame, true)
-        catcher.dataset.active = ''
-        catcher.style.pointerEvents = 'auto'
+        hit.dataset.active = ''
+        hit.style.pointerEvents = 'auto'
       }
     } else if (openConfirmTimer === null) {
       // Fade the dim out (geometry-static opacity transition on the frame's
       // ::after) and release the presence-gated band once it has landed.
       dimHeldOff = false
       setDim(frame, false)
-      if (catcher.style.pointerEvents !== 'none') {
-        catcher.style.pointerEvents = 'none'
+      if (hit.style.pointerEvents !== 'none') {
+        hit.style.pointerEvents = 'none'
         releaseActiveAfter(BAND_RELEASE_MS)
       }
     }
@@ -261,8 +267,8 @@ export function createOverlayTask(
       removeOpeningHook = null
       fadeHook = null
       getFrame()?.removeAttribute('data-mobile-nav-dim')
-      backdrop?.remove()
-      backdrop = null
+      hitLayer?.remove()
+      hitLayer = null
       fab?.remove()
       fab = null
     },
