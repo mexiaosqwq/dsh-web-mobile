@@ -116,6 +116,33 @@
 
 ---
 
+## 5. `tests/` 从不做 typecheck（2026-11-08 测量后决定**不设门**）
+
+**位置**：`tsconfig.json` 的 `include` 只到 `src/index.ts`，`tsconfig.client.json` 只到 `src/client/**`——`tests/`
+两份都不覆盖；`test:core` 用 Node 24 原生 type-stripping 直跑 `.test.ts`，类型在运行期被整个剥掉。
+
+**现状（实测，2026-11-08）**：把 `tests/**/*.ts` 纳入临时配置后冒出 **132–156 条类型错 / 13 个文件**（计数随配置
+细节浮动：侦察岗的 V1b 口径 132，lead 的 `nodeNext` + `typeRoots` 口径 156）。形态：**61 条是测试 helper 从不写
+类型注解**，约 43 条是假 DOM 桩缺 `EventTarget`/`Element` 成员，其余是夹具与生产 seam 的口径差。假 DOM 桩有
+**3 份各自实现**（`FakeEl` / `fake` / `FakeElement`），其中 2 份已分叉。
+
+**为什么没动**：① 符号漂移（缺导出、改名）今天就会在 `test:core` **加载期**直接 SyntaxError，静态层没有额外猎物
+——136 条抽检里真缺陷只有 1 类 4 条（`ClientContext` 未导入，已修）；② 132 条里 61 条是「helper 从不写类型」，
+修法只能批量补注解（机械量大）或塞 `any`（门变装饰）；③ 56/72 个测试的断言对象是**源码字符串**，类型系统根本
+看不到它们的行为——那类风险要靠变异/空转审计，不是 typecheck。
+
+**修法（将来要做时）**：建 `tsconfig.tests.json`（`strict` + 与 `tsconfig.client.json` 相同的 `paths` + `include`
+加 `tests/**/*.ts` 与 `src/client/**/*.ts`）→ 加 `pnpm verify:tests` → 先修 3 个重灾区（`host-test-compat` /
+`mobile-navigation-behavior` / `architecture`）→ 残量做「不许新增」棘轮。预估 95–105 行可达 69/72 文件覆盖
+（排除 3 个 vm/transpile harness）。
+
+**验收**：门一旦上，`pnpm verify:tests` 必须进 CI；且**不许**为了让它是绿而给测试塞 `any`——那只是把缺口换个
+地方藏。
+
+**规模**：中等（半天）。**建议等下一次大改 `tests/` 时一起做。**
+
+---
+
 ## 待真机验收（不是重构项，但同样「本轮做不到」）
 
 点空白关闭抽屉时右侧变亮的闪：暗层改法有 bisect 支持（已保留），点遮罩关闭路径已回退成晚提交关闭

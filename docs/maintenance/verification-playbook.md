@@ -7,10 +7,15 @@
 
 ## 三道门与本地检查
 
-`pnpm verify`（typecheck）与 `pnpm test:core`（59 个测试文件，glob 覆盖 `tests/` 全部）。`test:core` 另含
-两道结构门：`css-structure-check.mjs`（CSS 结构）与 `patch-registry-check.mjs`（兼容补丁四要素与登记表
-一致性，2026-10-13 接入）——两者都由 `tests/css-structure.test.ts` 驱动，且都带变异用例（缺字段/指向不
-存在的测试必须红），不做摆设门。`pnpm build` 另外会跑自研客户端打包器。空白卫生用 `git diff --check`。
+`pnpm verify`（typecheck）与 `pnpm test:core`（72 个测试文件，glob 覆盖 `tests/` 全部）。`test:core` 另含
+三道结构门：① `css-structure-check.mjs`（CSS 结构）与 ② `patch-registry-check.mjs`（兼容补丁四要素与登记表
+一致性，2026-10-13 接入）——两者都由 `tests/css-structure.test.ts` 驱动，且都带变异用例（缺字段、指向不存在的
+测试必须红）；③ `tests/probes-syntax.test.ts`（37 个 `scripts/**/*.mjs` 的语法，2026-11-08 接入）——自带
+「故意坏的源码必须解析失败」自检与扫描文件数下限，防遍历空转。三道都不做摆设门。
+
+`tests/` 自身**不做** typecheck（`tsconfig*.json` 都不含 `tests/`）：2026-11-08 实测 132 条类型错、收益不
+划算，取舍依据见 `docs/maintenance/debt-backlog.md` 第 5 条。`pnpm build` 另外会跑自研客户端打包器；空白
+卫生用 `git diff --check`。
 
 本仓没有 linter/formatter/coverage；CI 另外跑 bundle smoke 与 lib 新鲜度门 `git diff --exit-code lib`。
 

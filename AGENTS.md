@@ -38,7 +38,7 @@
   │  ├─ patch-registry-check.mjs ← 补丁登记门禁：@patch 四要素（for/why/until/test）+ 表↔码双向一致（已接入 test:core）
   │  ├─ lib/                 ← 探针共用模块（错误基线匹配、CDP 客户端、宿主场景、判定）
   │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 71 个 .test.ts（node --test，type-stripping 直跑）
+  ├─ tests/                  ← 72 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 10 篇权威设计文档（入库）
   │  ├─ maintenance/         ← pitfalls.md（73 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md · debt-backlog.md（刻意未动的技术债）← 入库
@@ -56,7 +56,7 @@
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
 - 动手改某块代码前 → `docs/maintenance/pitfalls.md`（73 坑原文，名字=锚点，索引在下方 Pitfalls 节）
-- 准备重构关闭/暗层链路、整理探针、给 `overlay-backdrop-fab.ts` 改名或换标记 → `docs/maintenance/debt-backlog.md`（刻意未动的 4 条债 + 各自「为什么不动」与验收线）
+- 准备重构关闭/暗层链路、整理探针、给 `overlay-backdrop-fab.ts` 改名或换标记 → `docs/maintenance/debt-backlog.md`（刻意未动的 5 条债 + 各自「为什么不动」与验收线）
 - 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约）
 - 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（跨模块形状约束 + 模块索引）
 - 做验收或起探针环境 → `docs/maintenance/verification-playbook.md`（三档验收场景 + CDP/Playwright MCP/Termux 配方）
@@ -138,6 +138,7 @@ dsh web
 - **热装载前必须过四道自检**：①`src/client` 内 `error TS1xxx`（语法类）= 0（`.css.ts` 是模板字符串，注释里一律用「」不用反引号）；②`node scripts/client-bundle-smoke.mjs` 过（桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory）；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0**；④`node --test tests/client-inject-surface.test.ts`——`src/client` 里任何 `ctx.<service>` 读取都必须在 `export const inject` 名单内，跨 `inject` 取服务一律走 `ctx.get(name)`。**连续重载也要克制**：每次 hot-load 都会重载页面，别在用户正在使用或 App 在后台时连续触发。
 - **简单活派子代理、主会话只做设计与终审（用户要求）**：读宿主包/查选择器、整理候选 CSS、补测试与文档、跑门禁复跑这类可独立完成的活先派 `subagent`；主会话保留几何决策、真机读数、构建与热载、最终 diff 复核。任务书写全「文件、目标、验收命令」（一次性 `subagent` 不可寻址，事后无补救通道）。
 - **团队与审查流程**（审查路线与两层验收、审查规模与改动成正比、三岗分离 SOP、lead 终审铁律、成员完工落盘交接文档）见 **`docs/maintenance/collaboration-rules.md`**——拉起团队或做审查前先读它。
+- **成员掉线必须当场告知用户（用户要求）**：`spawn_teammate`/`subagent` 失败、静默失联或零产出时，内部重派照旧，但**当轮回复里必须点名**（哪个岗、失败在哪、有没有落盘产出、如何处置）——用户看不到成员的状态通道，只在回复里看得到（2026-11-08 实测：侦察岗中途失败零产出，用户是回头才发现「它掉了」）。
 
 ## Conventions
 
@@ -226,7 +227,7 @@ dsh web
 
 ## Testing & QA
 
-- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（71 个测试文件，另含 CSS 结构与补丁登记两道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
+- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（72 个测试文件，另含 CSS 结构、补丁登记与探针语法三道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
 - **验收场景（窄手机 ~390 / 平板 768–1023 / 桌面 ≥1024 与窄桌面窗口）+ 探针环境（Playwright MCP 配方、全新 context、Termux TMPDIR、真机读数通道）见 `docs/maintenance/verification-playbook.md`**；探针环境的坑 → `docs/maintenance/pitfalls.md` §探针运行环境。
 - 手机端调试加 `?mobile-nav-debug=1`；`pnpm smoke:cdp` 是定点冒烟探针，**不能替代**真实 profile 验收。
 - **认证 token 向用户索要（用户要求）**：需认证访问本机 dsh web 时**先向用户要 token**（重启输出的 `?token=…` URL 即可用），**不要自行跑 `.local-tests/mint-cookie.mjs` 铸 cookie**。

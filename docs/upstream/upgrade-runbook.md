@@ -81,6 +81,8 @@ for f in scripts/probes/*.mjs; do node "$f" || echo "FAIL $f"; done
 
 契约探针 `miss=0`（SKIP 条目手动复扫）+ 历史回归锚点（`scripts/probes/`）全绿 + 主探针 `new=0` + 手势/zoom 门通过，才算对账完成。
 
+**宿主契约 needle 重审**（2026-11-08 起）：`node --test tests/composer-enter-newline.test.ts` 若该文件出现 `host contract` **skip**，其 skip 理由会写明解析到的宿主版本；这说明新宿主的 composer bundle 换代了 —— 对新 bundle 重审那 5 条 needle，通过后 bump 该文件的 `HOST_CONTRACT_VERSION`（当前 `0.2.2-rc.1`）。skip 不是红，不重审就等于门禁长期空转。
+
 ## 5. 低危普查项
 
 - 未守卫哈希候选 `_search/_searchInline/_searchBox`：升级后用 CDP 普查复核（见 AGENTS.md 哈希子串匹配条目）。
