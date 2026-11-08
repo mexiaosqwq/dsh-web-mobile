@@ -32,6 +32,31 @@ const TOP_LEVEL_ALLOWED = [
   '@media (hover: hover)',
 ]
 
+// ---- DOM markers: CSS consumers must have a non-CSS producer ----------------
+//
+// A selector on [data-mobile-nav="x"] / [data-mobile-nav-flag] / a host marker is
+// only half a contract: the other half is the code that writes the attribute.
+// Rename one side and the rule silently never matches while every gate stays
+// green (2026-11-08 T4 audit: the forward direction was clean, but nothing
+// enforced it). Only the forward direction is checked: code may produce markers
+// the CSS does not consume yet (deliberate revival guards), which is not a
+// defect.
+//
+// data-mobile-nav* is ours, so a *valued* selector must see its value in the
+// source. data-phase / data-sidebar-collapsed are host-owned: the host picks the
+// values (hero / active / ...), so only the attribute name can be required.
+const MARKER_SELECTOR = /\[(data-mobile-nav[\w-]*|data-phase|data-sidebar-collapsed)(?:="([^"]*)")?/g
+const HOST_OWNED_MARKERS = new Set(['data-phase', 'data-sidebar-collapsed'])
+// dsh-zen-remote injects data-mobile-nav="header-back" (the zen-remote-header-yield
+// @patch block in layout.css.ts explains the collaboration); no producer exists
+// in this repo by design, so it is exempt from the producer requirement.
+const FOREIGN_MARKERS = new Set(['data-mobile-nav=header-back'])
+// Anti-vacuity floors: a broken extractor must fail, not silently pass.
+const MIN_CSS_MARKERS = 30
+const MIN_SOURCE_FILES = 40
+
+const markerUse = new Map()
+
 const problems = []
 const fatal = []
 const info = []
@@ -125,6 +150,57 @@ function nestedHas(prelude) {
   return false
 }
 
+// Non-CSS source files: the producer side of the marker contract. `.css.ts` is
+// excluded because that is the consumer side being checked.
+function walkSource(dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) walkSource(path, out)
+    else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.endsWith('.css.ts')) out.push(path)
+  }
+  return out
+}
+
+/** `data-mobile-nav` + camelCase dataset suffix -> attribute name. */
+function datasetAttribute(prop) {
+  return 'data-' + prop.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())
+}
+
+/** Attribute names and slug-shaped string values present anywhere in the source.
+ *
+ * Presence, not data flow: a value may travel through a helper
+ * (`ensurePositioned(el, 'stats-tps-row')`) or a shared constant, which a
+ * structural scan cannot follow. The contract enforced here is the one that
+ * breaks silently: the marker must still exist on both sides after a rename.
+ */
+function collectMarkerProducers(files) {
+  const names = new Set()
+  const values = new Set()
+  const attribute = /(data-mobile-nav[\w-]*|data-phase|data-sidebar-collapsed)/g
+  const noteString = (literal) => {
+    for (const m of literal.matchAll(attribute)) names.add(m[1])
+    if (/^[a-z0-9][a-z0-9-]{0,40}$/.test(literal)) values.add(literal)
+  }
+  for (const file of files) {
+    const text = fs.readFileSync(file, 'utf8')
+    // Query selector strings are consumers, not producers: blank the ones that
+    // carry an attribute selector so a query for the marker cannot justify the
+    // style that queries it.
+    const code = text.replace(/'[^'\n]*\[[^'\n]*'/g, ' ')
+    for (const m of code.matchAll(/'([^'\n]*)'/g)) noteString(m[1])
+    for (const m of code.matchAll(/"([^"\n]*)"/g)) noteString(m[1])
+    // dataset.mobileNavXxx = ... writes data-mobile-nav-xxx (value irrelevant
+    // for a boolean/flag attribute, so the name alone proves the producer).
+    for (const m of code.matchAll(/dataset\.([A-Za-z_$][\w$]*)\s*=/g)) names.add(datasetAttribute(m[1]))
+  }
+  return { names, values }
+}
+
+function formatMarker(key) {
+  const split = key.indexOf('=')
+  return split === -1 ? key : key.slice(0, split) + '="' + key.slice(split + 1) + '"'
+}
+
 for (const name of MODULES) {
   const { file, css, masked, lineOffset } = load(name)
   const { lines, blocks, rules, newlinesBefore } = parse(file, css, masked, lineOffset)
@@ -188,6 +264,46 @@ for (const name of MODULES) {
   for (const r of rules) {
     if (nestedHas(r.prelude)) {
       fail(r.line, 'nested :has() inside :has() — invalid selector, the parser drops this whole rule: ' + r.prelude.slice(0, 70))
+    }
+  }
+
+  // 6. DOM markers this module's selectors consume; the producer side is
+  //    checked across all modules against the non-CSS source after this loop.
+  for (const r of rules) {
+    for (const m of r.prelude.matchAll(MARKER_SELECTOR)) {
+      const key = m[2] === undefined ? m[1] : m[1] + '=' + m[2]
+      if (!markerUse.has(key)) markerUse.set(key, { file, line: r.line + lineOffset })
+    }
+  }
+}
+
+// 6. Every marker the styles select on must still exist on the producing side.
+//    A partial fixture root (styles only) has no code half, so it skips: the
+//    floor below is what keeps a broken extractor from passing vacuously in the
+//    real tree.
+const sourceRoot = join(root, 'src/client')
+const sourceFiles = walkSource(sourceRoot)
+// Test fixtures mirror only the style modules (no non-CSS source, no entry):
+// there is no code half to check, so they skip. The real tree always has source
+// files, so a broken walk there hits the floors below instead of skipping.
+if (sourceFiles.length > 0 || fs.existsSync(join(sourceRoot, 'index.tsx'))) {
+  if (sourceFiles.length < MIN_SOURCE_FILES) {
+    note('src/client', 0, 'marker scan found only ' + sourceFiles.length + ' non-CSS source files (expected at least ' + MIN_SOURCE_FILES + ')')
+  }
+  if (markerUse.size < MIN_CSS_MARKERS) {
+    note('src/client/styles', 0, 'marker scan found only ' + markerUse.size + ' distinct CSS markers (expected at least ' + MIN_CSS_MARKERS + ')')
+  }
+  const { names, values } = collectMarkerProducers(sourceFiles)
+  for (const [key, use] of markerUse) {
+    if (FOREIGN_MARKERS.has(key)) continue
+    const split = key.indexOf('=')
+    const attr = split === -1 ? key : key.slice(0, split)
+    const value = split === -1 ? undefined : key.slice(split + 1)
+    const produced = value === undefined || HOST_OWNED_MARKERS.has(attr)
+      ? names.has(attr)
+      : names.has(attr) && values.has(value)
+    if (!produced) {
+      note(use.file, use.line, 'CSS consumes ' + formatMarker(key) + ' but nothing in src/client produces it (one-sided rename?)')
     }
   }
 }

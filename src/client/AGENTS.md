@@ -81,6 +81,12 @@ DOM 标记即跨模块状态契约：`data-mobile-nav="frame"`、`data-sidebar-c
 （frame 级暗层开关，`1`/`0`，画 frame 的 `::after`）、`data-mobile-nav-ios`
 （挂 `<html>`，iOS 专属 CSS 门）。
 
+**读标记要让静态检查看得见**：一律用选择器字符串 `querySelector('[data-mobile-nav="x"]')` 或
+`dataset.mobileNavXxx` 比较，**不要写** `getAttribute('data-mobile-nav') === 'x'`——属性名与值分开写时
+没有任何扫描能认出这个读点（`scripts/css-structure-check.mjs` 的「CSS 消费的标记必须有产出」检查也看不见），
+日后改名会静默失配。新增标记必须同时有消费者（CSS 选择器或代码里的 `querySelector`）；**只有生产者的标记是
+死重量，别留**（2026-11-08 审计实测：报出来的「零引用」标记里真实死重量只有 1 个，其余全是扫描没认出读法）。
+
 ## 效果与资源纪律
 
 - 每个长生命周期样式标签、监听器、计时器或 `MutationObserver` 都放进

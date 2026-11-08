@@ -98,8 +98,22 @@ test('every session-header selector carries the _headerLeading structural anchor
     .filter((line) => !line.includes('[data-phase] header:has(> *)'))
     .filter((line) => !line.includes('[data-phase] header[class*="headerBlank"]'))
   assert.deepEqual(offenders, [], 'unanchored session-header selectors would also hit the ask-question card header')
-  const anchors = lines.filter((line) => line.includes('header:has([class*="_headerLeading"])')).length
-  assert.ok(anchors >= 30, `expected the full anchored block, found only ${anchors}`)
+  // Offenders only catch unanchored rules that exist, never rules that were
+  // deleted. Count over the WHOLE sheet, not headerBlock(): header rules also
+  // live in the dark-theme / wallpaper / keyboard sections (the #176 fill rule
+  // among them), and a block-scoped count never saw them. This is the fixed
+  // ledger of anchored selector lines (75 as of 2026-11-08; the block itself
+  // holds 67 plus 4 deliberate unanchored floors). The old `>= 30` let 45 of
+  // them disappear in silence. Adding or removing one means updating this.
+  const selectorLine = (line: string): boolean => {
+    const t = line.trim()
+    return !t.startsWith('/*') && !t.startsWith('*') && (t.endsWith('{') || t.endsWith(','))
+  }
+  const anchors = layoutSource()
+    .split('\n')
+    .filter((line) => line.includes('header:has([class*="_headerLeading"])') && selectorLine(line))
+    .length
+  assert.equal(anchors, 75, `expected the full anchored set (75 selector lines), found ${anchors}`)
 })
 
 test('no pre-0.2.2 header generation branch survives', () => {

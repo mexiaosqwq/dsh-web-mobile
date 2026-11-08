@@ -20,7 +20,7 @@
 |---|---|
 | Files 面板 `[data-sidebar-right-panel]` | 手机档渲染为 `P3OORG_panel[data-sidebar-right-panel=fullscreen]`：`position:fixed; inset:0; **z-index:40**`，且**在 frame 内部**（`frame > … > pI_x6G_rightbarCol > panel`）。关态＝`visibility:hidden` + `transform:translate(100%)`（rect `[390,0,390,844]`），**DOM 常驻** |
 | 抽屉列 | 插件的 overlay 列，`z-index:1300`；关态槽位 = 自身宽 × 110%（390px 下 `[-308,0,280,844]`） |
-| backdrop | `z-index:1250`，铺满抽屉之外 |
+| backdrop | `z-index:1250`，铺满抽屉之外（2026-11-08 起暗层由 frame 的 `::after` 绘制，`[data-mobile-nav="backdrop"]` 是同 z 的透明命中层） |
 | 顶栏两个角按钮 | `z-index:2`，header `position:relative; z-index:auto`（base.css 的 55/56/57 属于删除确认卡、compat.css 的 55/56 属于 aionui explorer/preview 两列，都不在 header 上） |
 
 命中测试（`elementFromPoint`，LTR）：
