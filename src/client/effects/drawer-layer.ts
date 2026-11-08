@@ -251,7 +251,7 @@ export function createOverlayTask(
     syncFab()
   }
   return {
-    name: 'overlay-backdrop-fab',
+    name: 'drawer-layer',
     scopes: ['*', 'data-sidebar-collapsed', 'data-phase'],
     ensure: sync,
     dispose: () => {

@@ -18,4 +18,4 @@ export declare function fadeOverlayOut(): void;
  *   cannot select panels (rc.6), where it stays a plain drawer button.
  */
 export declare function createOverlayTask(t: TranslateNS<typeof NS>, toggleSidebar: () => void, panelExit: PanelExit | null): ReconcilerTask;
-//# sourceMappingURL=overlay-backdrop-fab.d.ts.map
+//# sourceMappingURL=drawer-layer.d.ts.map

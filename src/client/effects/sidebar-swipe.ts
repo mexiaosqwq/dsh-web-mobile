@@ -3,7 +3,7 @@ import { foreignModalOpen, getDrawer, getFrame } from '../platform/frame.ts'
 import { installMobileEffect } from '../platform/breakpoints.ts'
 import { drawerOpening, releaseTextFocus } from '../platform/drawer-open.ts'
 import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
-import { fadeOverlayOut } from './overlay-backdrop-fab.ts'
+import { fadeOverlayOut } from './drawer-layer.ts'
 
 /**
  * Sidebar drawer swipe gestures (B 档 hybrid follow, per the 2026-08-29

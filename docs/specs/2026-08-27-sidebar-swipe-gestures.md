@@ -35,7 +35,7 @@
 | 项 | 结论 | 依据 |
 |---|---|---|
 | 缺陷 1（跟手 transform 违反 `transform:none` 不变式） | 打开方向天然不可达（设置对话框只能从抽屉内打开）；关闭方向依赖"aria-modal 让位 + 每帧守卫"才是安全（若只在 pointerdown 查一次，拖拽中模态升起仍会偏移设置遮罩 102px） | layout.css.ts L66-77 实证 + AGENTS.md L85 |
-| 缺陷 2（backdrop 双归属） | **必然成立**（按当时的创建/销毁模型）：reconciler 用闭包局部变量 `backdrop === null` 判定创建/销毁，从不查 DOM；手势层自建 backdrop → release 后 rAF flush 必再建一个 → 双遮罩 + 孤儿节点。2026-11-08 起遮罩常驻、该模型退役，本条只作历史依据 | overlay-backdrop-fab.ts L9/L23/L30 |
+| 缺陷 2（backdrop 双归属） | **必然成立**（按当时的创建/销毁模型）：reconciler 用闭包局部变量 `backdrop === null` 判定创建/销毁，从不查 DOM；手势层自建 backdrop → release 后 rAF flush 必再建一个 → 双遮罩 + 孤儿节点。2026-11-08 起遮罩常驻、该模型退役，本条只作历史依据 | drawer-layer.ts L9/L23/L30 |
 | B 档价值打折 | 遮罩跟手被缺陷 2 禁止（取 reconciler 引用做 opacity 跟手 = 脆弱依赖 + 竞态），只剩抽屉本体跟手；rAF 拖拽帧与 reconciler 的 rAF 合并 flush 抢帧 | — |
 | 审查/维护成本 | A 档 ~110 行、状态机可穷举、判定纯函数可 node:test；B 档 ~200+ 行 + 每帧守卫 + backdrop 归属，每个点都在碰铁律 | — |
 | 升级路径 | A 档把"判定"与"提交执行器"解耦（`classifySwipe` 纯函数 + `commit` 回调），未来升 B 档只换 commit 实现，零沉没成本 | — |
@@ -282,7 +282,7 @@ RELEASE ──classifySwipe──▶ 'open'|'close' → markGestureConsumed + ct
 
 **致命缺陷 1（事实 A）**：拖拽中给抽屉写非 none inline transform 会打破 `transform:none` 不变式（设置对话框 fixed 遮罩 `.VOzbGW_overlay` 被 portal 进 sidebar DOM，非 none transform → containing block 改变 → 102px 偏移/锚定失效）。
 
-**致命缺陷 2（事实 B）**：backdrop 由 reconciler task（`overlay-backdrop-fab.ts`）以闭包局部变量 `backdrop === null` 判定创建/销毁；手势层自建 backdrop 不在其引用内 → release 后 reconciler 必再建一个 → 双遮罩 + inline opacity 残留 + 孤儿节点泄漏。
+**致命缺陷 2（事实 B）**：backdrop 由 reconciler task（`drawer-layer.ts`）以闭包局部变量 `backdrop === null` 判定创建/销毁；手势层自建 backdrop 不在其引用内 → release 后 reconciler 必再建一个 → 双遮罩 + inline opacity 残留 + 孤儿节点泄漏。
 
 **附带发现**：缺 TRANSITIONING 态；backdrop fade 动画优先级高于 inline opacity；整段平均速度被拖拽史稀释宜改窗口瞬时；缺 visibilitychange/blur 兜底；与 installOverlayInteractions 自愈逻辑竞争需显式契约；热区放 base.css.ts 无 @media 会桌面污染；reduced-motion 在回弹路径无 reduce 覆盖；vendor use-gesture 为可评估选项；状态机时序建议 reducer 化 + 异常路径 try/finally。
 

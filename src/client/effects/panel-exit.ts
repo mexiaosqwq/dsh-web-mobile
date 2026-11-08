@@ -20,7 +20,7 @@ import { installMobileEffect } from '../platform/breakpoints.ts'
  *  2. tapping the already-selected panel row again — installPanelRowExit
  *  3. the top-left FAB, which reads as 「返回会话」 at the panel root and as
  *     「返回」 on a panel subpage — see createOverlayTask in
- *     overlay-backdrop-fab.ts
+ *     drawer-layer.ts
  *
  * All three funnel through the same `exit`, so they cannot drift apart.
  *
