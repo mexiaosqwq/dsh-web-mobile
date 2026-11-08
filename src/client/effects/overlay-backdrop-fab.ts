@@ -97,8 +97,22 @@ export function createOverlayTask(
     frame.setAttribute('data-mobile-nav-dim', on ? '1' : '0')
   }
 
+  /** Cancel the optimistic-open confirm window (armed by showNow). */
+  const cancelOpenConfirm = (): void => {
+    if (openConfirmTimer === null) return
+    window.clearTimeout(openConfirmTimer)
+    openConfirmTimer = null
+  }
+
+  /** Cancel the pending band release ([data-active] removal). */
+  const cancelActiveRelease = (): void => {
+    if (activeReleaseTimer === null) return
+    window.clearTimeout(activeReleaseTimer)
+    activeReleaseTimer = null
+  }
+
   const releaseActiveAfter = (ms: number): void => {
-    if (activeReleaseTimer !== null) window.clearTimeout(activeReleaseTimer)
+    cancelActiveRelease()
     activeReleaseTimer = window.setTimeout(() => {
       activeReleaseTimer = null
       delete backdrop?.dataset.active
@@ -173,7 +187,7 @@ export function createOverlayTask(
     dimHeldOff = false
     ensureCatcher(frame)
     setDim(frame, true)
-    if (openConfirmTimer !== null) window.clearTimeout(openConfirmTimer)
+    cancelOpenConfirm()
     openConfirmTimer = window.setTimeout(() => {
       openConfirmTimer = null
       sync()
@@ -197,17 +211,11 @@ export function createOverlayTask(
     if (frame === null) return
     const catcher = ensureCatcher(frame)
     if (drawerOpen()) {
-      if (openConfirmTimer !== null) {
-        window.clearTimeout(openConfirmTimer)
-        openConfirmTimer = null
-      }
+      cancelOpenConfirm()
       // A close commit may still be animating (marker not flipped yet): the
       // pre-fade owns the dim until that flip, so restoring here is a no-op.
       if (!dimHeldOff) {
-        if (activeReleaseTimer !== null) {
-          window.clearTimeout(activeReleaseTimer)
-          activeReleaseTimer = null
-        }
+        cancelActiveRelease()
         setDim(frame, true)
         catcher.dataset.active = ''
         catcher.style.pointerEvents = 'auto'
@@ -247,14 +255,8 @@ export function createOverlayTask(
     scopes: ['*', 'data-sidebar-collapsed', 'data-phase'],
     ensure: sync,
     dispose: () => {
-      if (openConfirmTimer !== null) {
-        window.clearTimeout(openConfirmTimer)
-        openConfirmTimer = null
-      }
-      if (activeReleaseTimer !== null) {
-        window.clearTimeout(activeReleaseTimer)
-        activeReleaseTimer = null
-      }
+      cancelOpenConfirm()
+      cancelActiveRelease()
       removeOpeningHook?.()
       removeOpeningHook = null
       fadeHook = null

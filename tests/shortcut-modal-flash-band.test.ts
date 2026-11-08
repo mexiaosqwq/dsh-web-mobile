@@ -51,7 +51,7 @@ test('modal-root raise lives in the mobile popover band at the 1400 value', () =
   )
 })
 
-test('modal-root raise is gated on OUR BACKDROP, not on the drawer marker', () => {
+test('modal-root raise is gated on the dim being active, not on the drawer marker', () => {
   const at = band.indexOf('> div:has(> [role="dialog"][aria-modal="true"])')
   assert.notEqual(at, -1, 'modal-root raise missing from the popover band')
   // The gate must belong to THIS rule: nothing may close a block between the
@@ -105,4 +105,11 @@ test('every non-gesture closer shares the one late-commit toggle', () => {
     /ctx\.layout\.toggleSidebar\(\)/,
     'session-menu must not toggle the drawer raw',
   )
+  // The backdrop tap (drawer-close.ts capture handler) is a closer too: it must
+  // go through the shared late-commit helper, never the raw host toggle.
+  const tapAt = DRAWER_CLOSE.indexOf("target.closest('[data-mobile-nav=\"backdrop\"]')")
+  assert.notEqual(tapAt, -1, 'backdrop tap path missing from drawer-close.ts')
+  const tap = DRAWER_CLOSE.slice(tapAt, tapAt + 600)
+  assert.match(tap, /if \(drawerOpen\(\)\) toggleSidebar\(\)/, 'backdrop tap must use the shared closer')
+  assert.doesNotMatch(tap, /ctx\.layout\.toggleSidebar\(\)/, 'backdrop tap must not bypass toggleDrawer')
 })

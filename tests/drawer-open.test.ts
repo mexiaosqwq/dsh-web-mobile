@@ -258,6 +258,20 @@ test('a mutation during a late close commit does not re-light the pre-faded dim'
   task.dispose()
 })
 
+test('the catcher is a role-less, aria-hidden hit target, inert while closed', async () => {
+  const { frame, task, backdrops } = await overlayHarness()
+  const catcher = backdrops()[0]
+  assert.ok(catcher !== undefined, 'the catcher exists while the drawer is closed')
+  assert.equal(catcher.getAttribute('aria-hidden'), 'true', 'stays out of the a11y tree')
+  assert.equal(catcher.getAttribute('role'), null, 'no interactive role on a full-screen surface')
+  assert.equal(catcher.getAttribute('aria-label'), null, 'no label that makes it read as a button')
+  assert.equal(catcher.style.props.get('pointer-events'), 'none', 'inert while closed')
+  frame.removeAttribute('data-sidebar-collapsed')
+  task.ensure()
+  assert.equal(catcher.style.props.get('pointer-events'), 'auto', 'the hit target arms with the dim')
+  task.dispose()
+})
+
 test('opening hook is a no-op while the drawer already reads open', async () => {
   const { frame, task, backdrops } = await overlayHarness()
   frame.removeAttribute('data-sidebar-collapsed')

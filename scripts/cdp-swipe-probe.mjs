@@ -312,8 +312,13 @@ async function waitDrawer(client, label, timeoutMs, signal, wantOpen) {
     if (wantOpen) {
       return state.dimActive === true && state.collapsed === false && state.drawerWidth > 0 ? state : null
     }
-    return state.collapsed === true && state.dimActive === false ? state : null
+    return isClosed(state) ? state : null
   })
+}
+
+/** One closed predicate: the marker flipped AND the dim/hit target released. */
+function isClosed(state) {
+  return state.collapsed === true && state.dimActive === false
 }
 
 /** Sample the drawer transform across N animation frames while animating. */
@@ -663,7 +668,7 @@ async function main() {
     await touchSwipe(client, 10, y0, 10, y1, 160, signal)
     await sleep(400, signal) // allow any (wrong) transition to settle
     const afterVertical = await drawerState(client)
-    check('swipe.vertical-no-trigger', afterVertical.collapsed === true && afterVertical.dimActive === false, `collapsed=${afterVertical.collapsed} dimActive=${afterVertical.dimActive}`)
+    check('swipe.vertical-no-trigger', isClosed(afterVertical), `collapsed=${afterVertical.collapsed} dimActive=${afterVertical.dimActive}`)
 
     // --- Checklist 1: edge swipe-in opens, transform stays host-only ---
     await touchSwipe(client, 8, 300, 200, 300, 140, signal) // rightward from left edge
@@ -729,7 +734,7 @@ async function main() {
     const afterBesideLeft = await drawerState(client)
     check(
       'swipe.close-leftward-beside-drawer',
-      besideLeft !== null && afterBesideLeft.collapsed === true && afterBesideLeft.dimActive === false,
+      besideLeft !== null && isClosed(afterBesideLeft),
       `startX=${besideX} collapsed=${afterBesideLeft.collapsed} dimActive=${afterBesideLeft.dimActive} (issue #268: while the drawer is open a leftward stroke closes it from anywhere)`,
     )
     // The rightward stroke beside the drawer still closes it — the open drawer
@@ -744,7 +749,7 @@ async function main() {
     const afterRightClose = await drawerState(client)
     check(
       'swipe.close-from-right-zone',
-      rightClosed !== null && afterRightClose.collapsed === true && afterRightClose.dimActive === false,
+      rightClosed !== null && isClosed(afterRightClose),
       `startX=${besideX} collapsed=${afterRightClose.collapsed} dimActive=${afterRightClose.dimActive} (a rightward stroke beside the drawer must close it, and its synthetic click must not re-open it)`,
     )
     // Back to open for the checklists that follow.
@@ -779,7 +784,7 @@ async function main() {
     const afterBandClose = await drawerState(client)
     check(
       'swipe.drawer-band-leftward-closes',
-      bandClosed !== null && afterBandClose.collapsed === true && afterBandClose.dimActive === false,
+      bandClosed !== null && isClosed(afterBandClose),
       `startX=${bandX} collapsed=${afterBandClose.collapsed} dimActive=${afterBandClose.dimActive} (touching the drawer and dragging left must close it, files-zone overlap or not)`,
     )
     // Back to open for the checklists that follow.
