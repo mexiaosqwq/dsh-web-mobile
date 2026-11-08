@@ -66,7 +66,21 @@ const SWALLOW_WINDOW_MS = 800
  */
 const CLICK_GRACE_MS = 1000
 
-const SWALLOWED_TYPES = ['mouseover', 'mouseout', 'mouseenter', 'mouseleave'] as const
+const SWALLOWED_TYPES = [
+  'mouseover',
+  'mouseout',
+  'mouseenter',
+  'mouseleave',
+  // 2026-11-08 (#281): the same hover timers moved to the POINTER channel —
+  // the lineage root and the menu container now carry onPointerLeave →
+  // scheduleHoverClose (120 ms). Swallowing only the mouse family leaves the
+  // tap's own pointerout/pointerleave untouched, and because the keyboard path
+  // never sets the component's pinnedRef, that timer closes the card we just
+  // opened (CDP: expanded is true right after pointerup, still true at 60 ms,
+  // false by 150 ms; blocking these two events keeps it open).
+  'pointerout',
+  'pointerleave',
+] as const
 
 export function installSubagentChipTouch(ctx: ClientContext): void {
   installMobileEffect(ctx, 'dsh-web-mobile: lineage chip touch toggle', () => {
