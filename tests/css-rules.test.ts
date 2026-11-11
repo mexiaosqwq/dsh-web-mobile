@@ -66,6 +66,17 @@ test('document preview code lines skip off-screen layout (2026-10-09 实测)', (
   )
 })
 
+test('the Statistics table keeps readable metric columns only on mobile (#294)', () => {
+  // 宿主最窄列占 5.5%，单元格左右各 8px，数值占 62px；只开 overflow 不能阻止挤列。
+  const mobile = /@media \(max-width: 1023px\) and \(pointer: coarse\) \{[^{}]*\[class\*="OiOZ0a_table"\] \{([^{}]*)\}\s*\}/.exec(COMPAT_CSS)
+  assert.ok(mobile !== null, '统计表宽度下限必须限定在触屏手机/平板媒体查询内')
+  const minWidth = Number(/min-width:\s*(\d+)px/.exec(mobile[1])?.[1])
+  assert.ok(minWidth * 0.055 - 16 >= 62, '最窄指标列必须容得下宿主的 62px 数值')
+  const rules = findRuleBlocks(BASE_CSS + LAYOUT_CSS + COMPAT_CSS + MISC_CSS)
+    .filter((block) => block.selector.includes('OiOZ0a_table'))
+  assert.equal(rules.length, 1, '统计表只允许这一条移动端规则，不向桌面泄漏')
+})
+
 test('the phone stats row keeps its tightened spacing (2026-10-07)', () => {
   // 宿主三层叠出来的空隙：root gap 12 + sep margin 6/6 + pill padding 8/8。
   // 手机档收成 6 / 2 / 6 —— 三条都必须带 stats 标记作用域，换代后只会惰性化。

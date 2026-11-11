@@ -4,7 +4,7 @@
 
 <!-- BEGIN:generated -->
 
-共 27 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
+共 28 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
 手改无效 —— 检查器会把不一致判为 fatal。
 
 | id | 位置 | 适配对象（for） | 到期条件（until） | 测试（test） |
@@ -31,6 +31,7 @@
 | `session-inspector-disclosure-size` | src/client/styles/compat.css.ts:1369 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（CSS 模块哈希前缀 GTtnTq） | 宿主把 GTtnTq_disclosure 提到 ≥24px，或换成可缩放图标并自带内边距 | `tests/css-rules.test.ts` |
 | `session-inspector-sticky-flicker` | src/client/styles/compat.css.ts:1405 | @deepseek-ai/dsh-experimental-session-inspector 0.2.1-rc.2（GTtnTq_table / GTtnTq_sticky） | 宿主把表格改成 border-collapse:separate，或不再用 sticky <tr> 表达祖先上下文 | `tests/css-rules.test.ts` |
 | `shell-grid-drawer-mask` | src/client/styles/layout.css.ts:141 | dsh-client-ui-layout 0.2.2-rc.1 的 AppFrame（三列显式 grid-area + 原生 drawerMask 作为首个子元素） | 宿主给移动壳提供独立的列轨道/标记，或不再在 frame 里插入首个子元素遮罩 | `tests/css-rules.test.ts` |
+| `statistics-table-mobile-width` | src/client/styles/compat.css.ts:1422 | @deepseek-ai/dsh-experimental-client-ui-stats 0.2.2-rc.1（OiOZ0a_table，11 列固定百分比） | 宿主统计表自带窄屏最小宽度或响应式列布局，届时删除本块 | `tests/css-rules.test.ts` |
 | `wallpaper-drawer-fill` | src/client/styles/layout.css.ts:281 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-specific-sidebar-fill 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-header-fill` | src/client/styles/layout.css.ts:1341 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-panel-fill` | src/client/styles/layout.css.ts:401 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent）+ 0.2.x 全屏右侧栏面板 | 上游给全屏面板提供不透明的填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
@@ -53,7 +54,7 @@
 | 模块 | `!important` | 哈希子串选择器 | `:has(` |
 | --- | --- | --- | --- |
 | `src/client/styles/layout.css.ts` | 507 | 596 | 301 |
-| `src/client/styles/compat.css.ts` | 387 | 112 | 23 |
+| `src/client/styles/compat.css.ts` | 387 | 113 | 23 |
 | `src/client/styles/misc.css.ts` | 99 | 56 | 34 |
 | `src/client/styles/base.css.ts` | 16 | 8 | 12 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
@@ -79,6 +80,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1018** | **859** | **374** |
+| **合计** | **1018** | **860** | **374** |
 
 <!-- END:inventory -->
