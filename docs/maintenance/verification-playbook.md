@@ -7,7 +7,7 @@
 
 ## 三道门与本地检查
 
-`pnpm verify`（typecheck）与 `pnpm test:core`（73 个测试文件，glob 覆盖 `tests/` 全部）。`test:core` 另含
+`pnpm verify`（typecheck）与 `pnpm test:core`（74 个测试文件，glob 覆盖 `tests/` 全部）。`test:core` 另含
 三道结构门：① `css-structure-check.mjs`（CSS 结构）与 ② `patch-registry-check.mjs`（兼容补丁四要素与登记表
 一致性，2026-10-13 接入）——两者都由 `tests/css-structure.test.ts` 驱动，且都带变异用例（缺字段、指向不存在的
 测试必须红）；③ `tests/probes-syntax.test.ts`（37 个 `scripts/**/*.mjs` 的语法，2026-11-08 接入）——自带
