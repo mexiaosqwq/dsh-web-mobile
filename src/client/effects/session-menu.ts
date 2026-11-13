@@ -424,6 +424,9 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
     const injectAll = (): void => {
       // Drop references to clones the host already unmounted with its menu.
       for (const clone of injected) if (!clone.isConnected) injected.delete(clone)
+      // 只有点过某一行的 ⋯ 菜单（anchor 非空）才可能有会话菜单存在，否则下面那次
+      // 全文档 querySelectorAll 必然是空转 —— 它是长会话渲染期间每帧的大头。
+      if (anchor === null && injected.size === 0) return
       const blankLabel = wsT('session.new')
       for (const menu of document.querySelectorAll<HTMLElement>('[role="menu"]')) {
         if (!isSessionMenu(menu)) continue
@@ -492,18 +495,11 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
 
     // Re-inject whenever a menu list mounts/updates (React recreates the list
     // on every open, so the injected node must follow).
-    const observer = new MutationObserver((records) => {
-      for (const record of records) {
-        if (record.type !== 'childList') continue
-        const target = record.target
-        if (target === document.body) { scheduleInject(); break }
-        if (target instanceof HTMLElement
-          && (target.matches('[role="menu"]') || target.closest('[role="menu"]') !== null)) {
-          scheduleInject()
-          break
-        }
-      }
-    })
+    // 每次 DOM 变更都会走到这里，而 `subtree` 观察的是整个 body：一次会话渲染会提交
+    // 上千条 childList record，逐条跑 matches()/closest() 是流式输出时的固定开销，
+    // 且在没有菜单打开时是纯浪费。改成交给已有的 rAF 调度器合并 —— injectAll() 在
+    // anchor 为空时早退，整条观察器的成本因此降到每帧最多一次查询。
+    const observer = new MutationObserver(() => { scheduleInject() })
     observer.observe(document.body, { childList: true, subtree: true })
 
     injectAll()
