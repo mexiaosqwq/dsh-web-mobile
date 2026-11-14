@@ -491,17 +491,17 @@ export function installSessionMenuDelete(ctx: ClientContext): void {
     document.addEventListener('click', onDocumentClick, true)
 
     // Re-inject whenever a menu list mounts/updates (React recreates the list
-    // on every open, so the injected node must follow).
+    // on every open, so the injected node must follow). 只认菜单相关记录：`anchor`
+    // 不能当「菜单已开」（点任意会话行就写它、留到 effect 卸载）；鸭子类型而不是
+    // instanceof Element —— 跨 realm（iframe / 测试桩）时 instanceof 会假阴性。
     const observer = new MutationObserver((records) => {
+      const probed = new WeakSet<Element>()
       for (const record of records) {
-        if (record.type !== 'childList') continue
-        const target = record.target
+        const target = record.target as Element
         if (target === document.body) { scheduleInject(); break }
-        if (target instanceof HTMLElement
-          && (target.matches('[role="menu"]') || target.closest('[role="menu"]') !== null)) {
-          scheduleInject()
-          break
-        }
+        if (typeof target.closest !== 'function' || probed.has(target)) continue
+        probed.add(target)
+        if (target.closest('[role="menu"]') !== null) { scheduleInject(); break }
       }
     })
     observer.observe(document.body, { childList: true, subtree: true })

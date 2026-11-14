@@ -292,6 +292,12 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   const byId: Record<string, { id: string }> = { 's-old': { id: 's-old' }, 's-new': { id: 's-new' } }
   let current = 's-old'
   let cleanup: (() => void) | undefined
+  let onMutate: ((records: { type: string; target: FakeNode }[]) => void) | null = null
+  let menuScans = 0
+  // rAF 必须排队：同步执行等于「永远只有第一帧有效」（injectRaf 拿到非 0 id 后
+  // 再也回不到 0），观察器那侧的行为就完全测不到。
+  const frames = new Map<number, () => void>()
+  let nextFrame = 0
 
   const make = (tag: string, attrs: Record<string, string> = {}, text = ''): FakeNode => {
     const node = new FakeNode(tag)
@@ -319,6 +325,8 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   viewport.appendChild(wrap)
   const menu = make('div', { role: 'menu' })
   menu.appendChild(viewport)
+  // 聊天流的容器：既不在菜单里、也不是 body —— 流式输出时记录的真实形态。
+  const chatFlow = make('div', { class: '_scrollBody_stream' })
 
   const labels: Record<string, string> = {
     rename: 'Rename', 'menu.fork': 'Fork', 'menu.archiveSession': 'Archive',
@@ -330,7 +338,11 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
     body: new FakeNode('body'),
     createElement: (tag: string) => new FakeNode(tag),
     querySelector: () => null,
-    querySelectorAll: (selector: string) => (selector === '[role="menu"]' ? [menu] : []),
+    querySelectorAll: (selector: string) => {
+      if (selector !== '[role="menu"]') return []
+      menuScans += 1
+      return [menu]
+    },
     addEventListener: (type: string, listener: Listener) => { documentListeners.set(type, listener) },
     removeEventListener: (type: string, listener: Listener) => {
       if (documentListeners.get(type) === listener) documentListeners.delete(type)
@@ -393,8 +405,9 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
   }
 
   class MutationObserverStub {
+    constructor(callback: (records: { type: string; target: FakeNode }[]) => void) { onMutate = callback }
     observe(): void {}
-    disconnect(): void {}
+    disconnect(): void { onMutate = null }
   }
 
   const module = { exports: {} as Record<string, unknown> }
@@ -418,8 +431,12 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
       log: () => {},
     },
     MutationObserver: MutationObserverStub,
-    requestAnimationFrame: (callback: () => void) => { callback(); return 1 },
-    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback: () => void) => {
+      nextFrame += 1
+      frames.set(nextFrame, callback)
+      return nextFrame
+    },
+    cancelAnimationFrame: (id: number) => { frames.delete(id) },
     fetch: fetchStub,
   })
   ;(module.exports.installSessionMenuDelete as (ctx: unknown) => void)(context)
@@ -431,6 +448,13 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
     return button
   }
 
+  /** 跑掉这一帧排队的 rAF 回调（真实浏览器里点击后的下一帧）。 */
+  const flushFrames = (): void => {
+    const pending = [...frames.values()]
+    frames.clear()
+    for (const callback of pending) callback()
+  }
+
   return {
     posts: () => [...posts],
     warns: () => warns,
@@ -440,8 +464,23 @@ function deleteFixture(options: DeleteFixtureOptions = {}) {
     setDrawerOpen: (value: boolean) => { drawer.open = value },
     /** 模拟宿主真的把会话移走了（响应被掐断的那一路要靠列表判定）。 */
     dropSession: (id: string) => { delete byId[id] },
-    /** 点行上的 ⋯（录制 anchor 的那条 capture 路径）。 */
-    openMenu: () => { documentListeners.get('click')?.({ target: row }) },
+    /** 点行上的 ⋯（录制 anchor 的那条 capture 路径）；点完推进一帧。 */
+    openMenu: () => {
+      documentListeners.get('click')?.({ target: row })
+      flushFrames()
+    },
+    /** 点进菜单里的一个节点（`role="menu"` 内部）——观察器的正向控制组用。 */
+    menuTarget: () => wrap,
+    /** `<body>` 本身被改（宿主 portal 挂载/卸载的形态）。 */
+    bodyTarget: () => documentStub.body,
+    /** 聊天流的容器：既不在菜单里、也不是 body（流式输出时的记录形态）。 */
+    chatTarget: () => chatFlow,
+    /** 投递一批 MutationObserver 记录（不自动推进帧，让用例自己控制合并时机）。 */
+    mutate: (records: { type: string; target: FakeNode }[]) => { onMutate?.(records) },
+    /** 推进一帧（合并窗口结束）。 */
+    frame: flushFrames,
+    /** `document.querySelectorAll('[role="menu"]')` 的累计次数——空转扫描的读数。 */
+    menuScans: () => menuScans,
     /** 点注入的「删除会话」项（会弹确认卡片）。 */
     tapDelete: () => { viewport.children[1].children[0].click() },
     /** 点确认——await 到处理函数真正跑完（含在途请求）。 */
@@ -557,4 +596,56 @@ test('网络未知但确实删掉了：按成功收尾，且不动切走后的�
   assert.deepEqual(fixture.drawerToggles(), [], '期间切走 → 不得收起新当前会话的抽屉')
   assert.equal(fixture.dialogOpen(), false, '列表证明已落地 → 必须按成功收尾，不报失败')
   fixture.dispose()
+})
+
+test('点过会话行但没有菜单：聊天持续更新时不得再跑菜单全文档扫描（行为）', () => {
+  // owner 复审的回归场景：`anchor` 在点过任意会话行后非空、一直留到 effect 卸载，
+  // 拿它当「菜单已开」会让每次聊天更新都扫一遍整份文档。这里连续 20 帧流式更新，
+  // 断言扫描次数增量为 0。
+  const fixture = deleteFixture()
+  fixture.openMenu()
+  const baseline = fixture.menuScans()
+
+  for (let round = 0; round < 20; round += 1) {
+    fixture.mutate([{ type: 'childList', target: fixture.chatTarget() }])
+    fixture.frame()
+  }
+
+  assert.equal(fixture.menuScans(), baseline, '没有菜单相关记录时一次都不许进 injectAll')
+  fixture.dispose()
+})
+
+test('菜单相关记录仍触发注入扫描：两批合并成一帧、一次扫描（行为）', () => {
+  const fixture = deleteFixture()
+  const baseline = fixture.menuScans()
+
+  // 宿主把菜单 portal 直接挂进 body 的形态：记录 target 就是 body 本身。
+  fixture.mutate([{ type: 'childList', target: fixture.bodyTarget() }])
+  // 同一个合并窗口里再来一批菜单内部记录（里面夹着聊天流记录，不该改变结论）。
+  fixture.mutate([
+    { type: 'childList', target: fixture.menuTarget() },
+    { type: 'childList', target: fixture.chatTarget() },
+  ])
+  fixture.frame()
+
+  assert.equal(fixture.menuScans() - baseline, 1, '两批记录合并成一帧、一次扫描')
+  fixture.dispose()
+})
+
+test('两条门控各自独立：菜单内部记录与 body 记录都要能单独唤醒注入（行为）', () => {
+  // 上面那条两批混投，任一分支坏了都会绿。这里各投一次，把两条门控分别钉住。
+  const menuOnly = deleteFixture()
+  const bodyOnly = deleteFixture()
+  const menuBaseline = menuOnly.menuScans()
+  const bodyBaseline = bodyOnly.menuScans()
+
+  menuOnly.mutate([{ type: 'childList', target: menuOnly.menuTarget() }])
+  menuOnly.frame()
+  bodyOnly.mutate([{ type: 'childList', target: bodyOnly.bodyTarget() }])
+  bodyOnly.frame()
+
+  assert.equal(menuOnly.menuScans() - menuBaseline, 1, '菜单内部记录必须排一次注入扫描')
+  assert.equal(bodyOnly.menuScans() - bodyBaseline, 1, 'body 记录必须排一次注入扫描')
+  menuOnly.dispose()
+  bodyOnly.dispose()
 })

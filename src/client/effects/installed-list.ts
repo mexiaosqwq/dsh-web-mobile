@@ -166,9 +166,18 @@ export function installInstalledListRows(ctx: ClientContext): void {
       // 空批次（或测试夹具不传参数）一律按「需要跑」处理 —— 只有**明确整批都在正文内**
       // 时才跳过排程。生产环境里 MutationObserver 必然带 records，这里只为稳妥。
       let relevant = records.length === 0
+      // React 流式输出时同一个容器会在一批里重复出现上千次，closest() 按元素缓存
+      // 到本批次（共享协调器 reconciler-adapter 已经这么做，这里跟上）。
+      const insideChatFlow = new Map<Element, boolean>()
       for (const record of records) {
         const target = record.target instanceof Element ? record.target : record.target.parentElement
-        if (target?.closest('[data-chat-flow]') == null) { relevant = true; break }
+        if (target == null) { relevant = true; break }
+        let inside = insideChatFlow.get(target)
+        if (inside === undefined) {
+          inside = target.closest('[data-chat-flow]') != null
+          insideChatFlow.set(target, inside)
+        }
+        if (!inside) { relevant = true; break }
       }
       if (relevant && mq.matches) scheduler.schedule(() => { if (mq.matches) apply() })
     })
