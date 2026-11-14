@@ -10,6 +10,12 @@
 //     的标记都清掉：共享 reconciler 只在 MOBILE_QUERY 武装，这条任务是平板上
 //     唯一的 suite 侧清理路径；少清一边，fullscreen overlay（fixed + inset:0 +
 //     z-index:56）与 `body { overflow: hidden }` 就留屏，页面滚动锁死。
+//  3. 评审 #6872117016 补第三条生命周期：suite 不写 inline visibility、直接把
+//     开着的列摘掉（卸载 / 换节点）时，close-sync 必须放掉标记 —— 平板的
+//     `body { overflow: hidden }` 只认 `<html>` 标记，列没了锁也留着。用闩
+//     （「见过挂载着的开列」）区分两种列缺席：「还没挂载」（tap 先于列挂载，
+//     标记必须活着）与「开着时被摘」（放掉标记）；列在场但已关会重置闩，
+//     上一轮会话的旧闩不许吃掉重开时新打的标记。
 //
 // 平板档的武装（tablet close-sync effect 与两条 tap 路径的 spoof）在 Node 里跑
 // 不动（installMobileEffect 需要 matchMedia），用源码断言钉住。
@@ -102,6 +108,9 @@ type Harness = {
   /** Every element the fixture created; restore() disconnects them so the
    * memoized frame cache in platform/frame.ts cannot leak across tests. */
   all: FakeElement[]
+  /** Toggle the column's presence in the document, simulating the suite
+   * unmounting / re-mounting the preview column mid-session. */
+  setColPresent: (present: boolean) => void
   restore: () => void
 }
 
@@ -115,8 +124,18 @@ function installHarness(
   const shellFrame = frame ? new FakeElement('div') : null
   if (shellFrame !== null) shellFrame.attrs['data-mobile-nav'] = 'frame'
   const colEl = new FakeElement('div')
+  const state = { colPresent: col }
   const all: FakeElement[] = frame ? [html, shellFrame!, colEl] : [html, colEl]
-  const harness: Harness = { frame: shellFrame, col: colEl, html, all, restore: () => {} }
+  const harness: Harness = {
+    frame: shellFrame,
+    col: colEl,
+    html,
+    all,
+    setColPresent: (present: boolean) => {
+      state.colPresent = present
+    },
+    restore: () => {},
+  }
   const previousDocument = (globalThis as { document?: unknown }).document
   const previousWindow = (globalThis as { window?: unknown }).window
   const g = globalThis as Record<string, unknown>
@@ -124,7 +143,7 @@ function installHarness(
     documentElement: html,
     querySelector: (selector: string) => {
       if (selector === '[data-mobile-nav="frame"]') return shellFrame
-      if (selector === '[data-aionui-preview-col]') return col ? colEl : null
+      if (selector === '[data-aionui-preview-col]') return state.colPresent ? colEl : null
       return null // findFrame()'s [data-shell-overlay] probe: tablet falls to null
     },
     createElement: (tagName: string) => {
@@ -239,12 +258,81 @@ test('close-sync clears the <html> markers with no frame at all (tablet)', () =>
   }
 })
 
-test('close-sync pays nothing when the preview column is absent', () => {
+// 「还没挂载」：全新任务没见过挂载着的开列，列缺席只是 tap 先于挂载的正常
+// 窗口——标记必须活着，否则一打标记就被冲掉（这也是任务只认 inline visibility、
+// 不认开标记的原因）。
+test('close-sync pays nothing while the column has never mounted (not mounted yet)', () => {
   const harness = installHarness({ frame: false, col: false })
   try {
     harness.html.attrs['data-mobile-preview-full'] = ''
     createPreviewCloseTask().ensure()
     assert.equal(harness.html.hasAttribute('data-mobile-preview-full'), true, 'no column: nothing to close, markers stay')
+  } finally {
+    harness.restore()
+  }
+})
+
+// 评审 #6872117016 的回归链（平板 fixture 同款）：开 fullscreen → suite 不写
+// inline visibility，直接把开着的列摘掉 → close-sync 必须放掉两个 <html> 标记
+// （body 的滚动锁只认标记，列没了锁也留着），fullscreen 的下一次 ensure 摘按钮。
+test('close-sync releases the markers when the suite unmounts an open fullscreen column', () => {
+  const harness = installHarness({ frame: false })
+  try {
+    harness.html.attrs['data-aionui-preview-open'] = ''
+    harness.html.attrs['data-mobile-preview-full'] = ''
+    const fullscreen = fullscreenTask()
+    const closeSync = createPreviewCloseTask()
+    fullscreen.ensure()
+    closeSync.ensure() // latches "open column seen"
+    assert.ok(buttonIn(harness.col) !== undefined)
+    // The suite takes the column away without any inline visibility write.
+    harness.setColPresent(false)
+    closeSync.ensure()
+    assert.equal(harness.html.hasAttribute('data-aionui-preview-open'), false, 'removed after opening: open marker must go')
+    assert.equal(harness.html.hasAttribute('data-mobile-preview-full'), false, 'removed after opening: fullscreen marker must go (the body lock keys on it)')
+    fullscreen.ensure()
+    assert.equal(buttonIn(harness.col), undefined, 'and the fullscreen task must take the button off')
+  } finally {
+    harness.restore()
+  }
+})
+
+// 放掉一次之后闩已被消耗：重新打标记而列仍未挂载（新一轮 tap）不许再被清。
+test('after a release, a fresh open marker with the column still absent survives', () => {
+  const harness = installHarness({ frame: false })
+  try {
+    harness.html.attrs['data-aionui-preview-open'] = ''
+    harness.html.attrs['data-mobile-preview-full'] = ''
+    const closeSync = createPreviewCloseTask()
+    closeSync.ensure() // latch
+    harness.setColPresent(false)
+    closeSync.ensure() // release; latch consumed
+    assert.equal(harness.html.hasAttribute('data-mobile-preview-full'), false)
+    // New tap: the marker leads the column again until the suite mounts it.
+    harness.html.setAttribute('data-aionui-preview-open', '')
+    closeSync.ensure()
+    assert.equal(harness.html.hasAttribute('data-aionui-preview-open'), true, 'not mounted yet: the fresh marker must survive')
+  } finally {
+    harness.restore()
+  }
+})
+
+// 列在场但已关会重置闩：收起（标记清掉、列还挂着）→ 重打标记 → 列被换掉的
+// 窗口里，旧闩不许把新标记当成「被摘」清掉。
+test('a closed column resets the latch, so a re-tap marker survives a column swap window', () => {
+  const harness = installHarness({ frame: false })
+  try {
+    harness.html.attrs['data-aionui-preview-open'] = ''
+    const closeSync = createPreviewCloseTask()
+    closeSync.ensure() // latch: present + open
+    // Collapse clears the markers; the column stays mounted and visible.
+    harness.html.removeAttribute('data-aionui-preview-open')
+    closeSync.ensure() // resets the latch
+    // Re-tap sets the marker again before the suite swaps the column out.
+    harness.html.attrs['data-aionui-preview-open'] = ''
+    harness.setColPresent(false)
+    closeSync.ensure()
+    assert.equal(harness.html.hasAttribute('data-aionui-preview-open'), true, 'a stale latch must not clear the fresh marker')
   } finally {
     harness.restore()
   }

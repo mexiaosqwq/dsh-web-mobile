@@ -230,6 +230,22 @@ export function installAionuiCompat(ctx: ClientContext): void {
 }
 
 export function createPreviewCloseTask(): ReconcilerTask {
+  // Latch: "an open column was seen". It tells the two absent-column
+  // lifecycles apart (review #6872117016): a tap sets the open marker before
+  // the suite has rendered the column ("not mounted yet" — absence must not
+  // undo the marker), while a column that was open and then vanished
+  // ("removed after opening") strands the markers — on tablet
+  // html[data-mobile-preview-full] body { overflow: hidden } keys on the
+  // marker alone, so the scroll lock would outlive the column. A present but
+  // closed column resets the latch, so a stale latch cannot eat a freshly
+  // set marker during a remove→re-add reopen.
+  let openColumnSeen = false
+  const clearMarkers = (): void => {
+    getFrame()?.removeAttribute('data-aionui-preview-open')
+    getFrame()?.removeAttribute('data-mobile-preview-full')
+    document.documentElement?.removeAttribute('data-aionui-preview-open')
+    document.documentElement?.removeAttribute('data-mobile-preview-full')
+  }
   return {
     name: 'preview-close-sync',
     // Only acts when the suite hides the col via inline style. Deliberately
@@ -240,13 +256,26 @@ export function createPreviewCloseTask(): ReconcilerTask {
     scopes: ['style'],
     ensure: () => {
       const pv = document.querySelector<HTMLElement>('[data-aionui-preview-col]')
-      if (pv === null) return
-      if (pv.style.visibility === 'hidden') {
-        getFrame()?.removeAttribute('data-aionui-preview-open')
-        getFrame()?.removeAttribute('data-mobile-preview-full')
-        document.documentElement?.removeAttribute('data-aionui-preview-open')
-        document.documentElement?.removeAttribute('data-mobile-preview-full')
+      if (pv === null) {
+        // Absent after a latched open session = the suite unmounted or
+        // replaced the column mid-session: release the markers (the overlay
+        // CSS and the body scroll lock key on them; the fullscreen task's
+        // next ensure takes the button off). Without the latch this is the
+        // tap→mount window: keep the markers.
+        if (openColumnSeen) {
+          clearMarkers()
+          openColumnSeen = false
+        }
+        return
       }
+      if (pv.style.visibility === 'hidden') {
+        clearMarkers()
+        openColumnSeen = false
+        return
+      }
+      openColumnSeen =
+        getFrame()?.hasAttribute('data-aionui-preview-open') === true
+        || document.documentElement.hasAttribute('data-aionui-preview-open')
     },
     dispose: () => {},
   }
