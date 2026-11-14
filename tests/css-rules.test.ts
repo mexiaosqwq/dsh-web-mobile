@@ -66,6 +66,17 @@ test('document preview code lines skip off-screen layout (2026-10-09 实测)', (
   )
 })
 
+test('the Statistics table keeps readable metric columns only on mobile (#294)', () => {
+  // 宿主最窄列占 5.5%，单元格左右各 8px，数值占 62px；只开 overflow 不能阻止挤列。
+  const mobile = /@media \(max-width: 1023px\) and \(pointer: coarse\) \{[^{}]*\[class\*="OiOZ0a_table"\] \{([^{}]*)\}\s*\}/.exec(COMPAT_CSS)
+  assert.ok(mobile !== null, '统计表宽度下限必须限定在触屏手机/平板媒体查询内')
+  const minWidth = Number(/min-width:\s*(\d+)px/.exec(mobile[1])?.[1])
+  assert.ok(minWidth * 0.055 - 16 >= 62, '最窄指标列必须容得下宿主的 62px 数值')
+  const rules = findRuleBlocks(BASE_CSS + LAYOUT_CSS + COMPAT_CSS + MISC_CSS)
+    .filter((block) => block.selector.includes('OiOZ0a_table'))
+  assert.equal(rules.length, 1, '统计表只允许这一条移动端规则，不向桌面泄漏')
+})
+
 test('the phone stats row keeps its tightened spacing (2026-10-07)', () => {
   // 宿主三层叠出来的空隙：root gap 12 + sep margin 6/6 + pill padding 8/8。
   // 手机档收成 6 / 2 / 6 —— 三条都必须带 stats 标记作用域，换代后只会惰性化。
@@ -191,15 +202,16 @@ test('the image lightbox backdrop takes the full phone viewport (2026-10-20)', (
   assert.ok(/^div/.test(selector), '灯箱覆盖规则必须靠 div 抬一级特异性压过 misc 的平板规则')
 })
 
-test('the plugin-manager page head keeps the host phone layout (2026-11-06)', () => {
-  // 页首容器与页首标题互为子串（_pageHead 命中 _pageHeading）。2026-10-20 的手机档
-  // 用 nowrap + heading flex:1 1 auto + toolbar flex:0 0 auto 三件套「一行内排」。
-  // 2026-11-06 店主判「太密」，撤销；撤销前复核确认这组规则在 0.2.2 上已失效——
-  // 页首被收进 div.pageBar（`> _pageHead` 命中 0）、`_pageHeading` 是 display:contents
-  // 不生成盒子，只剩 header 上的 nowrap 在把标题和说明压窄。现在页首交还宿主
-  // @container (width<600px) 排版（实测 390px：标题 286px 单行、说明单行），插件只保留
-  // h1 的 FAB 让位归零。
+test('the plugin-manager page head is left entirely to the host (2026-11-08 复原)', () => {
+  // 整块插件页适配 2026-11-08 全部删除（店主：「咱们直接把咱适配的规则可以删去了，也就是复原了」）。
+  // 三态实测（390px 真机视口，逐条禁用本插件样式表）证明宿主自己就解决了这些症状：
+  //   mainPanel 顶部内边距 我们 0px / 宿主 48px；pageBar 我们 static / 宿主 sticky；
+  //   h1 我们 [68,56] / 宿主 [20,76] —— 宿主的 48px 留白 + sticky 紧凑页首把 h1 推到
+  //   y=76，而 FAB 盒底边 50，两者本就不相交。
+  // 即这一整块（归零 48px、页首 padding-top 32、bar 改 static、h1 让位、crumb margin 归零）
+  // 是宿主还没有滚动方案时的补丁，现在是反向拉扯。本测试守住"不再加回来"。
   const blocks = findRuleBlocks(LAYOUT_CSS)
+  // 负断言一：插件页首不再被禁止换行 / 强制收缩（2026-11-06「太密」那次的落点）。
   const squeezed = blocks.filter((block) =>
     /section\[data-plugin-panel\][^{]*\[class\*="_page(Head|Heading)"\][^{]*\{[^}]*flex(-wrap)?:\s*(nowrap|1 1 auto)/.test(
       `${block.selector} {${block.body}}`,
@@ -210,17 +222,19 @@ test('the plugin-manager page head keeps the host phone layout (2026-11-06)', ()
     [],
     '不许再对插件页首做禁止换行 / 强制收缩（会把标题和说明压窄）',
   )
-  const toolbar = blocks.find(
-    (block) => block.selector === '[data-mobile-nav="frame"] section[data-plugin-panel] [class*="_toolbar"]',
+  // 负断言二：整块插件页几何干预（含 patch 登记里的 plugin-panel-head-left-align）不再存在。
+  // 一次筛完全部已删规则——归零全局面板内边距、页首改 static、页首 padding/背景、
+  // 页首与正文上移、详情头收缩、crumb 让位、h1 让位。
+  const panelGeometry = blocks.filter((block) =>
+    /\[data-global-panel\]|\[data-plugin-bar\]\[data-natural\]|section\[data-plugin-panel\] header\[data-window-drag\]|section\[data-plugin-panel\] \[class\*="_page(Head|Heading|Body)"\]|section\[data-plugin-panel\] .*\[class\*="_detail(Head|Main)"\]|section\[data-plugin-panel\] .*button\[class\*="_crumb"\]|\[class\*="_pageHeading"\] > h1/.test(
+      block.selector,
+    ),
   )
-  assert.equal(toolbar, undefined, '工具栏贴右规则随一行内排一并删除')
-  const title = blocks.find(
-    (block) =>
-      block.selector
-      === '[data-mobile-nav="frame"] section[data-plugin-panel] [class*="_pageHeading"] > h1',
+  assert.deepEqual(
+    panelGeometry.map((block) => block.selector),
+    [],
+    '插件页交还宿主排版：归零内边距 / 改 static / 标题让位 / crumb 让位一律不许加回来',
   )
-  assert.ok(title !== undefined, '页首 h1 归零规则在位')
-  assert.match(title.body, /margin-left:\s*0 !important/)
 })
 
 test('the hero worktree block takes its own row above the workspace chip (2026-11-07)', () => {
@@ -644,35 +658,13 @@ test('the phone composer card returns to the font-size axis (host coarse-pointer
 })
 
 
-// 真机 2026-11-05（插件页）：顶部一大截空白来自宿主的
-// .pI_x6G_mainPanel[data-global-panel]{padding-top:max(0px,calc(48px - clearance))}
-// ——给桌面标题栏让的位，Android 上 clearance=0 于是整段白占。直接归零该内边距
-// （清零 clearance 变量方向是反的：max(0,48-0) 更大）。
-test('the phone plugin panel drops the host title-bar padding and puts the title below the back key', () => {
-  const panel = findRuleBlocks(LAYOUT_CSS).find((b) =>
-    b.selector.includes('[data-mobile-nav="frame"] [data-global-panel]'))
-  assert.ok(panel !== undefined, '全局面板的内边距必须被归零')
-  assert.match(panel.body, /padding-top: 0 !important/)
-  const head = findRuleBlocks(LAYOUT_CSS).find((b) =>
-    b.selector.includes('section[data-plugin-panel] header[data-window-drag]'))
-  assert.ok(head !== undefined)
-  assert.match(head.body, /padding-top: 32px !important/)
-  assert.match(head.body, /padding-top: 32px !important/, '标题落在返回键下方')
-  assert.match(head.body, /margin-left: 0 !important/, '标题与正文左缘对齐')
-  assert.match(head.body, /background: var\(--dsw-alias-bg-layer-1, #fff\) !important/, '滚动时页首要有实底')
-  // 2026-11-06：原本这里钉 flex-wrap: nowrap（「一行内排」的落点）；该组规则已撤销，
-  // 页首交还宿主 @container (width<600px) 排版——本页不再禁止换行。
-  assert.doesNotMatch(head.body, /flex-wrap: nowrap/, '页首不许再禁止换行')
-})
-
-// 真机 2026-11-05：插件页页首原本 position:sticky，钉在顶上、正文从底下滑过，
-// 看起来像和悬浮返回键连成一条固定栏。手机档改成 static，随正文一起滚。
-test('the phone plugin page head scrolls with the content (not sticky)', () => {
-  const rule = findRuleBlocks(LAYOUT_CSS).find((b) =>
-    b.selector.includes('[data-plugin-bar][data-natural]'))
-  assert.ok(rule !== undefined, '必须覆盖宿主 data-natural 的 sticky')
-  assert.match(rule.body, /position: static !important/)
-})
+// 真机 2026-11-05 曾在这里钉三条规则（归零 [data-global-panel] 的 48px 顶部内边距 /
+// 页首 padding-top 32px + 实底 / 页首改 static 不 sticky）。2026-11-08 整块删除，
+// 三态实测证明宿主自己的方案就解决了「标题被悬浮返回键压住」：
+//   宿主保留的 48px 顶部留白 + sticky 紧凑页首把 h1 推到 y=76，FAB 盒底边 50，两者不相交。
+// 上面那条 test('the plugin-manager page head is left entirely to the host') 的
+// 负断言二已覆盖这三条选择器（[data-global-panel] / header[data-window-drag] /
+// [data-plugin-bar][data-natural]），此处不再重复钉。
 
 // 2026-11-06：局域网在浏览器打开时，宿主的 narrow 模式可能处于「侧栏展开」，
 // 而手机版几何是按「收起=抽屉」写的 → 侧栏以桌面形态压在主区上、右边只剩一条会话。

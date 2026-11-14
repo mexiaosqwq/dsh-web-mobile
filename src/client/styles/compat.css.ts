@@ -1418,4 +1418,19 @@ export const COMPAT_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   }
 }
 
+@media (max-width: 1023px) and (pointer: coarse) {
+  /* @patch
+     id: statistics-table-mobile-width
+     for: @deepseek-ai/dsh-experimental-client-ui-stats 0.2.2-rc.1（OiOZ0a_table，11 列固定百分比）
+     why: 表格 width:100% 把手机上的指标列压到数像素；宿主未提供宽度下限，现有滚动容器因此没有横向溢出
+     until: 宿主统计表自带窄屏最小宽度或响应式列布局，届时删除本块
+     test: tests/css-rules.test.ts
+  */
+  /* 最窄列 5.5% 须容纳数值 62px + 左右内边距 16px，表宽至少 1419px。
+     复用宿主 OiOZ0a_scroll 的滚动容器，不改列比例、吸顶表头或统计逻辑。 */
+  [class*="OiOZ0a_table"] {
+    min-width: 1440px;
+  }
+}
+
 `
