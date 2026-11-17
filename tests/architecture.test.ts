@@ -21,7 +21,16 @@ const DEBT = {
   // P2/P3 清：超过行数预算的非 CSS 模块（上限即快照：只许带理由在同一提交里
   // 上调，P2 拆分后必须大幅下降）
   bigFiles: {
-    'src/client/effects/sidebar-swipe.ts': 1517, // C01/C03 修复 +8；P1 搬运 import 拆行 +1（platform/breakpoints + platform/frame）
+    'src/client/effects/sidebar-swipe.ts': 1569, // C01/C03 修复 +8；P1 搬运 import 拆行 +1（platform/breakpoints + platform/frame）
+    // 2026-11-15 +52（1517 → 1569）：issue #297「滚动误触 + 关抽屉卡半空 + 手势开关」。
+    // 末 +6 = effects/gesture-toggle.ts 的 gesturesEnabled import 与 beginStroke
+    // 首行的开关 gate（关掉后 FAB / 顶栏 toggle 仍走点击路径，不受影响）。
+    // 加法侧 = openArmReady 纯函数 + OPEN_ARM_DOMINANCE（arm 前多一道横向支配
+    // 复查：锁轴只要求单帧 |dx|>|dy|，而 arm 立刻翻宿主态，滚动斜滑会弹出抽屉
+    // 再弹回）+ applyFollow 的 dy 形参与两处调用点 + clearStaleFollowStyles
+    // （新 pointer epoch 上兜底清残留 inline follow 对）+ endStroke 非 Element
+    // 目标的 settle 分支（原先裸 return，把关闭跟手冻在半路且 marker 仍 open）。
+    // 行为由 tests/sidebar-swipe.test.ts 的 openArmReady 决策表 + 两条源码锚钉住。
     // 2026-11-07 −76（1593 → 1517）：issue #268「全屏起手、方向定族」两半。
     // 加法侧 = closedStateStrokeMode（关态方向路由）+ openStateStartMode 收
     // (drawerOpen, panelOpen)（最上层那个面板拥有笔画）+ beginStroke 的

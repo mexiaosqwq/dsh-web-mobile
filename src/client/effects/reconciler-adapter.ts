@@ -14,6 +14,7 @@ import { createDrawerLayerTask } from './drawer-layer.ts'
 import { createFileViewerMarkerTask } from './file-viewer-compat.ts'
 import { createDrawerSessionLogTask } from './drawer-session-log.ts'
 import { createDrawerQuickSettingsTask } from './drawer-quick-settings.ts'
+import { createGestureToggleTask } from './gesture-toggle.ts'
 import { createImageLightboxZoomTask } from './image-lightbox-zoom.ts'
 import type { PanelExit } from './panel-exit.ts'
 import { toggleDrawer } from './drawer-close.ts'
@@ -133,6 +134,7 @@ export function registerReconcileTasks(ctx: ClientContext, panelExit: PanelExit)
     addReconcilerTask(createFileViewerMarkerTask()),
     addReconcilerTask(createDrawerSessionLogTask(ctx)),
     addReconcilerTask(createDrawerQuickSettingsTask(ctx)),
+    addReconcilerTask(createGestureToggleTask(t)),
     addReconcilerTask(createImageLightboxZoomTask()),
   ]
   return () => {
