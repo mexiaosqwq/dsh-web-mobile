@@ -1,4 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+/** May an OPEN stroke arm yet? `travelPx` is rightward-logical; `dy` is raw. */
+export declare function openArmReady(travelPx: number, dy: number): boolean;
 export interface SwipeThresholds {
     openDistanceRatio: number;
     closeDistanceRatio: number;

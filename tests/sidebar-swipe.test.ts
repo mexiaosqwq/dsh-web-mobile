@@ -13,6 +13,7 @@ import {
   selectionOwnsStroke,
   filesPanelOpen,
   findFloatingWidget,
+  openArmReady,
   type SwipeThresholds,
   type SwipeChainNode,
 } from '../src/client/effects/sidebar-swipe.ts'
@@ -641,6 +642,53 @@ test('closedStateStrokeMode: each family then refuses the direction it does not 
   // a stale marker cannot turn the same stroke into a toggle.
   assert.equal(classify(left), 'none')
   assert.equal(filesClassify(right), 'none')
+})
+
+test('openArmReady: an OPEN stroke arms only on horizontal-dominant travel (issue #297)', () => {
+  // Arming flips the host state on the spot, so a scroll flick whose first 8px
+  // happened to be horizontal-dominant popped the drawer out and then animated
+  // it back. Distance alone is not enough: the sample must still be at least
+  // 1.2x more horizontal than vertical.
+  assert.equal(openArmReady(7, 0), false, 'sub-arm travel never arms')
+  assert.equal(openArmReady(8, 0), true, 'a clean 8px rightward travel still arms at the lock')
+  assert.equal(openArmReady(60, 4), true, 'a real horizontal swipe is unaffected')
+  // A 45° diagonal at 8px passes tryLock (|dx| > |dy|) but must NOT arm.
+  assert.equal(openArmReady(8, 7), false, 'a diagonal scroll flick must not arm')
+  assert.equal(openArmReady(11, 10), false, '1.2x ratio: 11 < 10 * 1.2')
+  assert.equal(openArmReady(12, 10), true, '12 >= 10 * 1.2 — dominance reached (inclusive boundary)')
+  // Sign is not this predicate's business (classifySwipe owns direction): the
+  // caller passes rightward-logical travel, and a leftward stroke is refused
+  // by the arm threshold itself.
+  assert.equal(openArmReady(-40, 0), false, 'leftward travel never arms the open follow')
+})
+
+test('endStroke: a release with no element target still settles the inline follow pair', () => {
+  // issue #297 ②: the bare `return` here left a close-follow stroke frozen
+  // between its slots with the host marker still open — the dim and the
+  // full-screen hit layer stayed armed and the page read as unusable. Every
+  // exit must either hand the pair to the pending commit or release it.
+  const src = readFileSync(new URL('../src/client/effects/sidebar-swipe.ts', import.meta.url), 'utf8')
+  const body = src.slice(src.indexOf('function endStroke('), src.indexOf('function markStrokeConsumed('))
+  const guard = body.indexOf('if (!(event.target instanceof Element)) {')
+  assert.ok(guard > -1, 'the non-element release must be handled, not skipped')
+  const branch = body.slice(guard, body.indexOf('return', guard))
+  assert.match(branch, /verdict === 'close'\) commitFollowClose\(ctx\)/)
+  assert.match(branch, /else releaseFollowStyles\(\)/)
+  // `guard` matching the `{`-block form already fails if the branch regresses
+  // to a bare `return`; no separate (always-true) negative assertion needed.
+})
+
+test('a new pointer epoch heals a leaked follow pair (issue #297 ②)', () => {
+  // Belt for the class, not one path: a fresh pointerdown proves no stroke and
+  // no commit is live, so any inline pair still on the drawer is a leak. The
+  // heal must be guarded by both facts, or it would fight an in-flight stroke.
+  const src = readFileSync(new URL('../src/client/effects/sidebar-swipe.ts', import.meta.url), 'utf8')
+  const heal = src.slice(src.indexOf('function clearStaleFollowStyles('), src.indexOf('/** A close commit'))
+  assert.match(heal, /if \(tracking \|\| pendingCommit !== null\) return/)
+  assert.match(heal, /removeProperty\('transition'\)/)
+  assert.match(heal, /removeProperty\('transform'\)/)
+  const epoch = src.slice(src.indexOf('const onPointerDown = (event: PointerEvent): void => {'))
+  assert.match(epoch.slice(0, 900), /clearStaleFollowStyles\(\)/, 'the heal must run on every new pointer epoch')
 })
 
 test('the close commit only forces a reflow when a finger wrote the start position', () => {

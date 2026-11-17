@@ -333,6 +333,9 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   'drawer-session-log': ['*'],
   // 2026-10-20：抽屉一键设置齿轮（宿主 React 重建账户行后幂等重挂）。
   'drawer-quick-settings': ['*'],
+  // 2026-11-15：抽屉品牌行的手势开关（issue #297）。与上一行同型——宿主重建
+  // logo 行后幂等重挂，按钮状态由 ensure() 重新读一次偏好再发布，故只吃树键。
+  'gesture-toggle': ['*'],
   'stats-line': ['*', TEXT_MUTATION_SCOPE],
   'drawer-layer': ['*', 'data-sidebar-collapsed', 'data-phase'],
   'panel-back-exit': ['*'],

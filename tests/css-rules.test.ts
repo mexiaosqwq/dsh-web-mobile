@@ -434,7 +434,25 @@ test('plugin-owned controls reach a 44px touch target without changing their pai
   }
   const sessionLog = hitBox(BASE_CSS, '[data-mobile-nav="session-log"]')
   assert.ok(sessionLog !== undefined)
-  assert.match(sessionLog.body, /inset:\s*-8px -6px/)
+  // Asymmetric since #297: 6px toward the brand button, 4px toward the
+  // gesture-toggle sibling — the row's gap is 8px, so 4+4 tiles it instead of
+  // overlapping by 4px (whichever task appends later wins the overlap).
+  assert.match(sessionLog.body, /inset:\s*-8px -4px -8px -6px/)
+  const gestureToggle = hitBox(BASE_CSS, '[data-mobile-nav="gesture-toggle"]')
+  assert.ok(gestureToggle !== undefined, 'the #297 switch has no hit area')
+  assert.match(gestureToggle.body, /inset:\s*-8px -4px/, 'the sibling-facing side must stay 4px')
+  // Both icons sit in the same row: their facing expansions must fit the gap
+  // (logoRow's `gap: 8px`). `inset: T R B L` for session-log — its RIGHT value
+  // is the side facing the sibling; gesture-toggle uses the 2-value form, where
+  // left == right, so its second value covers its facing side too. 4 + 4 tiles
+  // the gap exactly.
+  const facingExpansion = (body: string, name: string): number => {
+    const match = /inset:\s*-8px -(\d+)px/.exec(body)
+    assert.ok(match !== null, `${name}: expected an inset whose horizontal expansion is readable`)
+    return Number(match[1])
+  }
+  const tiledGap = 8 - facingExpansion(sessionLog.body, 'session-log') - facingExpansion(gestureToggle.body, 'gesture-toggle')
+  assert.ok(tiledGap >= 0, `brand-row hit areas overlap the shared 8px gap by ${-tiledGap}px`)
   const quickSettings = hitBox(BASE_CSS, '[data-mobile-nav="quick-settings"]')
   assert.ok(quickSettings !== undefined)
   assert.match(quickSettings.body, /inset:\s*-7px/)

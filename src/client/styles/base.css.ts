@@ -79,12 +79,15 @@ export const BASE_CSS = `
   position: relative;
   -webkit-tap-highlight-color: transparent;
 }
-/* 44px 热区：品牌行右端，左侧是宿主品牌按钮（flex:1，占满整行），所以横向只外扩
-   6px（40 宽），纵向外扩 8px（44 高）；再宽就会从品牌按钮的右端抢走可点区域。 */
+/* 44 高的热区：纵向正好铺满行的内容盒（宿主 logoRow 60px 高、上下 padding 8px）。
+   横向不对称：左侧朝品牌按钮（flex:1，占满整行）外扩 6px，再宽会从它右端抢走可点
+   区域；右侧朝相邻的 gesture-toggle（#297）只外扩 4px —— 宿主行的 gap 就是 8px，
+   两边各吃一半正好拼接。外扩 6px 会让两个 ::after 在 gap 上互抢 4px，而后 append
+   的那个赢（2026-11-17 实测：本按钮右侧 6px 只剩约 1px 可点）。 */
 [data-mobile-nav="session-log"]::after {
   content: '';
   position: absolute;
-  inset: -8px -6px;
+  inset: -8px -4px -8px -6px;
 }
 @media (hover: hover) {
   [data-mobile-nav="session-log"]:hover:not(:disabled) {
@@ -101,6 +104,66 @@ export const BASE_CSS = `
    有反馈、关掉即撤掉，与宿主菜单触发器的既有形态一致（选中态而不是悬停态）。 */
 [data-mobile-nav="session-log"][aria-expanded="true"]:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+}
+
+/* Drawer brand-row swipe-gesture toggle (issue #297): sibling of the
+   session-log icon, injected by effects/gesture-toggle.ts. A standard
+   aria-pressed toggle; the OFF state paints a slash over the glyph so the
+   current mode is visible without reading the tooltip. */
+[data-mobile-nav="gesture-toggle-wrap"] {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+[data-mobile-nav="gesture-toggle"] {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-md, 8px);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, inherit);
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Same 44-high hit box as the neighbouring session-log icon, and 4px toward it
+   so the two tile the row's 8px gap instead of fighting over it (see the
+   session-log block above). The right side is clipped: this button is the row's
+   last child and the row is overflow:hidden, so the reachable area is narrower
+   than the box — deliberately, not by accident. */
+[data-mobile-nav="gesture-toggle"]::after {
+  content: '';
+  position: absolute;
+  inset: -8px -4px;
+}
+@media (hover: hover) {
+  [data-mobile-nav="gesture-toggle"]:hover {
+    background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+  }
+}
+[data-mobile-nav="gesture-toggle"]:active {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06));
+}
+/* ::after is taken by the hit box, so the slash lives on ::before. */
+[data-mobile-nav="gesture-toggle"][data-state="off"] > svg {
+  opacity: .45;
+}
+[data-mobile-nav="gesture-toggle"][data-state="off"]::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: rotate(-45deg);
+  pointer-events: none;
 }
 
 /* Drawer quick-settings icon (2026-10-20): the host merged the settings entry

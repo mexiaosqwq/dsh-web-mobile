@@ -18,6 +18,8 @@ export declare const zh: {
     readonly downloadMenu: "下载";
     readonly downloads: "下载记录";
     readonly quickSettings: "设置";
+    readonly gestureToggleOn: "侧滑手势：开";
+    readonly gestureToggleOff: "侧滑手势：关";
     readonly files: "文件浏览";
     readonly fileUpload: "添加文件";
     readonly fileUploadImage: "上传图片";

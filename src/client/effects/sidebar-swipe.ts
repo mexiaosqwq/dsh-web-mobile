@@ -4,6 +4,7 @@ import { installMobileEffect } from '../platform/breakpoints.ts'
 import { drawerOpening, releaseTextFocus } from '../platform/drawer-open.ts'
 import { markGestureConsumed, consumeIfGestured, markStrokeLocked, clearStrokeLocked } from './gesture-guard.ts'
 import { fadeDimOut } from './drawer-layer.ts'
+import { gesturesEnabled } from './gesture-toggle.ts'
 
 /**
  * Sidebar drawer swipe gestures (B 档 hybrid follow, per the 2026-08-29
@@ -92,12 +93,27 @@ const CONSUME_WINDOW_MS = 300
  * mount-and-unmount 389 nodes; small enough that the dead zone before the
  * drawer's edge appears is imperceptible.
  */
-/** The open follow arms at the AXIS LOCK itself: tryLock already demanded
- * 8px of horizontal-dominant travel, so no extra twitch margin is needed —
- * every pixel between lock and arm was dead drag (user report 2026-08-29
- * 「右滑的过程中最开始有真空期,有一段卡的地方」). The release verdict still
- * decides the outcome, so arming early cannot commit a false open. */
+/** The open follow arms once the stroke is horizontal-dominant enough: the
+ * axis lock alone only demanded 8px on ONE sample, so issue #297 adds the
+ * dominance gate below. Arming at the lock keeps no dead zone (user report
+ * 2026-08-29 「右滑的过程中最开始有真空期,有一段卡的地方」); the release
+ * verdict still decides the outcome, so arming early cannot commit an open. */
 const OPEN_FOLLOW_ARM_PX = 8
+/**
+ * Horizontal dominance the stroke must still show at ARM time (issue #297).
+ * The axis lock only demands `|dx| > |dy|` for the sample crossing LOCK_PX, and
+ * arming flips the host state immediately — so a scroll flick whose first 8px
+ * happened to be horizontal popped the drawer out mid-scroll. A genuine
+ * horizontal swipe keeps |dy| near zero and still arms at OPEN_FOLLOW_ARM_PX,
+ * so no dead zone returns; the verdict stays classifySwipe's.
+ */
+const OPEN_ARM_DOMINANCE = 1.2
+
+/** May an OPEN stroke arm yet? `travelPx` is rightward-logical; `dy` is raw. */
+export function openArmReady(travelPx: number, dy: number): boolean {
+  if (travelPx < OPEN_FOLLOW_ARM_PX) return false
+  return Math.abs(travelPx) >= Math.abs(dy) * OPEN_ARM_DOMINANCE
+}
 /**
  * The host's closed-slot offset as a PERCENTAGE of the drawer's own width
  * (`transform: translateX(-110%)` — the 10% overshoot hides the drawer's
@@ -819,14 +835,17 @@ function armOpenFollow(ctx: ClientContext): void {
  * assertion passed (2026-08-29) — assert COMPUTED transform, never
  * `element.style.transform`.
  */
-function applyFollow(ctx: ClientContext, dx: number): void {
+function applyFollow(ctx: ClientContext, dx: number, dy: number): void {
   if (!tracking || strokeMode !== 'drawer') return
   if (!lockDrawerOpen) {
     // OPEN direction: arm past the twitch threshold, then follow with the
     // percentage baseline (the element's width changes across the mount).
     const travel = strokeRtl ? -dx : dx
     if (!openFollowArmed) {
-      if (travel < OPEN_FOLLOW_ARM_PX) return
+      // Dominance, not just distance (issue #297): arming flips the host
+      // state on the spot, so a scroll flick whose first 8px happened to be
+      // horizontal-dominant popped the drawer out and then animated it back.
+      if (!openArmReady(travel, dy)) return
       armOpenFollow(ctx)
       if (!openFollowArmed) return
     }
@@ -876,6 +895,20 @@ function releaseFollowStyles(): void {
   followEngaged = false
   el.style.removeProperty('transition')
   el.style.removeProperty('transform')
+}
+
+/** Terminal-state heal (issue #297 ②). With no stroke and no commit live, an
+ * inline follow pair still on the drawer is a leak from an exit path that never
+ * released it — and a leaked pair freezes the column between its slots with the
+ * marker still open, so the dim and the full-screen hit layer stay armed (the
+ * reported 「卡在半空页面无法使用」). */
+function clearStaleFollowStyles(): void {
+  if (tracking || pendingCommit !== null) return
+  const el = followDrawer ?? findDrawer()
+  followDrawer = null
+  followEngaged = false
+  el?.style.removeProperty('transition')
+  el?.style.removeProperty('transform')
 }
 
 /** A close commit that is still animating to the closed slot before the host
@@ -1034,6 +1067,11 @@ function abortStroke(ctx: ClientContext | null, immediate = false): void {
 
 /** Start a stroke; returns true when it may be tracked. */
 function beginStroke(event: PointerEvent): boolean {
+  // The user-facing switch (effects/gesture-toggle.ts) is read on EVERY
+  // pointerdown, so turning gestures off takes effect without a reload.
+  // Clicking the FAB / header toggle still opens the drawer: those paths do
+  // not go through beginStroke (issue #297).
+  if (!gesturesEnabled()) return false
   if (onCooldown()) return false
   if (modalOpen()) return false
   if (takeoverActive()) return false
@@ -1281,7 +1319,17 @@ function endStroke(
     if (event.target instanceof Element) markStrokeConsumed(event.target)
     return
   }
-  if (!(event.target instanceof Element)) return
+  if (!(event.target instanceof Element)) {
+    // No element target (released over the document, or the element was torn
+    // out mid-stroke) — there is no tap to consume, but the inline follow pair
+    // must still be settled HERE. Returning bare left a close-follow stroke
+    // frozen between its slots with the host marker still open, so the dim and
+    // the full-screen hit layer stayed armed and the page read as unusable
+    // (issue #297 「关闭侧边栏时会卡在半空导致页面无法使用」).
+    if (verdict === 'close') commitFollowClose(ctx)
+    else releaseFollowStyles()
+    return
+  }
   if (verdict === 'close') {
     // Mark the stroke consumed so the tap's synthetic click cannot
     // double-toggle or navigate a row. The mark walks the ancestor chain up
@@ -1381,6 +1429,10 @@ export function installSidebarSwipe(ctx: ClientContext, filesToggle: () => boole
       // instead of eating it at the document-capture click handler.
       consumedEl = null
       clearStrokeLocked() // belt-and-suspenders: a lost stroke must not leak its lock into this epoch
+      // Heal a leaked follow pair from a previous stroke whose exit path never
+      // released it (issue #297 ②): a fresh pointer epoch proves nothing is
+      // live, so this can never race an in-flight stroke or commit.
+      clearStaleFollowStyles()
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
       // A second finger means the browser owns this interaction (pinch zoom),
       // and a two-finger drag is never a drawer swipe. Merely ignoring the
@@ -1417,11 +1469,11 @@ export function installSidebarSwipe(ctx: ClientContext, filesToggle: () => boole
         }
         if (tryLock(event, frameRtl())) {
           pushSample(event)
-          applyFollow(ctx, event.clientX - startX)
+          applyFollow(ctx, event.clientX - startX, event.clientY - startY)
         }
       } else {
         pushSample(event)
-        applyFollow(ctx, event.clientX - startX)
+        applyFollow(ctx, event.clientX - startX, event.clientY - startY)
       }
     }
 
