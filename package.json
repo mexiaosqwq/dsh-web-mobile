@@ -1,6 +1,6 @@
 {
   "name": "dsh-web-mobile",
-  "version": "3.3.5",
+  "version": "3.3.6",
   "description": "尽可能的使dsh适配竖屏等移动端设备",
   "icon": "assets/icon.png",
   "license": "MIT",
