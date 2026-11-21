@@ -35,7 +35,7 @@
 | `wallpaper-drawer-fill` | src/client/styles/layout.css.ts:281 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-specific-sidebar-fill 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-specific-sidebar-fill 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-header-fill` | src/client/styles/layout.css.ts:1341 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent） | 上游提供不透明的面板填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
 | `wallpaper-panel-fill` | src/client/styles/layout.css.ts:401 | deepseek-harness-background 0.6.x 的 body[data-dsh-bg]（壁纸启用时把 --dsw-alias-bg-base 置为 transparent）+ 0.2.x 全屏右侧栏面板 | 上游给全屏面板提供不透明的填充接缝，或不再把 --dsw-alias-bg-base 置空——届时本块删除 | `tests/wallpaper-surface-fill.test.ts` |
-| `wide-touch-session-shortcuts` | src/client/styles/misc.css.ts:439 | dsh-client-ui-workspace 的会话行 _rowActions 与归档 / 置顶快捷按钮 | 宿主自带触屏快捷按钮收起规则，或会话行提供独立的操作区布局契约，届时删本块 | `tests/dsha-session-interaction.test.ts` |
+| `wide-touch-session-shortcuts` | src/client/styles/misc.css.ts:440 | dsh-client-ui-workspace 的会话行 _rowActions 与归档 / 置顶快捷按钮 | 宿主自带触屏快捷按钮收起规则，或会话行提供独立的操作区布局契约，届时删本块 | `tests/dsha-session-interaction.test.ts` |
 | `zen-remote-header-yield` | src/client/styles/layout.css.ts:3108 | dsh-zen-remote 2.2.5 的手机档 header reflow（headerActions 里注入 [data-mobile-nav="header-back"]，titleRow 改成 92px/1fr/92px 三栏，titleCluster 靠 display:contents 变成直系 grid 项） | dsh-zen-remote 不再重排 header，或它改为不依赖 display:contents 的稳定槽位，届时删本块 | `tests/a2-header-gating.test.ts` |
 
 `why`（为何不能用正规写法）逐条写在源码的 @patch 块里 —— 它必须贴着代码，
@@ -64,6 +64,7 @@
 | `src/client/effects/stats-line.ts` | 1 | 9 | 0 |
 | `src/client/debug.ts` | 0 | 5 | 0 |
 | `src/client/effects/aionui-compat.ts` | 0 | 8 | 0 |
+| `src/client/effects/chat-jump.ts` | 0 | 1 | 0 |
 | `src/client/effects/composer-clearance.ts` | 0 | 3 | 1 |
 | `src/client/effects/composer-keyboard-lift.ts` | 0 | 2 | 0 |
 | `src/client/effects/composer-plus-toggle.ts` | 0 | 1 | 0 |
@@ -81,6 +82,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1045** | **867** | **374** |
+| **合计** | **1045** | **868** | **374** |
 
 <!-- END:inventory -->

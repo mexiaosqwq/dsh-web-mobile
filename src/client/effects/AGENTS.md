@@ -1,7 +1,7 @@
 # effects/ · 效果模块背景
 
 改动 `src/client/effects/` 下任意文件时本文件会自动进入上下文；改别的目录时它不出现。
-每个模块的背景与根因写在**该文件自己的文档块**里（39/41 有，位置在 imports 之后的导出上方），
+每个模块的背景与根因写在**该文件自己的文档块**里（40/42 有，位置在 imports 之后的导出上方），
 这里补的是跨模块共享的形状约束与源码里没写下的细节。
 
 ## 分层与依赖
@@ -90,6 +90,8 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   顶」，缺值回落宿主 `min(60vh,520px)`。同一 effect 在 focusin/视口变化时把回答框滚回卡片 body
   （只写 `body.scrollTop`；可见盒取 body 盒 ∩ 视觉视口，不用 `scrollIntoView`）。纯核 `core/question-fullscreen.ts`；横滑收敛
   与列宽在同节 CSS 的 `ask-question-card-phone` @patch 块。
+- `chat-jump.ts` — 会话侧边四键。以 `[data-conversation-scroll]` 为锚，按实际手动滚动显隐；用户行步进用
+  `core/chat-jump.ts`，历史用 `SessionFace.loadOlder()`，回尾走宿主的 `button[class*="_toBottom"]`。
 - `workspace-chip-toggle.ts` / `team-chip-toggle.ts` / `composer-plus-toggle.ts` — 三处
   「再点关闭」同型修补：宿主把菜单开成 `<Menu anchor={null} portal>`，触发器在 Menu 子树外，
   于是「外部 pointerdown 关闭」把自己的第二击也吃掉。
@@ -98,7 +100,7 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   `model-menu-anchor.ts` / `plugin-card-tap.ts` / `session-row-fiber.ts` /
   `subagent-chip-touch.ts` / `drawer-layer.ts`
   — 兼容与定位类，背景见各文件自己的文档块。
-- `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 39 个的
+- `installed-list.ts` / `preview-fullscreen.ts` — **本目录唯二没有文档块的文件**（其余 40 个的
   背景都在文件内 JSDoc 里）：前者是已安装列表的触摸/布局修补；后者是预览全屏切换按钮的
   reconciler 任务（`preview-fullscreen-toggle`）。
 - `composer-paste-guard.ts` — 手机档多行粘贴只剩首行（2026-10 报障）：输入法上屏后的

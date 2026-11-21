@@ -344,6 +344,9 @@ const EXPECTED_SCOPES: Record<string, string[]> = {
   // 2026-10-25：提问卡展开按钮（宿主重建卡头后幂等重挂）。几何只在视口事件上量，
   // 所以树键只负责注入这一件事，不需要 style/class 键。
   'question-fullscreen': ['*'],
+  // 2026-11-21：会话内四键（issue #299）。宿主的会话子树重建会换掉滚动区节点，
+  // 树键负责幂等重挂；按钮的可用状态只在滚动/落位时算，故不吃属性键。
+  'chat-jump': ['*'],
 }
 
 const sorted = (list: string[]): string[] => [...list].sort()

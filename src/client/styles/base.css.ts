@@ -657,6 +657,66 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
   outline-offset: 2px;
 }
 
+/* Conversation jump keys (#299). Anchor to the scrollport's positioned parent
+   so the buttons stay put as the transcript moves. Hidden keys are also inert
+   in the effect. Keep the expanded touch targets out of the right edge. */
+[data-mobile-nav="chat-jump"] {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transform: translateY(-50%) translateX(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s var(--ds-ease-in-out, ease-in-out), transform .18s var(--ds-ease-in-out, ease-in-out);
+}
+[data-mobile-nav="chat-jump"][data-mobile-nav-shown="1"] {
+  transform: translateY(-50%);
+  opacity: 1;
+  pointer-events: auto;
+}
+[data-mobile-nav="chat-jump"] > button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, .12));
+  border-radius: 50%;
+  background: var(--dsw-alias-button-floating-fill, #ffffff);
+  color: var(--dsw-alias-label-primary, inherit);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .16);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* 44px 热区：32×32 的键外扩 6px，与 fab 用同一手法。 */
+}
+[data-mobile-nav="chat-jump"] > button::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0 -6px -12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-mobile-nav="chat-jump"] { transition: none; }
+}
+[data-mobile-nav="chat-jump"] > button > svg {
+  width: 16px;
+  height: 16px;
+}
+/* 到头了的那颗键置灰：按下去没反应比看不到更糟。 */
+[data-mobile-nav="chat-jump"] > button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+[data-mobile-nav="chat-jump"] > button:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
+  outline-offset: 2px;
+}
+
 /* Drawer dim, painted by the frame's own pseudo-element.
    z 1250: 0.1.5 pins its native sidebarCol at z-index:1100 and paints mid
    layers up to that band; the dim must sit above the host stack (below the

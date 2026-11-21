@@ -16,6 +16,7 @@ import { installComposerKeyboardLift } from './effects/composer-keyboard-lift.ts
 import { installComposerClearance } from './effects/composer-clearance.ts'
 import { installDocumentScrollLock } from './effects/document-scroll-lock.ts'
 import { installQuestionFullscreen } from './effects/question-fullscreen.ts'
+import { installChatJump } from './effects/chat-jump.ts'
 import { installComposerPlusToggle } from './effects/composer-plus-toggle.ts'
 import { installWorkspaceChipToggle } from './effects/workspace-chip-toggle.ts'
 import { installTeamChipToggle } from './effects/team-chip-toggle.ts'
@@ -248,6 +249,11 @@ export function apply(ctx: ClientContext): void {
   // (the host's 60vh ceiling collapses with the keyboard), and the answer field
   // is scrolled back into the card body when it is covered.
   installQuestionFullscreen(ctx)
+  // Conversation jump keys (issue #299): four small arrows on the conversation
+  // edge that appear while the reader scrolls and retire when they stop. Steps
+  // through user prompts, fetches history for the first prompt, and returns to
+  // the live tail through the host's own control.
+  installChatJump(ctx)
   installComposerPlusToggle(ctx)
   // Hero workspace chip: the host's picker portaled its Menu with
   // `anchor={null}`, so its own outside-pointerdown close eats the trigger's

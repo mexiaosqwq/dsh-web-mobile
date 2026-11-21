@@ -383,7 +383,8 @@ export const MISC_CSS = `@media (max-width: 1023px) and (pointer: coarse) {
   [data-mobile-nav="quick-settings"],
   [data-mobile-nav="quick-settings-wrap"],
   [data-mobile-nav="preview-full-toggle"],
-  [data-mobile-nav="question-expand"] {
+  [data-mobile-nav="question-expand"],
+  [data-mobile-nav="chat-jump"] {
     display: none !important;
   }
 }

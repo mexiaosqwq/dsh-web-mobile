@@ -39,6 +39,11 @@ export const zh = {
   'deleteErrorNotFound': '会话不存在或已被删除。',
   'deleteErrorResolve': '无法确定要删除的会话，请重试。',
   'deleteErrorGeneric': '删除失败：{message}',
+  'chatJumpLabel': '会话内跳转',
+  'chatJumpTop': '跳到第一条提问',
+  'chatJumpPrev': '上一条提问',
+  'chatJumpNext': '下一条提问',
+  'chatJumpBottom': '回到最新回复',
 } as const
 
 /** English dictionary, key-identical to the Chinese source of truth. */
@@ -70,6 +75,11 @@ export const en: Record<MobileNavKey, string> = {
   'deleteErrorNotFound': 'The session does not exist or was already deleted.',
   'deleteErrorResolve': 'Could not identify the session to delete. Please try again.',
   'deleteErrorGeneric': 'Delete failed: {message}',
+  'chatJumpLabel': 'Jump within the conversation',
+  'chatJumpTop': 'First message',
+  'chatJumpPrev': 'Previous message',
+  'chatJumpNext': 'Next message',
+  'chatJumpBottom': 'Back to the latest reply',
 }
 
 /** Key domain of the {@link NS} namespace (zh is the source of truth). */

@@ -38,6 +38,11 @@ export declare const zh: {
     readonly deleteErrorNotFound: "会话不存在或已被删除。";
     readonly deleteErrorResolve: "无法确定要删除的会话，请重试。";
     readonly deleteErrorGeneric: "删除失败：{message}";
+    readonly chatJumpLabel: "会话内跳转";
+    readonly chatJumpTop: "跳到第一条提问";
+    readonly chatJumpPrev: "上一条提问";
+    readonly chatJumpNext: "下一条提问";
+    readonly chatJumpBottom: "回到最新回复";
 };
 /** English dictionary, key-identical to the Chinese source of truth. */
 export declare const en: Record<MobileNavKey, string>;
