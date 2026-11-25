@@ -83,6 +83,13 @@ test('landingScrollTop clamps at the top of the transcript', () => {
   assert.equal(landingScrollTop(0, 10, 40, 12), 0, 'a row above the band top must not scroll negative')
 })
 
+test('native tail parking is keyed on availability, not transient visibility', () => {
+  const css = read('src/client/styles/base.css.ts')
+  const parking = css.slice(css.indexOf('id: chat-jump-native-tail-parking'))
+  assert.match(parking, /\[data-mobile-nav="chat-jump"\]\[data-mobile-nav-available\][^\n]*button\[class\*="_toBottom"\][^}]*display: none !important/)
+  assert.doesNotMatch(parking.split('display: none !important', 1)[0] ?? '', /data-mobile-nav-shown/)
+})
+
 test('desktop CSS hides the cluster before the mobile effect disposes it', () => {
   const css = read('src/client/styles/misc.css.ts')
   const desktop = /@media \(min-width: 1024px\), \(pointer: fine\), \(pointer: none\) \{([\s\S]*?)\n\}/.exec(css)

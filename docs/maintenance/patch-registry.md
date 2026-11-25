@@ -4,12 +4,13 @@
 
 <!-- BEGIN:generated -->
 
-共 28 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
+共 29 条。此表由 `node scripts/patch-registry-check.mjs --write` 生成，
 手改无效 —— 检查器会把不一致判为 fatal。
 
 | id | 位置 | 适配对象（for） | 到期条件（until） | 测试（test） |
 | --- | --- | --- | --- | --- |
 | `ask-question-card-phone` | src/client/styles/layout.css.ts:2891 | dsh-client-ui-user-questions 的 QuestionComposer.module.css（哈希前缀 Mbwy4a_：_frame / _card / _body / _header / _headerActions / _title 等）与其宿主 composerSeat | 宿主把 Mbwy4a_body 的 overflow-x 钉成 hidden/clip 并给五族文本补换行、或卡片自带「展开」形态与键盘感知定高 —— 届时整节删除 | `tests/question-fullscreen.test.ts` |
+| `chat-jump-native-tail-parking` | src/client/styles/base.css.ts:734 | dsh-client-ui-chat 的独立回底圆钮 button[class*="_toBottom"] | 宿主提供可复用的回底入口或四键不再代理此动作。 | `tests/chat-jump.test.ts` |
 | `composer-seat-above-header` | src/client/styles/layout.css.ts:2048 | dsh-client-ui-conversation 0.2.1 的 composer 座位（[class*="_composerSeat"]，position:sticky; bottom:0）+ 本插件顶栏规则（header.wSkVaW_header 的 z-index:30 与不透明底） | 宿主把 composer 做成独立浮层（座位自带高于顶栏的层叠层）或提供座位/顶栏之间的层叠契约 —— 届时整块删除 | `tests/composer-clearance.test.ts` |
 | `drawer-own-dialog-not-a-modal` | src/client/platform/frame.ts:73 | dsh-client-ui-sidebar 0.2.2-rc.1 的 SidebarRoot（抽屉态、展开时在 _sidebarCol 内渲染 role=dialog + aria-modal=true + data-shortcut-modal=sidebar） | 宿主不再把抽屉渲染成 aria-modal 对话框，或给「外来模态」提供独立标记（届时可退回单次查询） | `tests/sidebar-swipe.test.ts` |
 | `drawer-quick-settings-chip-guard` | src/client/styles/base.css.ts:243 | dsh-client-ui-primitives 的 ConnectionIndicator（connecting/disconnected 渲染 button[data-phase]，recovered 渲染 div[role="status"]）与账户 launcher 同处 settingsArea 的 triggerRow | 宿主给该行提供独立的次要动作位，或连接条不再占用行宽——届时删本块 | `tests/drawer-quick-settings.test.ts` |
@@ -56,7 +57,7 @@
 | `src/client/styles/layout.css.ts` | 507 | 596 | 301 |
 | `src/client/styles/compat.css.ts` | 387 | 113 | 23 |
 | `src/client/styles/misc.css.ts` | 126 | 56 | 34 |
-| `src/client/styles/base.css.ts` | 16 | 8 | 12 |
+| `src/client/styles/base.css.ts` | 17 | 10 | 14 |
 | `src/client/effects/installed-list.ts` | 3 | 5 | 0 |
 | `src/client/effects/phone-chrome.ts` | 2 | 0 | 0 |
 | `src/client/effects/sidebar-swipe.ts` | 2 | 1 | 0 |
@@ -82,6 +83,6 @@
 | `src/client/effects/workspace-chip-toggle.ts` | 0 | 1 | 0 |
 | `src/client/platform/composer-anchor.ts` | 0 | 1 | 0 |
 | `src/client/platform/frame.ts` | 0 | 1 | 0 |
-| **合计** | **1045** | **868** | **374** |
+| **合计** | **1046** | **870** | **376** |
 
 <!-- END:inventory -->

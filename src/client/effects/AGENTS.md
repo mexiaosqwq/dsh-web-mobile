@@ -91,7 +91,10 @@ effect；`components/` 只用 `platform/` + `core/`。`tests/architecture.test.t
   （只写 `body.scrollTop`；可见盒取 body 盒 ∩ 视觉视口，不用 `scrollIntoView`）。纯核 `core/question-fullscreen.ts`；横滑收敛
   与列宽在同节 CSS 的 `ask-question-card-phone` @patch 块。
 - `chat-jump.ts` — 会话侧边四键。以 `[data-conversation-scroll]` 为锚，按实际手动滚动显隐；用户行步进用
-  `core/chat-jump.ts`，历史用 `SessionFace.loadOlder()`，回尾走宿主的 `button[class*="_toBottom"]`。
+  `core/chat-jump.ts`，历史用 `SessionFace.loadOlder()`，回尾走宿主的 `button[class*="_toBottom"]`（四键
+  可用时由 CSS 补丁 park 掉那颗原生圆钮）。历史一页的「请求完成 ≠ 树已 prepend」由配套的
+  `chat-jump-history.ts` 守住：等 MutationObserver 看到真的插入（或用 eventSource 证明首条提问已在树上）
+  才让调用方滚视口。
 - `workspace-chip-toggle.ts` / `team-chip-toggle.ts` / `composer-plus-toggle.ts` — 三处
   「再点关闭」同型修补：宿主把菜单开成 `<Menu anchor={null} portal>`，触发器在 Menu 子树外，
   于是「外部 pointerdown 关闭」把自己的第二击也吃掉。

@@ -657,25 +657,29 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
   outline-offset: 2px;
 }
 
-/* Conversation jump keys (#299). Anchor to the scrollport's positioned parent
-   so the buttons stay put as the transcript moves. Hidden keys are also inert
-   in the effect. Keep the expanded touch targets out of the right edge. */
+/* Conversation jump keys (#299): 30px faces hug the right side of 44px
+   hit boxes. Keep the reveal slide shorter than the right gutter. */
 [data-mobile-nav="chat-jump"] {
   position: absolute;
-  top: 50%;
-  right: 6px;
+  right: calc(3px + env(safe-area-inset-right, 0px));
   z-index: 21;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  transform: translateY(-50%) translateX(4px);
+  transform: translate(var(--mobile-nav-chat-jump-shift, 1px), -50%);
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .18s var(--ds-ease-in-out, ease-in-out), transform .18s var(--ds-ease-in-out, ease-in-out);
+  transition: opacity .24s var(--ds-ease-in-out, ease-in-out), transform .24s var(--ds-ease-in-out, ease-in-out);
 }
-[data-mobile-nav="chat-jump"][data-mobile-nav-shown="1"] {
-  transform: translateY(-50%);
+[data-mobile-nav="chat-jump"][data-mobile-nav-available] {
+  visibility: visible;
+}
+[data-mobile-nav="chat-jump"][data-mobile-nav-available][data-mobile-nav-shown="1"] {
+  --mobile-nav-chat-jump-shift: 0px;
   opacity: 1;
+  transition-duration: .18s;
+}
+[data-mobile-nav="chat-jump"][data-mobile-nav-available][data-mobile-nav-shown="1"] > button {
   pointer-events: auto;
 }
 [data-mobile-nav="chat-jump"] > button {
@@ -683,38 +687,60 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, .12));
-  border-radius: 50%;
-  background: var(--dsw-alias-button-floating-fill, #ffffff);
-  color: var(--dsw-alias-label-primary, inherit);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .16);
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 0 0 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, inherit);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  /* 44px 热区：32×32 的键外扩 6px，与 fab 用同一手法。 */
 }
-[data-mobile-nav="chat-jump"] > button::after {
+[data-mobile-nav="chat-jump"] > button::before {
   content: '';
   position: absolute;
-  inset: -6px 0 -6px -12px;
+  inset: 7px 0 7px 14px;
+  border: 1px solid var(--dsw-alias-border-l1, color-mix(in srgb, CanvasText 10%, transparent));
+  border-radius: var(--dsw-radius-sm, 8px);
+  background: var(--dsw-alias-button-floating-fill, color-mix(in srgb, CanvasText 5%, Canvas));
+}
+[data-mobile-nav="chat-jump"] > button:active:not(:disabled)::before {
+  background: var(--dsw-alias-button-floating-hover, ButtonFace);
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-mobile-nav="chat-jump"] { transition: none; }
+  [data-mobile-nav="chat-jump"] {
+    transform: translateY(-50%);
+    transition-property: none;
+  }
 }
 [data-mobile-nav="chat-jump"] > button > svg {
+  position: relative;
   width: 16px;
   height: 16px;
 }
 /* 到头了的那颗键置灰：按下去没反应比看不到更糟。 */
 [data-mobile-nav="chat-jump"] > button:disabled {
-  opacity: .35;
+  opacity: .38;
   cursor: default;
 }
 [data-mobile-nav="chat-jump"] > button:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #4f6ef7);
-  outline-offset: 2px;
+  outline-offset: -4px;
+}
+
+@media (max-width: 1023px) and (pointer: coarse) {
+  /* @patch
+     id: chat-jump-native-tail-parking
+     for: dsh-client-ui-chat 的独立回底圆钮 button[class*="_toBottom"]
+     why: 四键可用时合并回底入口；只隐藏，原来的节点与跟随动作仍归宿主。
+     until: 宿主提供可复用的回底入口或四键不再代理此动作。
+     test: tests/chat-jump.test.ts
+  */
+  [data-conversation-content]:has(> [data-mobile-nav="chat-jump"][data-mobile-nav-available]) > [data-conversation-scroll]:has([data-chat-flow]:not([hidden], [hidden] *)) button[class*="_toBottom"] {
+    display: none !important;
+  }
 }
 
 /* Drawer dim, painted by the frame's own pseudo-element.
