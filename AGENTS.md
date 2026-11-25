@@ -23,7 +23,7 @@
   │     ├─ components/       ← MobileNavToggle / ComposerFileButton / open-files-panel.ts / file-share-*（分享按钮·纯核·文案）
   │     ├─ core/             ← reconciler-core.ts（零 import）+ raf-scheduler.ts · css-rules.ts · sessions-compat.ts · layout-compat.ts · icon-compat.ts（图标跨代命名兼容）· attachment-mention-core.ts · prototype-focus-shadow.ts（键盘守卫共享 focus 影子）· plugin-card-tap-core.ts（卡片整卡可点判定）· image-zoom-core.ts（灯箱缩放数学）
   │     ├─ platform/         ← 跨效果共享浏览器基础设施（无特性语义；effects/components 只许依赖它）：frame.ts（getFrame/findFrame + 记忆化）· breakpoints.ts（MOBILE_QUERY/DESKTOP_QUERY/TOUCH_QUERY + installMobileEffect）· device.ts（detectIosWebKit）
-  │     ├─ effects/          ← 41 个效果模块（背景在各文件文档块；跨模块契约见同目录 AGENTS.md）
+  │     ├─ effects/          ← 43 个效果模块（背景在各文件文档块；跨模块契约见同目录 AGENTS.md）
   │     │     契约关键：reconciler-adapter（全树观察器）· viewport-meta · panel-exit · sidebar-swipe · gesture-guard · stats-line
   │     ├─ styles/           ← index.ts（base→layout→compat→misc 承载顺序）+ 4 个 .css.ts
   │     └─ i18n/locales.ts
@@ -37,8 +37,8 @@
   │  ├─ css-structure-check.mjs ← CSS 结构检测器（已接入 test:core）
   │  ├─ patch-registry-check.mjs ← 补丁登记门禁：@patch 四要素（for/why/until/test）+ 表↔码双向一致（已接入 test:core）
   │  ├─ lib/                 ← 探针共用模块（错误基线匹配、CDP 客户端、宿主场景、判定）
-  │  └─ probes/              ← 22 个回归锚点（builtin-only，可单跑）
-  ├─ tests/                  ← 75 个 .test.ts（node --test，type-stripping 直跑）
+  │  └─ probes/              ← 23 个回归锚点（builtin-only，可单跑）
+  ├─ tests/                  ← 76 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 10 篇权威设计文档（入库）
   │  ├─ maintenance/         ← pitfalls.md（73 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md · debt-backlog.md（刻意未动的技术债）← 入库
@@ -114,7 +114,7 @@ dsh web
 
 - Host/client split is load-bearing. 浏览器行为全在 `src/client/`——实现契约（slot 注册、reconciler 分层、样式、选择器与 DOM 标记、资源纪律、代码风格）见 **`src/client/AGENTS.md`**（披露层：改该目录文件时自动进入上下文）。宿主半区只做两件事：响应压缩、会话删除端点（纯核 `src/delete-session.ts`，按宿主代际适配）。
 - **依赖方向 `index.tsx → effects → platform → core`**，`tests/architecture.test.ts` 逐条强制（运行时环、层方向、`core/` DOM 纯净、行预算、模块级状态、entry inline 查询），台账只许缩不许涨——新增环或超行文件是红 CI。
-- **Effects（41 个模块）** — 逐模块背景写在各文件自己的文档块里；跨模块形状约束与源码装不下的细节见 **`src/client/effects/AGENTS.md`**。本文件只留三条跨模块契约：①分层不可破；②全树 `MutationObserver` 在 `reconciler-adapter.ts`（不是 `phone-chrome.ts`），任务注册面 `addReconcilerTask`；③形状禁令三则——`viewport-meta.ts` 的三个函数保持「返回 disposer 的普通函数」（改成各自 `installMobileEffect` 会让外层每次重武装多注册三个收不到的子 effect）、武装顺序 viewport meta → iOS 标记 → 稳定视口高度是行为、`panel-exit.ts` 退场先动画后提交。
+- **Effects（43 个模块）** — 逐模块背景写在各文件自己的文档块里；跨模块形状约束与源码装不下的细节见 **`src/client/effects/AGENTS.md`**。本文件只留三条跨模块契约：①分层不可破；②全树 `MutationObserver` 在 `reconciler-adapter.ts`（不是 `phone-chrome.ts`），任务注册面 `addReconcilerTask`；③形状禁令三则——`viewport-meta.ts` 的三个函数保持「返回 disposer 的普通函数」（改成各自 `installMobileEffect` 会让外层每次重武装多注册三个收不到的子 effect）、武装顺序 viewport meta → iOS 标记 → 稳定视口高度是行为、`panel-exit.ts` 退场先动画后提交。
 - Third-party compatibility is implemented through scoped DOM markers, stable `data-*` attributes, `MutationObserver`, and carefully scoped class/text anchors. Never modify third-party source packages.
 - Authoritative design docs: `docs/specs/2026-08-27-sidebar-swipe-gestures.md` (gesture parameters/state machine).
 
@@ -125,7 +125,7 @@ dsh web
 - **开场模糊指令先问再动（用户要求）**：新开会话收到「跟进一下 X」「继续」等未给目标的指令时，**一句话问用户要目标与范围**，禁止自行展开 recall + 多路探测的重建调查链。例外：用户明说「自己找/搜刮」时先搜不反问。
 - **动手前自行调用 karpathy-guidelines（用户要求）**：每次开始实际工作（写码/改码/排查/审查）前，先调用 `karpathy-guidelines` 加载完整准则再动手，先摸清再动手。
 - **写法必须对准上游与同族先例（用户要求）**：写码/选择器/测试/文档前，先看上游源码与仓库同族既有写法并沿用（同一锚点、同一命名、同一注释体例、同一报告体例）——用户原话「随便乱写的话下一次维护就很难了，所以必须要规范」。新规则要能指认同族先例；拿不准先问，别自创风格。
-- **Bug 定位先报告、确认后再修（用户要求）**：多步调查/根因不明/现象与成因相距远的 bug，定位到根因后**先给报告**（症状、根因、证据链、影响范围、拟议修复），等用户确认再执行。一眼即明的简单修复不在此列。
+- **Bug 修复确认边界**：已复现、修法明确且不超出已授权范围的低风险回归，直接修、验证后报告。仍有关键不确定性或需扩大范围时，先说明症状、证据和拟议改动，再等确认。
 - **用户协作偏好自动入库（用户要求）**：对话中提出的协作偏好/工作流要求，**当场写进本文件对应节**，不必等用户点名；入库后在回复里提一句写到了哪里。记忆只做跨会话备份，不能替代本文件。
 - **宿主升级必须用户单独确认（用户要求）**：默认只做源码/静态对账，**不动宿主**；alpha 通道一律不上机。真要升级先备份 `~/.dsh/sessions`，升级后按 runbook 电池验收。
 - **发版动作必须用户单独同意（用户要求）**：版本 bump + tag + npm publish + GitHub Release 属对外发布动作，走到发版步**停下来等用户点头**；发完**三处分别核实**（Release 页 / tag / npm `latest`）。
@@ -136,6 +136,7 @@ dsh web
 - **定稿类产物必须先过用户审核（用户要求）**：版本更新汇总、README「更新内容」段、Release notes、变更清单、验收报告等**定稿**交付，一律先出草稿等用户点头，**不得直接落盘**（写 README / 写 docs / 发 Release）；范围比「公开文案先审」更宽，覆盖对内定稿。用户原话「每次定稿的时候需要我进行审核」。
 - **CI/长任务不空等（用户要求）**：push/merge 后的 CI、探针、后台任务一律不 sleep 轮询——发起后用即时命令查一次状态（如 `gh run list -L 1`）就收口；禁止 `sleep N && …` 式长等待。
 - **改动必须落在源码层，不打补丁（用户要求）**：一切修复/功能都改 `src/`（配套 `tests/`），再由 `pnpm build` 生成 `lib/`；**禁止**手改 `lib/`、禁止运行时补丁/热补丁、禁止在源码里留 `TEMP`/`TODO-DIAG` 之类一次性 hack。真机诊断走既有通道（`?mobile-nav-debug=1` + beacon），**不得**为取证把插件改成「强制开诊断面板/强制上报」的变体版本。
+- **界面验收在真实 DSH**：获准更新后，在正在使用的 DSH 界面验收；隔离探针只作内部回归，不把模拟页交给用户试用。
 - **热装载前必须过四道自检**：①`src/client` 内 `error TS1xxx`（语法类）= 0（`.css.ts` 是模板字符串，注释里一律用「」不用反引号）；②`node scripts/client-bundle-smoke.mjs` 过（桩 `__ModuleLoader__` 加载 `lib/client.js` 并执行 entry factory）；③emit 日志里 `src/client` 内 **`error TS2304`/`TS2552`（未定义名）= 0**；④`node --test tests/client-inject-surface.test.ts`——`src/client` 里任何 `ctx.<service>` 读取都必须在 `export const inject` 名单内，跨 `inject` 取服务一律走 `ctx.get(name)`。**连续重载也要克制**：每次 hot-load 都会重载页面，别在用户正在使用或 App 在后台时连续触发。
 - **简单活派子代理、主会话只做设计与终审（用户要求）**：读宿主包/查选择器、整理候选 CSS、补测试与文档、跑门禁复跑这类可独立完成的活先派 `subagent`；主会话保留几何决策、真机读数、构建与热载、最终 diff 复核。任务书写全「文件、目标、验收命令」（一次性 `subagent` 不可寻址，事后无补救通道）。
 - **团队与审查流程**（审查路线与两层验收、审查规模与改动成正比、三岗分离 SOP、lead 终审铁律、成员完工落盘交接文档）见 **`docs/maintenance/collaboration-rules.md`**——拉起团队或做审查前先读它。
@@ -228,7 +229,7 @@ dsh web
 
 ## Testing & QA
 
-- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（75 个测试文件，另含 CSS 结构、补丁登记与探针语法三道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
+- 门禁：`pnpm verify`（typecheck）+ `pnpm test:core`（76 个测试文件，另含 CSS 结构、补丁登记与探针语法三道结构门，都带变异用例）+ `pnpm build`；CI 另跑 bundle smoke 与 lib 新鲜度门。没有 linter/formatter/coverage。
 - **验收场景（窄手机 ~390 / 平板 768–1023 / 桌面 ≥1024 与窄桌面窗口）+ 探针环境（Playwright MCP 配方、全新 context、Termux TMPDIR、真机读数通道）见 `docs/maintenance/verification-playbook.md`**；探针环境的坑 → `docs/maintenance/pitfalls.md` §探针运行环境。
 - 手机端调试加 `?mobile-nav-debug=1`；`pnpm smoke:cdp` 是定点冒烟探针，**不能替代**真实 profile 验收。
 - **认证 token 向用户索要（用户要求）**：需认证访问本机 dsh web 时**先向用户要 token**（重启输出的 `?token=…` URL 即可用），**不要自行跑 `.local-tests/mint-cookie.mjs` 铸 cookie**。

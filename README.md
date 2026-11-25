@@ -112,7 +112,7 @@ pnpm build
 
 欢迎大家的 issue 和 PR，我会尽可能地进行解决!
 
-工程约定见 [AGENTS.md](AGENTS.md)；回归探针 `scripts/probes/` 22 个锚点可单跑，兼作宿主升级绊线。
+工程约定见 [AGENTS.md](AGENTS.md)；回归探针 `scripts/probes/` 23 个锚点可单跑，兼作宿主升级绊线。
 
 ## License
 
