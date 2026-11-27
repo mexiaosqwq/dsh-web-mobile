@@ -199,6 +199,24 @@ async function main() {
       '2.corner-controls-centred', `files cy=${base.files[1] + base.files[3] / 2} toggle cy=${base.toggle[1] + base.toggle[3] / 2}`)
     record(base.hitIsFiles, '2.files-hit-testable', 'elementFromPoint at its centre returns the button')
     record(base.overlap === false, '2.no-utilities-overlap', base.utilities === null ? 'utilities seat absent' : `utilities x=${base.utilities[0]} w=${base.utilities[1]}`)
+    // 0.2.3-alpha.1 把 Session panel 的入口注册进 utilities 托盘，而本插件的手机档曾把整条托盘
+    // display:none（issue #304）：入口 0x0、摸不到，子代理 / 共享任务 / 后台任务在手机上没有任何
+    // 其它入口。座位本身才是这个 bug 的判据，所以在这里断言可达性，不只验样式表文本。
+    const panel = JSON.parse(await evaluate(`(() => {
+      const t = document.querySelector('[data-session-panel-toggle]')
+      if (t === null) return JSON.stringify({ present: false })
+      const r = t.getBoundingClientRect()
+      const at = document.elementFromPoint(Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2))
+      const after = getComputedStyle(t, '::after')
+      return JSON.stringify({
+        present: true, box: [Math.round(r.x), Math.round(r.width), Math.round(r.height)],
+        own: at === t || (at !== null && t.contains(at)), inset: after.inset, pos: after.position
+      })
+    })()`))
+    record(!panel.present || (panel.box[1] >= 28 && panel.box[2] >= 28 && panel.own), '2.panel-toggle-reachable',
+      panel.present ? `toggle ${panel.box[1]}x${panel.box[2]} @x=${panel.box[0]} own-hit=${panel.own}` : 'no session-panel entry on this host')
+    record(!panel.present || (panel.pos === 'absolute' && panel.inset === '-8px'), '2.panel-toggle-44px-hit-area',
+      panel.present ? `::after ${panel.pos} inset=${panel.inset}` : 'no session-panel entry on this host')
 
     // ---- 3. the frame's safe-area padding moves both corner controls together ----
     await evaluate(`(() => { document.querySelector('[data-mobile-nav="frame"]').style.setProperty('padding-top', '${INSET}px', 'important'); return true })()`)
