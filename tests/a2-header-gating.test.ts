@@ -102,9 +102,10 @@ test('every session-header selector carries the _headerLeading structural anchor
   // deleted. Count over the WHOLE sheet, not headerBlock(): header rules also
   // live in the dark-theme / wallpaper / keyboard sections (the #176 fill rule
   // among them), and a block-scoped count never saw them. This is the fixed
-  // ledger of anchored selector lines (76 as of 2026-11-08; the block itself
-  // holds 68 plus 4 deliberate unanchored floors). The old `>= 30` let 45 of
-  // them disappear in silence. Adding or removing one means updating this.
+  // ledger of anchored selector lines (83 as of 2026-11-27; the block itself
+  // holds 75, seven of them added by the Session-panel seat for issue #304).
+  // The old `>= 30` let 45 of them disappear in silence. Adding or removing
+  // one means updating this.
   const selectorLine = (line: string): boolean => {
     const t = line.trim()
     return !t.startsWith('/*') && !t.startsWith('*') && (t.endsWith('{') || t.endsWith(','))
@@ -113,7 +114,7 @@ test('every session-header selector carries the _headerLeading structural anchor
     .split('\n')
     .filter((line) => line.includes('header:has([class*="_headerLeading"])') && selectorLine(line))
     .length
-  assert.equal(anchors, 76, `expected the full anchored set (76 selector lines), found ${anchors}`)
+  assert.equal(anchors, 83, `expected the full anchored set (83 selector lines), found ${anchors}`)
 })
 
 test('no pre-0.2.2 header generation branch survives', () => {
@@ -485,4 +486,42 @@ test('phone title row hugs its content: cluster and actions floors are cleared o
   assert.ok(phoneDecl(rules, '[class*="_titleCluster"] > [class*="_headerActions"]', 'min-height: 0 !important'))
   assert.ok(sharedDecl(rules, '[class*="_titleCluster"]', 'min-height: 40px !important'))
   assert.ok(sharedDecl(rules, '[class*="_headerActions"]', 'min-height: 36px !important'))
+})
+
+// issue #304：0.2.3-alpha.1 把 Session panel 的入口注册进 conversation.session.header.utilities，
+// 而该槽在本插件的手机档是整条 display:none（当时只装会话日志导出）。入口在手机上因此 0×0、
+// 子代理 / 共享任务 / 后台任务完全没有其它入口。锚点三件事，缺一条入口就再次静默消失：
+// ①只有「含入口的托盘」被放行，其余条目与没有入口时仍是藏；②files 的座位预留在托盘在场时改记在
+// 托盘上、且标题簇同步归零（两处叠加会白吃一条标题道）；③手机档把 46 收到 34、与 files 的 30 配对。
+test('the session-panel toggle leaves the hidden utilities tray only when it is present (issue #304)', () => {
+  const source = layoutSource()
+  const anchor = '[data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"])'
+  const tray = `${anchor} [class*="_headerUtilities"]`
+
+  // ① 裸托盘仍然整条藏（0.2.2 / 没装 session-panel 的宿主），放行的是 :has 版本，特异性更高。
+  assert.ok(source.includes(`${tray} {\n    display: none !important;`), 'the bare utilities tray must stay hidden')
+  const shown = `${tray}:has([data-session-panel-toggle]) {\n    display: flex !important;`
+  assert.ok(source.includes(shown), 'the tray holding the panel toggle must come back into flow')
+
+  // ② 托盘吃下 files 的预留，标题簇归零后才轮到它（顺序即特异性相同之下的书写顺序）。
+  const trayRule = source.slice(source.indexOf(shown))
+  assert.ok(trayRule.slice(0, trayRule.indexOf('}')).includes('margin-right: 46px !important'), 'tray carries files reserve')
+  const clusterYield = `${anchor}:has([data-session-panel-toggle]) [class*="_titleCluster"] {\n    margin-right: 0 !important;`
+  assert.ok(source.includes(clusterYield), 'cluster reserve yields to the tray when it is present')
+
+  // ③ 手机档镜像：托盘 34 与 files 的 30 配对；托盘缺席时簇的 34 不变。
+  assert.ok(phoneDecl(scopedRules(source), '[class*="_headerUtilities"]:has([data-session-panel-toggle])', 'margin-right: 34px !important'))
+  assert.ok(phoneDecl(scopedRules(source), '[class*="_titleCluster"]', 'margin-right: 34px !important'))
+
+  // 托盘里只放行入口本体：⋯ 会话菜单（直接孩子）与其它槽条目都在藏。
+  // 直接孩子里只排除入口本身：万一某代宿主把入口挂在托盘下而不套槽容器，这条也不能吞了它。
+  assert.ok(source.includes(`${tray} > :not([data-slot]):not([data-session-panel-toggle]),`), 'the host ⋯ menu button stays hidden but never the toggle itself')
+  assert.ok(
+    source.includes(`${anchor} [data-slot="conversation.session.header.utilities"] > :not([data-session-panel-toggle])`),
+    'other utilities entries stay hidden, anchored by slot name so the toggle indicator survives',
+  )
+  // 44px 热区与插件自己的两角按钮同口径，且包含块钉在按钮自己身上：宿主 .trigger 的
+  // position:relative 一旦缺席，inset:-8px 会以 header 为包含块变成整条顶栏的吞点击遮罩。
+  assert.ok(source.includes(`${anchor} [data-session-panel-toggle] {\n    position: relative !important;`), 'toggle owns the hit area containing block')
+  assert.ok(source.includes(`${anchor} [data-session-panel-toggle]::after {\n    content: '' !important;`), 'toggle gets the 44px hit area')
 })

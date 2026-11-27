@@ -1515,10 +1515,55 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
   }
   /* 右侧两格在手机上都让给插件的 files 按钮：headerCorner 是「右侧栏展开」入口
      （手机上右侧栏就是 Files 面板，与 files 按钮重复，且 margin-right:-16px 会从按钮右侧漏一角），
-     headerUtilities 只装会话日志导出等（抽屉品牌行已有同一入口）。 */
+     headerUtilities 在 0.2.2 及更早只装会话日志导出（抽屉品牌行已有同一入口）⇒ 整条藏掉。
+     0.2.3-alpha.1 起宿主的 Session panel 入口也注册进这个槽（issue #304），那时由下面
+     header-session-panel-seat 那块按「含不含入口」另行放行。 */
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_titleRow"] > [class*="_headerCorner"],
   [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerUtilities"] {
     display: none !important;
+  }
+  /* @patch
+     id: header-session-panel-seat
+     for: dsh-client-ui-session-panel 的 SessionPanelToggle（conversation.session.header.utilities 槽里的 [data-session-panel-toggle]，0.2.3-alpha.1 起）
+     why: 该槽在本插件的手机档被上一条整条 display:none（当时只装会话日志导出等）；0.2.3-alpha 把 Session panel 入口加进同一个槽，整条藏＝子代理 / 共享任务 / 后台任务在手机上静默不可达（抽屉与行菜单都不覆盖这三类）。槽位树由宿主 React 拥有，本插件不能搬节点，只能靠 CSS 让这一个条目回到标题行里
+     until: 宿主给 Session panel 提供手机档的独立座位，或把 utilities 槽拆出单一动作位——届时删本块
+     test: tests/a2-header-gating.test.ts
+  */
+  /* 托盘回到流里，坐在标题簇与 files 之间（比上一条多一个 :has，特异性 (0,5,1) 压过它）。
+     右侧 46px 就是 files 的座位预留，从标题簇搬过来（下一条把它归零），两处不许叠加；
+     手机档同步收到 34px。左侧 8px 是 44px 热区的缝：热区向左扩 8px 正好吃掉它，不压标题簇尾格。 */
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerUtilities"]:has([data-session-panel-toggle]) {
+    display: flex !important;
+    margin-left: 8px !important;
+    margin-right: 46px !important;
+  }
+  /* 托盘里只放行 Session panel 入口。宿主 ⋯ 会话菜单是 headerUtilities 的直接孩子（没有 data-slot
+     包装），第三方工具条在孩子是槽容器；槽容器按槽名锚（不写裸 [data-slot]，否则会连入口内部
+     的 indicator 槽一起匹配、把小圆点也藏掉）。:has 兜住将来给条目再套一层的宿主。 */
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerUtilities"] > :not([data-slot]):not([data-session-panel-toggle]),
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-slot="conversation.session.header.utilities"] > :not([data-session-panel-toggle]):not(:has([data-session-panel-toggle])) {
+    display: none !important;
+  }
+  /* 44px 触控热区（2026-10-25 owner 指定）：宿主的 Session panel 入口只有 28×28，按本插件
+     toggle / files 的同口径外扩 8px（base.css 的 ::after 条）。两颗按钮本体相距 8px（390 实测
+     320..348 与 356..386），所以两个热区在中间那条缝上相叠 8px——files 带 z-index:2 在上，
+     相叠段归它，入口本体与右侧热区都拿得到。
+     position:relative 是热区的包含块，宿主 .trigger 自带同一行；这里复写是因为**一旦它缺席，
+     ::after 会以 position:relative 的 header 为包含块，inset:-8px 直接变成整条顶栏的透明遮罩**，
+     把标题、页签、两角按钮的点击全部吞掉——比没热区更糟，且症状看起来像「顶栏失灵」而不是本补丁。 */
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-session-panel-toggle] {
+    position: relative !important;
+  }
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [data-session-panel-toggle]::after {
+    content: '' !important;
+    position: absolute !important;
+    inset: -8px !important;
+  }
+  /* 尾巴预留改记在托盘上（pedigree 同 pitfalls「header 座位归属」：补偿挂在会被布局约束的那一侧），
+     托盘在场时标题簇的 46px 归零，两处不许叠加。托盘缺席＝0.2.2 及更早宿主、或没装 session-panel
+     包，簇维持原值。本条 (0,5,1) 压过簇共用档与手机档同形规则（手机档的对偶见该块）。 */
+  [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]):has([data-session-panel-toggle]) [class*="_titleCluster"] {
+    margin-right: 0 !important;
   }
   /* 两角按钮：toggle 左上、files 右上，同一个包含块（header），随 frame 的安全区一起移动。
      files 在流里到不了右上角（宿主给空 utilities 座位留了尾巴），绝对定位同时把它的流宽还给
@@ -1894,6 +1939,11 @@ export const LAYOUT_CSS = `/* ---------- mobile-only layout (narrow viewport AND
       width: 30px !important;
       height: 30px !important;
       flex: 0 0 30px !important;
+    }
+    /* Session panel 托盘的 files 预留跟着座位一起缩：46 → 34（与上面簇的 34/30 配对），
+       右缘 8 → 4 的位移由 files 自己的右缘吸收。托盘缺席时本表不生效（见共用档那块）。 */
+    [data-mobile-nav="frame"] [data-phase] header:has([class*="_headerLeading"]) [class*="_headerUtilities"]:has([data-session-panel-toggle]) {
+      margin-right: 34px !important;
     }
     /* 预设 chip 的不可见胶囊 + 长名字防护（2026-10-12 用户规格）。 */
     /* @patch
