@@ -29,11 +29,18 @@ function mountFixture(source) {
       <div data-phase="active">
         <header id="fixture-header" style="height:64px;position:relative;z-index:30;background:white">Header</header>
         <div data-conversation-content data-conversation-session="s1" data-conversation-region="chat" style="position:relative;height:600px">
+          <!-- The host routes this scrollport through the conversation.hero.frame hoc
+               slot, and brand-official's PixelWhale wraps it in a display:contents div.
+               That wrapper paints nothing but owns the parent slot, so the keys must
+               walk up to [data-conversation-content] instead of trusting parentElement
+               (issue #299: the whole control silently vanished on device). -->
+          <div class="q08b7a_layer" style="display:contents">
           <div data-conversation-scroll class="fixture_scrollBody" style="height:100%;overflow:auto;box-sizing:border-box">
             <div class="EvIC1a_frame"><div data-chat-flow style="padding-top:6px"></div>
               <div class="EvIC1a_toBottomSlot"><button class="EvIC1a_toBottom">Tail</button></div>
             </div>
             <div data-composer-seat style="position:sticky;bottom:0;height:150px;background:white"></div>
+          </div>
           </div>
         </div>
       </div>

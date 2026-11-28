@@ -35,7 +35,7 @@ const topOf = (element: HTMLElement): number => element.getBoundingClientRect().
 const bandTopOf = (element: HTMLElement): number => topOf(element) + (parseFloat(getComputedStyle(element).paddingTop) || 0)
 const maxScroll = (element: HTMLElement): number => Math.max(0, element.scrollHeight - element.clientHeight)
 const atTail = (element: HTMLElement): boolean => maxScroll(element) - element.scrollTop < 1
-const sessionIdOf = (element: HTMLElement): string | undefined => element.parentElement?.dataset.conversationSession
+const sessionIdOf = (element: HTMLElement): string | undefined => element.closest<HTMLElement>('[data-conversation-content]')?.dataset.conversationSession
 
 /**
  * #299: keep the four keys outside the scrollport, use host rows as stops,
@@ -331,7 +331,7 @@ export function installChatJump(ctx: ClientContext): void {
 
     const mount = (): void => {
       const element = document.querySelector<HTMLElement>(SCROLLER)
-      const host = element?.parentElement
+      const host = element?.closest<HTMLElement>('[data-conversation-content]') ?? null
       const id = host?.dataset.conversationSession
       const nextFlow = element?.querySelector<HTMLElement>(CHAT_FLOW) ?? null
       const nextSeat = element?.querySelector<HTMLElement>(SEAT) ?? null

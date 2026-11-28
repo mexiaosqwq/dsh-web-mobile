@@ -735,10 +735,16 @@ html[data-mobile-nav-quick-pending] [role="menu"] > [role="presentation"] > :fir
      id: chat-jump-native-tail-parking
      for: dsh-client-ui-chat 的独立回底圆钮 button[class*="_toBottom"]
      why: 四键可用时合并回底入口；只隐藏，原来的节点与跟随动作仍归宿主。
+       两处「后代」而非「子代」是刻意的：宿主把 scrollBody 经 conversation.hero.frame
+       这个 hoc 槽路由，brand-official 的 PixelWhale 又给它套了一层 display:contents
+       的 div，于是 scrollBody 既不是 content 的子代、四键也不可能成为 content 的兄弟。
+       写成子代组合器时这条补丁在真机上恒不命中，而四键挂载失败把症状掩盖了
+       （issue #299）。四键由本插件挂在 content 自己的直接子位，:has() 仍收在本会话
+       content 内，越界面只有「同一 content 里有没有四键」这一个条件。
      until: 宿主提供可复用的回底入口或四键不再代理此动作。
      test: tests/chat-jump.test.ts
   */
-  [data-conversation-content]:has(> [data-mobile-nav="chat-jump"][data-mobile-nav-available]) > [data-conversation-scroll]:has([data-chat-flow]:not([hidden], [hidden] *)) button[class*="_toBottom"] {
+  [data-conversation-content]:has([data-mobile-nav="chat-jump"][data-mobile-nav-available]) [data-conversation-scroll]:has([data-chat-flow]:not([hidden], [hidden] *)) button[class*="_toBottom"] {
     display: none !important;
   }
 }
