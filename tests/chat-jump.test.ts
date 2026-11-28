@@ -83,6 +83,26 @@ test('landingScrollTop clamps at the top of the transcript', () => {
   assert.equal(landingScrollTop(0, 10, 40, 12), 0, 'a row above the band top must not scroll negative')
 })
 
+test('the effect walks to the content box instead of trusting the parent slot', () => {
+  // 宿主把 scrollBody 经 conversation.hero.frame 这个 hoc 槽路由，brand-official 的
+  // PixelWhale 会给它套一层 display:contents 的 div——那层不画任何东西，却占着
+  // parentElement，于是 `parentElement.dataset.conversationSession` 读不到会话 id，
+  // mount() 在 `!id` 处静默 return，四键整块消失（issue #299 真机报障）。
+  const effect = read('src/client/effects/chat-jump.ts')
+  assert.match(effect, /closest<HTMLElement>\('\[data-conversation-content\]'\)\?\.dataset\.conversationSession/, 'the session id comes from the nearest content ancestor')
+  assert.doesNotMatch(effect, /parentElement\?\.dataset\.conversationSession/, 'a parent-slot read is the regression itself')
+})
+
+test('native tail parking matches through the slot wrapper', () => {
+  // 同一条槽包裹层让「子代组合器」恒不命中：scrollBody 不是 content 的子代。
+  // 这条补丁若退回 `> ` 形式，四键在真机上就与原生圆钮并存（症状被上一坑掩盖）。
+  const css = read('src/client/styles/base.css.ts')
+  const parking = css.slice(css.indexOf('id: chat-jump-native-tail-parking'))
+  const rule = parking.split('*/')[1] ?? ''
+  assert.doesNotMatch(rule, /:has\(> \[data-mobile-nav="chat-jump"\]/, 'availability must be matched as a descendant, not a child')
+  assert.doesNotMatch(rule, /> \[data-conversation-scroll\]/, 'the scrollport is not a child of the content box')
+})
+
 test('native tail parking is keyed on availability, not transient visibility', () => {
   const css = read('src/client/styles/base.css.ts')
   const parking = css.slice(css.indexOf('id: chat-jump-native-tail-parking'))

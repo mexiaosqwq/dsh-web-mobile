@@ -41,7 +41,7 @@
   ├─ tests/                  ← 76 个 .test.ts（node --test，type-stripping 直跑）
   ├─ docs/
   │  ├─ specs/               ← 10 篇权威设计文档（入库）
-  │  ├─ maintenance/         ← pitfalls.md（74 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md · debt-backlog.md（刻意未动的技术债）← 入库
+  │  ├─ maintenance/         ← pitfalls.md（75 坑原文）· verification-playbook.md（验收与探针流程）· collaboration-rules.md（团队与审查流程）· release-notes-spec.md · patch-registry.md · debt-backlog.md（刻意未动的技术债）← 入库
   │  ├─ upstream/            ← runbook + 2 篇 compat audit + compat-contracts.json + host-jank-feedback.md ← 入库
   │  └─ audits/ · handover/ · fork-wzxmt-zhc/ · debug/ · superpowers/ ← 本地不入库（只上传 maintenance 与 debug）
   ├─ .github/workflows/ci.yml ← verify → test:core → build → bundle smoke → git diff --exit-code lib
@@ -55,7 +55,7 @@
 
 - 排查设置/插件市场区布局与弹层 → `docs/debug/settings-market-debug-map.md`（DOM 层级/哈希归属/干预点索引/CDP SOP）
 - 排查 composer/输入区 → `docs/debug/composer-tree-recon.md`（composer 子树考古；QA 会话种子配方同源）
-- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（74 坑原文，名字=锚点，索引在下方 Pitfalls 节）
+- 动手改某块代码前 → `docs/maintenance/pitfalls.md`（75 坑原文，名字=锚点，索引在下方 Pitfalls 节）
 - 准备重构关闭/暗层链路、整理探针 → `docs/maintenance/debt-backlog.md`（刻意未动的 3 条债 + 各自「为什么不动」与验收线）
 - 改 `src/client/` 下代码前 → `src/client/AGENTS.md`（客户端半区契约）
 - 改 `src/client/effects/` 下代码前 → `src/client/effects/AGENTS.md`（跨模块形状约束 + 模块索引）
@@ -151,7 +151,7 @@ dsh web
 
 ## Pitfalls
 
-- **74 个坑的索引：名字 = 触发词 = 锚点**。原文在 `docs/maintenance/pitfalls.md`，锚点 `### <名字>`；新增坑位 = 名字进清单 + 原文进该档并补同名锚点。**动手前按名字读对应条目**。
+- **75 个坑的索引：名字 = 触发词 = 锚点**。原文在 `docs/maintenance/pitfalls.md`，锚点 `### <名字>`；新增坑位 = 名字进清单 + 原文进该档并补同名锚点。**动手前按名字读对应条目**。
 
 - `手势层`
 - `files 手势`
@@ -227,6 +227,7 @@ dsh web
 - `统计条被宿主拆条`
 - `横屏键盘 composer`
 - `提问卡全屏`
+- `hoc 槽包裹层`
 
 ## Testing & QA
 
